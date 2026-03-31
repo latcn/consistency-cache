@@ -1,5 +1,8 @@
 package com.consist.cache.core.hotspot.writes;
 
+import com.consist.cache.core.util.RandomUtil;
+import com.consist.cache.core.util.TimeHolder;
+import com.consist.cache.core.util.TimerTask;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +21,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
-    
+    // 1 minute
+    private static final int CLEANUP_INTERVAL_MS = 60000;
     private final int windowSeconds;
     private final int invalidationThreshold;
     private final Duration baseBlacklistTtl;
@@ -27,6 +31,7 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
     
     private final ConcurrentHashMap<Object, WriteHotSpotInfo> hotSpotInfo = new ConcurrentHashMap<>();
     private final LocalCacheBlacklist blacklist;
+    private volatile long lastCleanupTime = System.currentTimeMillis();
     
     /**
      * Create enhanced write hotspot detector.
@@ -42,7 +47,8 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
         this.backoffMultiplier = backoffMultiplier;
         this.maxBlacklistTime = Duration.ofMillis(maxBlacklistTime);
         this.blacklist = new LocalCacheBlacklist();
-        
+        // 定时扫描
+        TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
         log.info("Initialized EnhancedWriteHotspotDetector: window={}s, threshold={}, baseTtl={}, backoff={}",
                 windowSeconds, invalidationThreshold, baseBlacklistTtl, backoffMultiplier);
     }
@@ -50,8 +56,10 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
     /**
      * Record an L1 cache invalidation.
      * Automatically detects and handles write hotspots.
+     * Triggers cleanup periodically to prevent memory leak.
      * @param key cache key being invalidated
      */
+    @Override
     public <T> void recordInvalidation(T key) {
         WriteHotSpotInfo info = this.hotSpotInfo.computeIfAbsent(key, k -> new WriteHotSpotInfo());
         
@@ -120,6 +128,7 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
      * @param key cache key
      * @return true if in blacklist (write-hot)
      */
+    @Override
     public <T> boolean shouldBypassL1(T key) {
         return this.blacklist.isBlacklisted(key);
     }
@@ -136,15 +145,45 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
     
     /**
      * Cleanup old entries to prevent memory leak.
+     * Only performs cleanup if interval has elapsed.
      */
     public void cleanup() {
-        long now = System.currentTimeMillis();
-        long windowMillis = this.windowSeconds * 1000L;
+        try {
+            long now = System.currentTimeMillis();
 
-        this.hotSpotInfo.entrySet().removeIf(entry -> {
-            // Remove if no activity in last 2 windows
-            return now - entry.getValue().windowStartTime > windowMillis * 2;
-        });
+            // Only cleanup if interval has passed (reduces overhead)
+            if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
+                return;
+            }
+
+            long windowMillis = this.windowSeconds * 1000L;
+            int originalSize = this.hotSpotInfo.size();
+
+            synchronized (this) {
+                // Double-check after acquiring lock
+                if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
+                    return;
+                }
+
+                // Remove stale entries (no activity in last 2 windows)
+                this.hotSpotInfo.entrySet().removeIf(entry ->
+                    now - entry.getValue().windowStartTime > windowMillis * 2
+                );
+
+                lastCleanupTime = now;
+            }
+
+            // Calculate removed count for logging
+            int removedCount = originalSize - this.hotSpotInfo.size();
+
+            if (log.isDebugEnabled() && removedCount > 0) {
+                log.debug("Cleaned up {} stale write hotspot entries", removedCount);
+            }
+        } catch (Exception e) {
+            log.error("", e);
+        } finally {
+            TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
+        }
     }
     
     /**

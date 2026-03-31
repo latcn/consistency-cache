@@ -48,6 +48,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         return localCache;
     }
 
+    @Override
     public CacheValue get(CacheKey cacheKey) {
         checkCacheKey(cacheKey);
         CacheValue cacheValue = this.getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());
@@ -65,6 +66,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         return cacheValue;
     }
 
+    @Override
     public void put(CacheKey cacheKey, CacheValue cacheValue) {
         checkCacheKey(cacheKey);
         this.getOrCreateCache(cacheKey.getConsistencyLevel()).put(cacheKey.getKey(), cacheValue);
@@ -89,6 +91,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         }
     }
 
+    @Override
     public void remove(CacheKey cacheKey) {
         if (containKey(cacheKey)) {
             this.getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
@@ -101,6 +104,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         }
     }
 
+    @Override
     public boolean containKey(CacheKey cacheKey) {
         checkCacheKey(cacheKey);
         CacheValue cacheValue = this.getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());

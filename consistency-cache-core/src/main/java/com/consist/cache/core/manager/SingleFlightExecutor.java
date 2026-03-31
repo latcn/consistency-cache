@@ -13,31 +13,52 @@ public class SingleFlightExecutor {
     private final ConcurrentHashMap<Object, CompletableFuture<Object>>  inflightCalls = new ConcurrentHashMap<>();
 
     public <K,V> V execute(K key, Function<K, V> doSingleFlightFun) {
+        // Fast path: check existing future
         CompletableFuture<Object> future = this.inflightCalls.get(key);
-        if (future == null) {
-            CompletableFuture<Object> newFuture = new CompletableFuture<>();
-            future = this.inflightCalls.putIfAbsent(key, newFuture);
-            // old future is null
-            if (future==null) {
-                future = newFuture;
-                try {
-                    V result = doSingleFlightFun.apply(key);
-                    future.complete(result);
-                } catch (Exception e) {
-                    future.completeExceptionally(e);
-                    throw new RuntimeException(e);
-                } finally {
-                    this.inflightCalls.remove(key);
-                }
-            }
+        if (future != null) {
+            return waitForResult(future);
         }
+        
+        // Slow path: attempt to become leader
+        CompletableFuture<Object> newFuture = new CompletableFuture<>();
+        CompletableFuture<Object> existing = this.inflightCalls.putIfAbsent(key, newFuture);
+        
+        if (existing != null) {
+            return waitForResult(existing);
+        }
+        
+        // Leader execution
+        try {
+            V result = (V) doSingleFlightFun.apply(key);
+            newFuture.complete(result);
+            return result;
+        } catch (Throwable t) {
+            newFuture.completeExceptionally(t);
+            throw t;
+        } finally {
+            this.inflightCalls.remove(key);
+        }
+    }
+    
+    /**
+     * Wait for result from a future, handling interruptions and execution exceptions.
+     */
+    @SuppressWarnings("unchecked")
+    private <V> V waitForResult(CompletableFuture<Object> future) {
         try {
             return (V) future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new RuntimeException("SingleFlight interrupted while waiting for result", e);
         } catch (ExecutionException e) {
-            throw new RuntimeException(e);
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else if (cause instanceof Error) {
+                throw (Error) cause;
+            } else {
+                throw new RuntimeException("SingleFlight execution failed", cause);
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.consist.cache.core.executor;
 
+import com.consist.cache.core.circuitbreaker.CacheCircuitBreaker;
 import com.consist.cache.core.distributed.DistributedCacheManager;
 import com.consist.cache.core.exception.CacheError;
 import com.consist.cache.core.exception.CacheException;
@@ -11,13 +12,15 @@ import com.consist.cache.core.manager.*;
 import com.consist.cache.core.model.*;
 import com.consist.cache.core.pubsub.Broadcaster;
 import com.consist.cache.core.pubsub.InvalidationBroadcaster;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.function.Function;
 
 /**
- * DefaultCacheExecutor
+ * DefaultCacheExecutor with circuit breaker protection.
  */
+@Slf4j
 public class DefaultCacheExecutor implements CacheExecutor {
 
     private final LocalCacheManager localCacheManager;
@@ -27,6 +30,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
     private final SingleFlightExecutor fromDistributedCache;
     private final ReadQpsStatistics readStatistics;
     private final EnhancedWriteHotspotDetector writeHotspotDetector;
+    private final CacheCircuitBreaker circuitBreaker;
     private Broadcaster broadcaster;
 
     public DefaultCacheExecutor(LocalCacheManager localCacheManager,
@@ -34,6 +38,16 @@ public class DefaultCacheExecutor implements CacheExecutor {
                                 LocalCacheMarkerManager localCacheMarkerManager,
                                 EnhancedWriteHotspotDetector writeHotspotDetector,
                                 ReadQpsStatistics readStatistics) {
+        this(localCacheManager, distributedCacheManager, localCacheMarkerManager, 
+             writeHotspotDetector, readStatistics, new CacheCircuitBreaker());
+    }
+    
+    public DefaultCacheExecutor(LocalCacheManager localCacheManager,
+                                DistributedCacheManager distributedCacheManager,
+                                LocalCacheMarkerManager localCacheMarkerManager,
+                                EnhancedWriteHotspotDetector writeHotspotDetector,
+                                ReadQpsStatistics readStatistics,
+                                CacheCircuitBreaker circuitBreaker) {
         this.localCacheManager = localCacheManager;
         this.distributedCacheManager = distributedCacheManager;
         this.localCacheMarkerManager = localCacheMarkerManager;
@@ -41,6 +55,9 @@ public class DefaultCacheExecutor implements CacheExecutor {
         this.fromDistributedCache = new SingleFlightExecutor();
         this.writeHotspotDetector = writeHotspotDetector;
         this.readStatistics = readStatistics;
+        this.circuitBreaker = circuitBreaker;
+        
+        log.info("Initialized DefaultCacheExecutor with circuit breaker protection");
     }
 
     public void setBroadcaster(Broadcaster broadcaster) {
@@ -124,6 +141,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
     public CacheValue get(CacheKey cacheKey, Function doSingleFlightFun) {
         checkCacheKey(cacheKey);
         this.readStatistics.recordRead(cacheKey.getKey());
+            
         if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
             CacheValue cacheValue = this.localCacheManager.get(cacheKey);
             if (cacheValue == null) {
@@ -133,21 +151,21 @@ public class DefaultCacheExecutor implements CacheExecutor {
         }
         if (cacheKey.getCacheLevel() == CacheLevel.ADAPTIVE_CACHE) {
             CacheValue cacheValue = null;
-            // 写热key直接从L2获取
+            // 写热 key 直接从 L2 获取
             boolean isWriteHotKey = this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey());
             if (isWriteHotKey) {
                 cacheValue = this.localCacheManager.get(cacheKey);
             }
             if (cacheValue == null) {
-                cacheValue = this.fromDistributedCache.execute(cacheKey, (k)->this.distributedCacheManager.get(k));
+                cacheValue = getValueFromDistributedCache(cacheKey);
             }
-            // 布隆过滤器判断是否存在，统计是否热key
+            // 布隆过滤器判断是否存在，统计是否热 key
             if (cacheValue == null) {
                 // L2 from db
                 cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
                 // Enhance if hot key
                 if (!isWriteHotKey && this.readStatistics.isHotKey(cacheKey.getKey())) {
-                    // 向redis上报使用本地缓存的热key, 更新使用本地缓存的数量
+                    // 向 redis 上报使用本地缓存的热 key, 更新使用本地缓存的数量
                     this.localCacheMarkerManager.markLocalCacheUsage(cacheKey.getKey().toString(), cacheValue.getExpireTime());
                     this.localCacheManager.put(cacheKey, cacheValue);
                 }
@@ -155,13 +173,26 @@ public class DefaultCacheExecutor implements CacheExecutor {
             return cacheValue;
         }
         if (cacheKey.getCacheLevel() == CacheLevel.L2_CACHE) {
-            CacheValue cacheValue = this.fromDistributedCache.execute(cacheKey, (k)->this.distributedCacheManager.get(k));
+            CacheValue cacheValue = getValueFromDistributedCache(cacheKey);
             if (cacheValue==null) {
                 cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
             }
             return cacheValue;
         }
         return null;
+    }
+
+    private CacheValue getValueFromDistributedCache(CacheKey cacheKey) {
+        CacheValue cacheValue;
+        try {
+            cacheValue = circuitBreaker.execute(() ->
+                    this.fromDistributedCache.execute(cacheKey, (k)->this.distributedCacheManager.get(k))
+            );
+        } catch (CacheCircuitBreaker.CircuitBreakerOpenException e) {
+            log.warn("Circuit breaker OPEN, bypassing distributed cache for key: {}", cacheKey.getKey());
+            cacheValue = null;
+        }
+        return cacheValue;
     }
 
     private CacheValue loadFromDb(CacheManager cacheManager, CacheKey cacheKey, Function doSingleFlightFun) {

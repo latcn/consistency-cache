@@ -91,9 +91,16 @@ public class HccCacheInterceptor extends CacheInterceptor {
                 try {
                     return invocation.proceed();
                 } catch (Throwable e) {
+                    // Unwrap and rethrow original exception
+                    if (e instanceof RuntimeException) {
+                        throw (RuntimeException) e;
+                    }
                     throw new RuntimeException(e);
                 }
             }));
+        } catch (RuntimeException e) {
+            // Rethrow business exceptions directly
+            throw e;
         } catch (Exception e) {
             // 降级保护：缓存出错不影响业务
             log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);

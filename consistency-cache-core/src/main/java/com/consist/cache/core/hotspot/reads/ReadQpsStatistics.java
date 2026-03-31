@@ -1,7 +1,12 @@
 package com.consist.cache.core.hotspot.reads;
 
+import com.consist.cache.core.util.RandomUtil;
+import com.consist.cache.core.util.TimeHolder;
+import com.consist.cache.core.util.TimerTask;
+import com.consist.cache.core.util.TimerWheel;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -11,10 +16,14 @@ import java.util.concurrent.atomic.AtomicLongArray;
 @Slf4j
 public class ReadQpsStatistics implements ReadHotspotDetector {
     
+    private static final int CLEANUP_INTERVAL_MS = 60000; // 1 minute
+    private static final long COUNTER_TTL_MS = 300000; // 5 minutes
+
     private final ConcurrentHashMap<Object, SlidingWindowCounter> counters = new ConcurrentHashMap<>();
     private final double hotKeyThreshold; // QPS threshold
     private final int windowSizeMs;
     private final int bucketCount;
+    private volatile long lastCleanupTime = System.currentTimeMillis();
     
     /**
      * Create read QPS statistics tracker.
@@ -26,13 +35,15 @@ public class ReadQpsStatistics implements ReadHotspotDetector {
         this.hotKeyThreshold = hotKeyThreshold;
         this.windowSizeMs = windowSizeMs;
         this.bucketCount = bucketCount;
-        
-        log.info("Initialized ReadQpsStatistics with threshold={} QPS, window={}ms, buckets={}", 
+        log.info("Initialized ReadQpsStatistics with threshold={} QPS, window={}ms, buckets={}",
                 hotKeyThreshold, windowSizeMs, bucketCount);
+        // 定时扫描
+        TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
     }
     
     /**
      * Record a read operation for given key.
+     * Automatically triggers cleanup if interval exceeded.
      * @param key cache key
      */
     public <T> void recordRead(T key) {
@@ -73,13 +84,43 @@ public class ReadQpsStatistics implements ReadHotspotDetector {
     
     /**
      * Cleanup old entries to prevent memory leak.
+     * Automatically triggered during recordRead if interval exceeded.
      */
     public void cleanup() {
-        long now = System.currentTimeMillis();
-        this.counters.entrySet().removeIf(entry -> {
-            // Remove if no activity in last 5 minutes
-            return now - entry.getValue().lastAccessTime > 300000;
-        });
+        try {
+            long now = System.currentTimeMillis();
+
+            // Only cleanup if interval has passed (reduces overhead)
+            if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
+                return;
+            }
+
+            int originalSize = this.counters.size();
+            synchronized (this) {
+                // Double-check after acquiring lock
+                if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
+                    return;
+                }
+
+                // Remove stale entries
+                this.counters.entrySet().removeIf(entry ->
+                    now - entry.getValue().lastAccessTime > COUNTER_TTL_MS
+                );
+
+                lastCleanupTime = now;
+            }
+
+            // Calculate removed count for logging
+            int removedCount = originalSize - this.counters.size();
+
+            if (log.isDebugEnabled() && removedCount > 0) {
+                log.debug("Cleaned up {} stale hotspot counters", removedCount);
+            }
+        } catch (Exception e) {
+            log.error("ReadQpsStatistics", e);
+        } finally {
+            TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
+        }
     }
 
     public int getWindowSizeMs() {
