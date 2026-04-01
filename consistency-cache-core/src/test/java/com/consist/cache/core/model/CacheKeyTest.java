@@ -106,7 +106,7 @@ class CacheKeyTest {
         // Then
         assertTrue(str.contains("key=test"));
         assertTrue(str.contains("expireTimeMs=60000"));
-        assertTrue(str.contains("cacheLevel=L1"));
+        assertTrue(str.contains("cacheLevel=LOCAL_CACHE"));
         assertTrue(str.contains("consistencyLevel=HIGH"));
     }
 }

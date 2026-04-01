@@ -4,14 +4,13 @@ import com.consist.cache.core.circuitbreaker.CacheCircuitBreaker;
 import com.consist.cache.core.distributed.DistributedCacheManager;
 import com.consist.cache.core.exception.CacheError;
 import com.consist.cache.core.exception.CacheException;
-import com.consist.cache.core.hotspot.reads.ReadQpsStatistics;
-import com.consist.cache.core.hotspot.writes.EnhancedWriteHotspotDetector;
+import com.consist.cache.core.hotspot.reads.DefaultReadHotspotDetector;
+import com.consist.cache.core.hotspot.writes.DefaultWriteHotspotDetector;
 import com.consist.cache.core.local.LocalCacheManager;
 import com.consist.cache.core.local.LocalCacheMarkerManager;
 import com.consist.cache.core.manager.*;
 import com.consist.cache.core.model.*;
 import com.consist.cache.core.pubsub.Broadcaster;
-import com.consist.cache.core.pubsub.InvalidationBroadcaster;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -28,25 +27,16 @@ public class DefaultCacheExecutor implements CacheExecutor {
     private final LocalCacheMarkerManager localCacheMarkerManager;
     private final SingleFlightExecutor fromDb;
     private final SingleFlightExecutor fromDistributedCache;
-    private final ReadQpsStatistics readStatistics;
-    private final EnhancedWriteHotspotDetector writeHotspotDetector;
+    private final DefaultReadHotspotDetector readStatistics;
+    private final DefaultWriteHotspotDetector writeHotspotDetector;
     private final CacheCircuitBreaker circuitBreaker;
     private Broadcaster broadcaster;
-
-    public DefaultCacheExecutor(LocalCacheManager localCacheManager,
-                                DistributedCacheManager distributedCacheManager,
-                                LocalCacheMarkerManager localCacheMarkerManager,
-                                EnhancedWriteHotspotDetector writeHotspotDetector,
-                                ReadQpsStatistics readStatistics) {
-        this(localCacheManager, distributedCacheManager, localCacheMarkerManager, 
-             writeHotspotDetector, readStatistics, new CacheCircuitBreaker());
-    }
     
     public DefaultCacheExecutor(LocalCacheManager localCacheManager,
                                 DistributedCacheManager distributedCacheManager,
                                 LocalCacheMarkerManager localCacheMarkerManager,
-                                EnhancedWriteHotspotDetector writeHotspotDetector,
-                                ReadQpsStatistics readStatistics,
+                                DefaultWriteHotspotDetector writeHotspotDetector,
+                                DefaultReadHotspotDetector readStatistics,
                                 CacheCircuitBreaker circuitBreaker) {
         this.localCacheManager = localCacheManager;
         this.distributedCacheManager = distributedCacheManager;
@@ -141,7 +131,10 @@ public class DefaultCacheExecutor implements CacheExecutor {
     public CacheValue get(CacheKey cacheKey, Function doSingleFlightFun) {
         checkCacheKey(cacheKey);
         this.readStatistics.recordRead(cacheKey.getKey());
-            
+        // 布隆过滤器校验
+        if (!existsInBloomFilter(cacheKey)) {
+            return null;
+        }
         if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
             CacheValue cacheValue = this.localCacheManager.get(cacheKey);
             if (cacheValue == null) {
@@ -199,7 +192,12 @@ public class DefaultCacheExecutor implements CacheExecutor {
         CacheValue value = this.fromDb.execute(cacheKey,
                 (k)->{
                      Object result = doSingleFlightFun.apply(k.getKey());
-                     CacheValue cacheValue = CacheValue.builder()
+                    if (result==null) {
+                        if (!k.isCacheNullValues()) {
+                            return null;
+                        }
+                    }
+                    CacheValue cacheValue = CacheValue.builder()
                              .value(result)
                              //.expireTime(System.currentTimeMillis()+cacheKey.getExpireTimeMs())
                              .createdAt(System.currentTimeMillis())
@@ -211,6 +209,19 @@ public class DefaultCacheExecutor implements CacheExecutor {
                      return cacheValue;
                 });
         return value;
+    }
+
+    /**
+     * 布隆过滤器
+     * existsInDb
+     * @param cacheKey
+     * @return
+     */
+    private boolean existsInBloomFilter(CacheKey cacheKey)  {
+        if (cacheKey.isBloomFilterEnabled()) {
+            // todo
+        }
+        return true;
     }
 
     private void checkCacheKey(CacheKey cacheKey) {

@@ -1,5 +1,8 @@
 package com.consist.cache.core.manager;
 
+import com.consist.cache.core.util.TimeHolder;
+import com.consist.cache.core.util.TimerTask;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -29,7 +32,7 @@ public class SingleFlightExecutor {
         
         // Leader execution
         try {
-            V result = (V) doSingleFlightFun.apply(key);
+            V result = doSingleFlightFun.apply(key);
             newFuture.complete(result);
             return result;
         } catch (Throwable t) {

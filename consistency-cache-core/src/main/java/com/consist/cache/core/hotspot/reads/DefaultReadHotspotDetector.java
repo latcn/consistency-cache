@@ -3,10 +3,8 @@ package com.consist.cache.core.hotspot.reads;
 import com.consist.cache.core.util.RandomUtil;
 import com.consist.cache.core.util.TimeHolder;
 import com.consist.cache.core.util.TimerTask;
-import com.consist.cache.core.util.TimerWheel;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -14,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * Sliding window QPS statistics for read hotspot detection.
  */
 @Slf4j
-public class ReadQpsStatistics implements ReadHotspotDetector {
+public class DefaultReadHotspotDetector implements ReadHotspotDetector {
     
     private static final int CLEANUP_INTERVAL_MS = 60000; // 1 minute
     private static final long COUNTER_TTL_MS = 300000; // 5 minutes
@@ -31,11 +29,11 @@ public class ReadQpsStatistics implements ReadHotspotDetector {
      * @param windowSizeMs sliding window size in milliseconds (default: 1000)
      * @param bucketCount number of buckets in window (default: 10)
      */
-    public ReadQpsStatistics(double hotKeyThreshold, int windowSizeMs, int bucketCount) {
+    public DefaultReadHotspotDetector(double hotKeyThreshold, int windowSizeMs, int bucketCount) {
         this.hotKeyThreshold = hotKeyThreshold;
         this.windowSizeMs = windowSizeMs;
         this.bucketCount = bucketCount;
-        log.info("Initialized ReadQpsStatistics with threshold={} QPS, window={}ms, buckets={}",
+        log.info("Initialized DefaultReadHotspotDetector with threshold={} QPS, window={}ms, buckets={}",
                 hotKeyThreshold, windowSizeMs, bucketCount);
         // 定时扫描
         TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
@@ -117,7 +115,7 @@ public class ReadQpsStatistics implements ReadHotspotDetector {
                 log.debug("Cleaned up {} stale hotspot counters", removedCount);
             }
         } catch (Exception e) {
-            log.error("ReadQpsStatistics", e);
+            log.error("DefaultReadHotspotDetector", e);
         } finally {
             TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
         }

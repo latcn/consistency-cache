@@ -72,9 +72,10 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 .Builder()
                 .name(hccCacheable.annotationType().getSimpleName())
                 .key(hccCacheable.key())
-                .consistencyLevel(hccCacheable.baseCacheAnno().consistencyLevel())
-                .cacheLevel(hccCacheable.baseCacheAnno().cacheLevel())
-                //.expireTime(hccCacheable.expireTime())
+                .consistencyLevel(hccCacheable.consistencyLevel())
+                .cacheLevel(hccCacheable.cacheLevel())
+                .bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
+                .cacheNullValues(hccCacheable.cacheNullValues())
                 .build();
         if (hccCacheable.expireTime()==0) {
             op.setExpireTime(CacheValue.MAX_EXPIRE_TIME);
@@ -89,8 +90,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 .Builder()
                 .name(hccCacheEvict.annotationType().getSimpleName())
                 .key(hccCacheEvict.key())
-                .consistencyLevel(hccCacheEvict.baseCacheAnno().consistencyLevel())
-                .cacheLevel(hccCacheEvict.baseCacheAnno().cacheLevel())
+                .consistencyLevel(hccCacheEvict.consistencyLevel())
+                .cacheLevel(hccCacheEvict.cacheLevel())
                 .build();
         return op;
     }
@@ -104,6 +105,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
         private long expireTime;
         private ConsistencyLevel consistencyLevel;
         private CacheLevel cacheLevel;
+        private boolean bloomFilterEnabled;
+        private boolean cacheNullValues;
 
         public CacheableOperationExt() {
             super(new CacheableOperation.Builder());
@@ -115,6 +118,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
             private long expireTime;
             private ConsistencyLevel consistencyLevel;
             private CacheLevel cacheLevel;
+            private boolean bloomFilterEnabled;
+            private boolean cacheNullValues;
 
             public Builder() {
             }
@@ -144,6 +149,16 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 return this;
             }
 
+            public Builder bloomFilterEnabled(boolean bloomFilterEnabled) {
+                this.bloomFilterEnabled = bloomFilterEnabled;
+                return this;
+            }
+
+            public Builder cacheNullValues(boolean cacheNullValues) {
+                this.cacheNullValues = cacheNullValues;
+                return this;
+            }
+
             @Override
             public CacheableOperationExt build() {
                 CacheableOperationExt cacheableOperationExt = new CacheableOperationExt();
@@ -152,6 +167,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 cacheableOperationExt.setCacheLevel(this.cacheLevel);
                 cacheableOperationExt.setConsistencyLevel(this.consistencyLevel);
                 cacheableOperationExt.setExpireTime(this.expireTime);
+                cacheableOperationExt.setBloomFilterEnabled(this.bloomFilterEnabled);
+                cacheableOperationExt.setCacheNullValues(this.cacheNullValues);
                 return cacheableOperationExt;
             }
         }

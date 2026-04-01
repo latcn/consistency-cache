@@ -2,6 +2,15 @@ server:
   port: 8080
 
 spring:
+  hcc:
+    cache:
+      enabled: true
+      local:
+        initialCapacity: 1000
+      hotspot:
+        readHotKeyThreshold: 80.1
+      circuitBreaker:
+        failureThreshold: 10
   redis:
     redisson:
       file: classpath:redisson-config.yml

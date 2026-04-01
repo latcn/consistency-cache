@@ -24,6 +24,7 @@ public class CacheValue<V> {
     /**
      * Absolute expiration timestamp (milliseconds since epoch)
      */
+    @Builder.Default
     private long expireTime = MAX_EXPIRE_TIME;
     
     /**
@@ -36,7 +37,7 @@ public class CacheValue<V> {
      */
     @Builder.Default
     private double weight = 1.0;
-    
+
     /**
      * Check if entry has expired
      */

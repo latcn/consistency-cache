@@ -17,10 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 @Slf4j
 public class SpringCacheEvictHandler implements CacheEvictHandler {
@@ -39,7 +36,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
         this.cacheExecutor = cacheExecutor;
         this.enableTransaction = enableTransaction;
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread thread = new Thread("Invalidate-Cleaner-Scheduled-Thread");
+            Thread thread = new Thread(r, "Invalidate-Cleaner-Scheduled-Thread");
             thread.setDaemon(true);
             return thread;
         });
@@ -60,18 +57,27 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
     public Object startInvalidate(InvalidationRecord invalidationRecord, CallableWithThrowable<Object> targetCallback) {
         String uid = invalidationRecord.getUid();
         String cacheKey = invalidationRecord.getCacheKey();
-        return this.transactionTemplate.execute(status -> {
+        if (this.enableTransaction) {
+            return this.transactionTemplate.execute(status -> {
+                try {
+                    Connection conn = DataSourceUtils.getConnection(dataSource);
+                    this.invalidationRecordDAO.insert(conn, invalidationRecord);
+                    log.info("startInvalidate record uid:{}, cacheKey:{}", uid, cacheKey);
+                    return targetCallback.apply();
+                } catch (Throwable t) {
+                    status.setRollbackOnly();
+                    log.error("startInvalidate uid:{}, cacheKey:{}", uid, cacheKey, t);
+                    throw new CacheException(t.getMessage());
+                }
+            });
+        } else {
             try {
-                Connection conn = DataSourceUtils.getConnection(dataSource);
-                this.invalidationRecordDAO.insert(conn, invalidationRecord);
-                log.info("startInvalidate record uid:{}, cacheKey:{}", uid, cacheKey);
                 return targetCallback.apply();
-            } catch (Throwable t) {
-                status.setRollbackOnly();
-                log.error("startInvalidate uid:{}, cacheKey:{}", uid, cacheKey, t);
-                throw new CacheException(t.getMessage());
+            } catch (Throwable e) {
+                log.error("startInvalidate uid:{}, cacheKey:{}", uid, cacheKey, e);
+                throw new CacheException(e.getMessage());
             }
-        });
+        }
     }
 
     @Override

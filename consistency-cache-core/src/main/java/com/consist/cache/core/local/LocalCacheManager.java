@@ -1,12 +1,12 @@
 package com.consist.cache.core.local;
 
 import com.consist.cache.core.manager.CacheManager;
-import com.consist.cache.core.model.LocalCacheProperties;
 import com.consist.cache.core.exception.CacheError;
 import com.consist.cache.core.exception.CacheException;
 import com.consist.cache.core.model.CacheKey;
 import com.consist.cache.core.model.CacheValue;
 import com.consist.cache.core.model.ConsistencyLevel;
+import com.consist.cache.core.model.HccProperties;
 import lombok.Builder;
 import lombok.Data;
 
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 
-    private final LocalCacheProperties properties;
+    private final HccProperties.LocalCacheProperties properties;
     private final ConcurrentHashMap<ConsistencyLevel, LocalCache<Object, CacheValue>> cacheLevelMap = new ConcurrentHashMap<>();
     private final AtomicLong hitCount = new AtomicLong(0);
     private final AtomicLong missCount = new AtomicLong(0);
@@ -28,7 +28,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
             String.class
     );
 
-    public LocalCacheManager(LocalCacheProperties properties) {
+    public LocalCacheManager(HccProperties.LocalCacheProperties properties) {
         this.properties = properties;
     }
 
@@ -42,8 +42,8 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         }
         LocalCache<Object, CacheValue> localCache = this.cacheLevelMap.get(consistencyLevel);
         if (localCache==null) {
-            this.cacheLevelMap.putIfAbsent(consistencyLevel, LocalCacheFactory.getOrCreateLocalCache(this.properties));
-            localCache = this.cacheLevelMap.get(consistencyLevel);
+            ConsistencyLevel finalConsistencyLevel = consistencyLevel;
+            localCache = this.cacheLevelMap.computeIfAbsent(consistencyLevel, (k)->LocalCacheFactory.getOrCreateLocalCache(finalConsistencyLevel, this.properties));
         }
         return localCache;
     }
@@ -177,7 +177,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         private long evictionCount;
 
         public String getFormattedHitRate() {
-            return String.format("%.2f%", this.hitRate * 100);
+            return String.format("%.2f", this.hitRate * 100)+"%";
         }
     }
 }

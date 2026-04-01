@@ -154,6 +154,8 @@ public class HccCacheInterceptor extends CacheInterceptor {
                 .expireTimeMs(cacheableOperationExt.getExpireTime())
                 .consistencyLevel(cacheableOperationExt.getConsistencyLevel())
                 .cacheLevel(cacheableOperationExt.getCacheLevel())
+                .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
+                .cacheNullValues(cacheableOperationExt.isCacheNullValues())
                 .build();
     }
 

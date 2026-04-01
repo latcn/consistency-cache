@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - Auto-recovery with TTL
  */
 @Slf4j
-public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
+public class DefaultWriteHotspotDetector implements WriteHotspotDetector{
     // 1 minute
     private static final int CLEANUP_INTERVAL_MS = 60000;
     private final int windowSeconds;
@@ -36,7 +36,7 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
     /**
      * Create enhanced write hotspot detector.
      */
-    public EnhancedWriteHotspotDetector(int windowSeconds,
+    public DefaultWriteHotspotDetector(int windowSeconds,
                                        int invalidationThreshold,
                                        long baseBlacklistTtl,
                                        double backoffMultiplier,
@@ -49,7 +49,7 @@ public class EnhancedWriteHotspotDetector implements WriteHotspotDetector{
         this.blacklist = new LocalCacheBlacklist();
         // 定时扫描
         TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
-        log.info("Initialized EnhancedWriteHotspotDetector: window={}s, threshold={}, baseTtl={}, backoff={}",
+        log.info("Initialized DefaultWriteHotspotDetector: window={}s, threshold={}, baseTtl={}, backoff={}",
                 windowSeconds, invalidationThreshold, baseBlacklistTtl, backoffMultiplier);
     }
     

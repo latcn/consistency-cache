@@ -24,7 +24,7 @@ public abstract class LocalCacheMarkerManager {
     public LocalCacheMarkerManager(int cleanInterval) {
         this.nodeId = NodeInstanceHolder.getNodeId();
         this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread thread = new Thread("LocalCacheMarkerManager-Clean-scheduledExecutor");
+            Thread thread = new Thread(r, "LocalCacheMarkerManager-Clean-scheduledExecutor");
             thread.setDaemon(true);
             return thread;
         });

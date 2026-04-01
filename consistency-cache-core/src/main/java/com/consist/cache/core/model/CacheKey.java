@@ -24,7 +24,15 @@ public class CacheKey<K> {
     /**
      * 缓存级别
      */
+    @Builder.Default
     private CacheLevel cacheLevel = CacheLevel.ADAPTIVE_CACHE;
 
+    @Builder.Default
     private ConsistencyLevel consistencyLevel = ConsistencyLevel.HIGH;
+
+    @Builder.Default
+    private boolean bloomFilterEnabled = false;
+
+    @Builder.Default
+    private boolean cacheNullValues = true;
 }

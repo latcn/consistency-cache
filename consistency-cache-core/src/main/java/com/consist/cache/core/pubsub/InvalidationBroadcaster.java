@@ -14,7 +14,7 @@ public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Br
 
     private final Set<String> channelNames;
     private final Set<Object> sendKeys = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String,Integer> retryTimesMap = new ConcurrentHashMap<>();
+
 
     public InvalidationBroadcaster(BroadcastPublisher publisher,
                                    BroadcastSubscriber<T,S> subscriber,
@@ -52,10 +52,9 @@ public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Br
         invalidationMessage.setKeys(sendKeys);
         try {
             this.publisher.broadcastMessage(channelNames, invalidationMessage);
-            this.retryTimesMap.remove(invalidationMessage.getMessageId());
         } catch (Exception e) {
             // 重试延迟1秒执行
-            TimeHolder.addTask(new TimerTask(1000, ()->broadcastWithRetry(invalidationMessage)));
+            TimeHolder.addTask(new TimerTask(1000, ()->broadcastWithRetry(invalidationMessage, 0)));
             log.error("publish message:{},ex", invalidationMessage, e);
         }
     }
@@ -64,21 +63,17 @@ public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Br
      * 重试2次 1秒后 3秒后
      * @param invalidationMessage
      */
-    public void broadcastWithRetry(InvalidationMessage invalidationMessage) {
-        String messageId = invalidationMessage.getMessageId();
-        int retryTimes = this.retryTimesMap.getOrDefault(messageId, 0);
+    public void broadcastWithRetry(InvalidationMessage invalidationMessage, int retryTimes) {
         retryTimes++;
         if (retryTimes>=3) {
-            this.retryTimesMap.remove(messageId);
             return;
         }
         try {
             this.publisher.broadcastMessage(channelNames, invalidationMessage);
         } catch (Exception e) {
             long actualDelay = 1000 * (1<<retryTimes);
-            TimeHolder.addTask(new TimerTask(actualDelay, ()->broadcastWithRetry(invalidationMessage)));
-        } finally {
-            this.retryTimesMap.put(messageId, retryTimes);
+            int finalRetryTimes = retryTimes;
+            TimeHolder.addTask(new TimerTask(actualDelay, ()->broadcastWithRetry(invalidationMessage, finalRetryTimes)));
         }
     }
 }

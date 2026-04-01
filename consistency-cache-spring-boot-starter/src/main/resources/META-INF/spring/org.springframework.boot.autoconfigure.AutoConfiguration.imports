@@ -1,1 +1,1 @@
-com.consist.cache.starter.autoconfigure.CacheAutoConfiguration
+com.consist.cache.starter.autoconfigure.HccCacheAutoConfiguration

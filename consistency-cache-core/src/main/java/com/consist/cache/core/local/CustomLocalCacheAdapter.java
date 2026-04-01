@@ -1,7 +1,7 @@
 package com.consist.cache.core.local;
 
-import com.consist.cache.core.model.LocalCacheProperties;
 import com.consist.cache.core.model.CacheValue;
+import com.consist.cache.core.model.HccProperties;
 import com.consist.cache.core.util.ClassUtil;
 import lombok.extern.slf4j.Slf4j;
 import java.util.function.Function;
@@ -12,18 +12,18 @@ public class CustomLocalCacheAdapter<K,V extends CacheValue> implements LocalCac
     private final LocalCache<K,V> localCache;
     private final long maxSize;
 
-    public CustomLocalCacheAdapter(LocalCacheProperties properties) {
+    public CustomLocalCacheAdapter(HccProperties.LocalCacheProperties properties) {
         this.localCache = instantiate(properties);
         this.maxSize = properties.getMaximumSize();
     }
 
-    public LocalCache instantiate(LocalCacheProperties properties) {
+    public LocalCache instantiate(HccProperties.LocalCacheProperties properties) {
         LocalCache localCache = null;
         Class clz = null;
         try {
             clz =  Class.forName(properties.getCustomCacheClz());
             localCache = (LocalCache)ClassUtil.newInstance(clz,
-                    new Class[]{LocalCacheProperties.class},
+                    new Class[]{HccProperties.LocalCacheProperties.class},
                     new Object[]{properties}
             );
         } catch (Exception e) {

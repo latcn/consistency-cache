@@ -1,8 +1,8 @@
 package com.consist.cache.spring.local.adapter;
 
-import com.consist.cache.core.model.LocalCacheProperties;
 import com.consist.cache.core.local.LocalCache;
 import com.consist.cache.core.model.CacheValue;
+import com.consist.cache.core.model.HccProperties;
 import com.google.common.cache.CacheBuilder;
 
 import java.util.concurrent.TimeUnit;
@@ -13,7 +13,7 @@ public class GuavaCacheAdapter<K,V extends CacheValue> implements LocalCache<K,V
     private final com.google.common.cache.Cache<K, V> localCache;
     private final long maxSize;
 
-    public GuavaCacheAdapter(LocalCacheProperties properties) {
+    public GuavaCacheAdapter(HccProperties.LocalCacheProperties properties) {
         this.localCache = CacheBuilder.newBuilder()
                 .initialCapacity(properties.getInitialCapacity())
                 .maximumSize(properties.getMaximumSize())

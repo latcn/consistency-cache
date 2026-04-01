@@ -1,8 +1,8 @@
 package com.consist.cache.spring.local.adapter;
 
-import com.consist.cache.core.model.LocalCacheProperties;
 import com.consist.cache.core.local.LocalCache;
 import com.consist.cache.core.model.CacheValue;
+import com.consist.cache.core.model.HccProperties;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
 import org.checkerframework.checker.index.qual.NonNegative;
@@ -14,7 +14,7 @@ public class CaffeineCacheAdapter<K,V extends CacheValue> implements LocalCache<
     private final com.github.benmanes.caffeine.cache.Cache<K, V> localCache;
     private final long maxSize;
 
-    public CaffeineCacheAdapter(LocalCacheProperties properties) {
+    public CaffeineCacheAdapter(HccProperties.LocalCacheProperties properties) {
         this.localCache = Caffeine.newBuilder()
                 .initialCapacity(properties.getInitialCapacity())
                 .maximumSize(properties.getMaximumSize())
@@ -84,7 +84,7 @@ public class CaffeineCacheAdapter<K,V extends CacheValue> implements LocalCache<
 
 
     public static void main(String[] args) {
-        LocalCacheProperties localCacheProperties = new LocalCacheProperties();
+        HccProperties.LocalCacheProperties localCacheProperties = new HccProperties.LocalCacheProperties();
         CaffeineCacheAdapter<String, CacheValue<String>> caffeineCacheAdapter = new CaffeineCacheAdapter(localCacheProperties);
         //caffeineCacheAdapter.put("123", "321");
     }

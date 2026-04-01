@@ -7,17 +7,17 @@ import org.junit.jupiter.api.BeforeEach;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for ReadQpsStatistics
+ * Unit tests for DefaultReadHotspotDetector
  */
-@DisplayName("ReadQpsStatistics Tests")
-class ReadQpsStatisticsTest {
+@DisplayName("DefaultReadHotspotDetector Tests")
+class DefaultReadHotspotDetectorTest {
 
-    private ReadQpsStatistics statistics;
+    private DefaultReadHotspotDetector statistics;
 
     @BeforeEach
     void setUp() {
         // Threshold: 100 QPS, Window: 1000ms, Buckets: 10
-        statistics = new ReadQpsStatistics(100.0, 1000, 10);
+        statistics = new DefaultReadHotspotDetector(100.0, 1000, 10);
     }
 
     @Test
@@ -145,7 +145,7 @@ class ReadQpsStatisticsTest {
         String key2 = "key-2";
         
         // Record different amounts for each key
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 121; i++) {
             statistics.recordRead(key1);
         }
         
@@ -188,7 +188,7 @@ class ReadQpsStatisticsTest {
     @DisplayName("Should use constructor parameters correctly")
     void testConstructorParameters() {
         // Given
-        ReadQpsStatistics customStats = new ReadQpsStatistics(50.0, 2000, 20);
+        DefaultReadHotspotDetector customStats = new DefaultReadHotspotDetector(50.0, 2000, 20);
         
         // Then
         assertEquals(2000, customStats.getWindowSizeMs());
