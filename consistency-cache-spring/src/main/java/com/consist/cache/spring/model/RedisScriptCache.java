@@ -28,10 +28,18 @@ public class RedisScriptCache {
     public String reloadCachedSha1(String scriptName) {
         ScriptInfo scriptInfo = this.scriptMap.get(scriptName);
         if (scriptInfo==null) {
-            return null;
+            throw new CacheException("can't find "+scriptName);
         }
         scriptLoad(scriptInfo);
         return scriptInfo.getCachedSha1();
+    }
+
+    public String getScript(String scriptName) {
+        ScriptInfo scriptInfo = this.scriptMap.get(scriptName);
+        if (scriptInfo==null) {
+            throw new CacheException("can't find "+scriptName);
+        }
+        return scriptInfo.getScript();
     }
 
     public String getCachedSha1(String scriptName) {

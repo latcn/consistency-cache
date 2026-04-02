@@ -27,7 +27,7 @@ public class RedissonClusterHealthCheck {
         String clusterInfo = script.eval(
                 RScript.Mode.READ_ONLY,
                 clusterInfoScript,
-                RScript.ReturnType.STRING,
+                RScript.ReturnType.VALUE,
                 Arrays.asList("DUMMY")
         );
         log.info("========== CLUSTER INFO ==========\n{}", clusterInfo);
@@ -46,7 +46,7 @@ public class RedissonClusterHealthCheck {
         String clusterNodes = script.eval(
                 RScript.Mode.READ_ONLY,
                 clusterNodesScript,
-                RScript.ReturnType.STRING
+                RScript.ReturnType.VALUE
         );
         log.info("========== CLUSTER NODES ========== \n{}", clusterNodes);
         // 简单的节点状态解析

@@ -28,6 +28,7 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
     @Override
     public void doProcess(String topic, InvalidationMessage msg) {
         try {
+            log.info("do process {},{}", topic, msg);
             if (checkIfDuplicate(msg.getMessageId())) {
                 return;
             }
@@ -37,6 +38,7 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
             }
             // delete localCache
             for(Object key: msg.getKeys()) {
+                log.info("{}", key);
                 if (key instanceof CacheKey) {
                     this.cacheExecutor.evict((CacheKey) key);
                 } else {

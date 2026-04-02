@@ -12,7 +12,7 @@ public class ReliableSubscriber implements BroadcastSubscriber<String, Invalidat
 
     private final RedissonClient redissonClient;
 
-    private ReliableSubscriber(RedissonClient redissonClient) {
+    public ReliableSubscriber(RedissonClient redissonClient) {
         this.redissonClient = redissonClient;
     }
 

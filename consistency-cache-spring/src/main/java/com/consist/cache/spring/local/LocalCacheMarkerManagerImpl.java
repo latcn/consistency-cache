@@ -9,6 +9,7 @@ import org.redisson.api.RBatch;
 import org.redisson.api.RFuture;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -21,18 +22,21 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
     private static final long DEFAULT_BUFFER_TIME_MS = 10_000;
     private static final int MAX_EXPECTED_SIZE = 1000;
     private final RedissonClient redissonClient;
+    private final RScript rScript;
     private final RedisScriptCache redisScriptCache;
     private final long bufferTimeMs;
 
     public LocalCacheMarkerManagerImpl(RedissonClient redissonClient, long bufferTimeMs) {
         super(0);
         this.redissonClient = redissonClient;
-        this.redisScriptCache = new RedisScriptCache(redissonClient.getScript());
+        this.rScript = this.redissonClient.getScript(StringCodec.INSTANCE);
+        this.redisScriptCache = new RedisScriptCache(this.rScript);
         if (bufferTimeMs<=0) {
             this.bufferTimeMs = DEFAULT_BUFFER_TIME_MS;
         } else {
             this.bufferTimeMs = bufferTimeMs;
         }
+        init();
     }
 
     /**
@@ -61,42 +65,40 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
     private static final String SCRIPT_ADD_AND_RENEW =
             "local key = KEYS[1]; " +
                     "local nodeId = ARGV[1]; " +
-                    "local score = tonumber(ARGV[2]); " +
-                    "local bufferTime = tonumber(ARGV[3]); " +
-
+                    "local now = tonumber(ARGV[2]); " +
+                    "local score = tonumber(ARGV[3]); " +
+                    "local bufferTime = tonumber(ARGV[4]); " +
                     // 1. 惰性清理：移除 Score 小于当前时间戳的元素
-                    "redis.call('ZREMRANGEBYSCORE', key, '-inf', score); " +
+                    "redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
                     //"redis.call('ZREMRANGE', key, '-inf', score, 'BYSCORE')" +
-
                     // 2. 添加当前节点
                     "redis.call('ZADD', key, score, nodeId); " +
-
                     // 3. 获取集合中最大的 Score (最新的过期时间)
                     //"local res = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES'); " +
                     "local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" +
-
                     // 4. 如果集合不为空，更新 Key 的 TTL
                     "if res and #res > 0 then " +
                     "    local maxScore = tonumber(res[2]); " +
-                    "    -- 设置过期时间点 = 最大分数 + 缓冲时间 " +
+                    // 设置过期时间点 = 最大分数 + 缓冲时间 " +
                     "    redis.call('PEXPIREAT', key, maxScore + bufferTime); " +
-                    "end; " +
-
+                    "end;" +
                     "return 1;";
 
     /**
-     * Lua 脚本：添加标记并自动续期
+     * Lua 脚本：删除标记
      * 逻辑：
      * 1. 移除已过期的节点 (Score < 当前时间)
-     * 2. 添加当前节点
-     * 3. 获取当前最大的 Score
-     * 4. 设置 Key 的过期时间为 (最大Score + 缓冲时间)
+     * 2. 删除当前节点
+     * 3. 没有元素了，直接删除 Key 释放内存
+     * 4. 重置整个key的过期时间，避免漏删，redis key自动过期
      */
     private static final String SCRIPT_REMOVE_AND_RENEW =
             "local key = KEYS[1]; " +
                     "local nodeId = ARGV[1]; " +
+                    "local now = tonumber(ARGV[2]); " +
+                    "local bufferTime = tonumber(ARGV[3]); " +
                     // 1. 惰性清理：移除 Score 小于当前时间戳的元素
-                    "redis.call('ZREMRANGEBYSCORE', key, '-inf', score); " +
+                    "redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
                     //"redis.call('ZREMRANGE', key, '-inf', score, 'BYSCORE')" +
                     // 2. 添加当前节点
                     "redis.call('zrem', key, nodeId); " +
@@ -106,8 +108,14 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
                     //-- 没有元素了，直接删除 Key 释放内存
                     "    redis.call('DEL', key); " +
                     "    return 0; " +
+                    "else " +
+                    //"    local res = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES'); " +
+                    "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" +
+                    "    if res and #res > 0 then " +
+                    "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " +
+                    "    end; " +
                     "end; " +
-                    "return 1;";
+                    "return count;";
 
 
     /**
@@ -121,28 +129,23 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
             "local key = KEYS[1]; " +
                     "local now = tonumber(ARGV[1]); " +
                     "local bufferTime = tonumber(ARGV[2]); " +
-
                     // 1. 移除过期节点
                     "local removed = redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
                     //"redis.call('ZREMRANGE', key, '-inf', score, 'BYSCORE')" +
-
                     // 2. 检查剩余元素数量
                     "local count = redis.call('ZCARD', key); " +
-
                     "if count == 0 then " +
-                    "    -- 没有元素了，直接删除 Key 释放内存 " +
+                    // 没有元素了，直接删除 Key 释放内存 " +
                     "    redis.call('DEL', key); " +
                     "    return 0; " +
                     "else " +
-                    "    -- 重新计算并设置 TTL，防止 TTL 只增不减 " +
                     //"    local res = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES'); " +
                     "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" +
                     "    if res and #res > 0 then " +
-                    "        local maxScore = tonumber(res[2]); " +
-                    "        redis.call('PEXPIREAT', key, maxScore + bufferTime); " +
+                    "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " +
                     "    end; " +
-                    "    return count; " +
-                    "end;";
+                    "end;" +
+                    "return count;";
 
     /**
      * Lua 脚本：清理过期节点并返回活跃节点列表
@@ -164,7 +167,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
                     "if count == 0 then " +
                     //-- 没有元素了，直接删除 Key 释放内存
                     "    redis.call('DEL', key); " +
-                    "    return 0; " +
+                    "    return {}; " +
                     "else " +
                     //"    local res = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES'); " +
                     "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" +
@@ -172,7 +175,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
                     "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " +
                     "    end; " +
                     "end; " +
-                    "return members;";
+                    "return redis.call('ZRANGE', key, 0, 1, 'REV');";
 
     /**
      * 标记当前节点正在使用本地缓存
@@ -190,10 +193,11 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
                 Collections.singletonList(markerKey),
                 new Object[]{
                         this.nodeId,
+                        String.valueOf(System.currentTimeMillis()),
                         String.valueOf(expireTime),
                         String.valueOf(this.bufferTimeMs)}
                 );
-        this.useLocalCacheKey.add(cacheKey);
+        this.useLocalCacheKey.add(markerKey);
     }
 
     /**
@@ -204,12 +208,16 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
     public void removeLocalCacheUsage(String cacheKey) {
         // Redis Key 设计：使用前缀区分标记 Key
         String markerKey = MARKER_PREFIX + cacheKey;
-        try {
-            this.redissonClient.getKeys().delete(markerKey);
-        } catch (Exception e) {
-            log.error("ex", e);
-        }
-        this.useLocalCacheKey.remove(cacheKey);
+        // 执行 Lua 脚本
+        executeWithCache(SCRIPT_REMOVE_AND_RENEW_NAME, RScript.ReturnType.VALUE,
+                Collections.singletonList(markerKey),
+                new Object[]{
+                        this.nodeId,
+                        String.valueOf(System.currentTimeMillis()),
+                        String.valueOf(this.bufferTimeMs)
+                }
+        );
+        this.useLocalCacheKey.remove(markerKey);
     }
 
     /**
@@ -224,11 +232,11 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
             }
             List<RFutureWrapper<Integer>> useLocalCount = new ArrayList<>();
             Set<String> monitorKeys = new HashSet<>();
-            MapUtil.randomSelection(monitorKeys, monitorKeys, MAX_EXPECTED_SIZE, true);
+            MapUtil.randomSelection(this.useLocalCacheKey, monitorKeys, MAX_EXPECTED_SIZE, true);
             RBatch batch = redissonClient.createBatch();
             for (String markerKey : monitorKeys) {
                 long now = System.currentTimeMillis();
-                RFuture<Integer> rFuture = batch.getScript().evalShaAsync(RScript.Mode.READ_WRITE,
+                RFuture<Integer> rFuture = batch.getScript(StringCodec.INSTANCE).evalShaAsync(RScript.Mode.READ_WRITE,
                         cachedSha1,
                         RScript.ReturnType.VALUE,
                         Arrays.asList(markerKey),
@@ -240,7 +248,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
             batch.execute();
             for (RFutureWrapper<Integer> rFuture: useLocalCount) {
                 try {
-                    int count = rFuture.get(1);
+                    long count = rFuture.get(1);
                     // 说明仍有节点使用本地缓存
                     if (count>0) {
                         this.useLocalCacheKey.add(rFuture.getCacheKey());
@@ -250,6 +258,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
                 }
             }
         } catch (Exception e) {
+            log.error("", e);
             this.redisScriptCache.reloadCachedSha1(SCRIPT_CLEANUP_NAME);
             throw e;
         }
@@ -263,11 +272,12 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
         String markerKey = MARKER_PREFIX + cacheKey;
         long now = System.currentTimeMillis();
         // 执行脚本
-        List<Object> result = executeWithCache(SCRIPT_GET_ACTIVE_NODES_NAME, RScript.ReturnType.LIST,
+        List<Object> result = executeWithCache(SCRIPT_GET_ACTIVE_NODES_NAME, RScript.ReturnType.VALUE,
                 Collections.singletonList(markerKey),
                 new Object[]{
                         String.valueOf(now),
-                        String.valueOf(this.bufferTimeMs)}
+                        String.valueOf(this.bufferTimeMs)
+                }
         );
         // 转换结果
         if (result == null) {
@@ -289,12 +299,11 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
      * @param args
      */
     private <R> R executeWithCache(String scriptName, RScript.ReturnType returnType, List<Object> keys, Object[] args) {
-        RScript script = this.redissonClient.getScript();
         R result = null;
         try {
             // 优先使用 SHA1 执行（极省带宽）
             String cachedSha1 = this.redisScriptCache.getCachedSha1(scriptName);
-            result = script.evalSha(
+            result = this.rScript.evalSha(
                     RScript.Mode.READ_WRITE,
                     cachedSha1,
                     returnType,
@@ -308,10 +317,10 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
             try {
                 String cachedSha1 = this.redisScriptCache.reloadCachedSha1(scriptName);
                 // 再次尝试执行
-                result = script.evalSha(
+                result = this.rScript.evalSha(
                         RScript.Mode.READ_WRITE,
                         cachedSha1,
-                        RScript.ReturnType.VALUE,
+                        returnType,
                         keys,
                         args
                 );

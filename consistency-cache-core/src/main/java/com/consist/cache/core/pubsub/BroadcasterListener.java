@@ -32,10 +32,16 @@ public abstract class BroadcasterListener<T> implements EventListener {
     }
 
     public void onMessage(CharSequence channel, T msg) {
-        // 【广播逻辑】：每个实例都会执行到这里
-        log.info("receive message:{}", msg);
-        // 消息去重等检测 执行本地逻辑
-        this.businessExecutor.submit(() -> doProcess((String)channel, msg));
+        try {
+            // 【广播逻辑】：每个实例都会执行到这里
+            log.info("receive message:{}, {}, {}", channel, msg, msg.getClass().getCanonicalName());
+            // 消息去重等检测 执行本地逻辑
+            String topic = channel.toString();
+            this.businessExecutor.execute(() -> doProcess(topic, msg));
+        } catch (Exception e) {
+            log.error("onMessage", e);
+            throw new CacheException(e.getMessage());
+        }
     }
 
     protected abstract void doProcess(String topic, T msg);
