@@ -76,6 +76,9 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 .cacheLevel(hccCacheable.cacheLevel())
                 .bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
                 .cacheNullValues(hccCacheable.cacheNullValues())
+                .broadcastEnabled(hccCacheable.broadcastEnabled())
+                .bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
+                .bloomFilterName(hccCacheable.bloomFilterName())
                 .build();
         if (hccCacheable.expireTime()==0) {
             op.setExpireTime(CacheValue.MAX_EXPIRE_TIME);
@@ -92,6 +95,9 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 .key(hccCacheEvict.key())
                 .consistencyLevel(hccCacheEvict.consistencyLevel())
                 .cacheLevel(hccCacheEvict.cacheLevel())
+                .broadcastEnabled(hccCacheEvict.broadcastEnabled())
+                .bloomFilterEnabled(hccCacheEvict.bloomFilterEnabled())
+                .bloomFilterName(hccCacheEvict.bloomFilterName())
                 .build();
         return op;
     }
@@ -107,6 +113,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
         private CacheLevel cacheLevel;
         private boolean bloomFilterEnabled;
         private boolean cacheNullValues;
+        private boolean broadcastEnabled;
+        private String bloomFilterName;
 
         public CacheableOperationExt() {
             super(new CacheableOperation.Builder());
@@ -120,6 +128,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
             private CacheLevel cacheLevel;
             private boolean bloomFilterEnabled;
             private boolean cacheNullValues;
+            private boolean broadcastEnabled;
+            private String bloomFilterName;
 
             public Builder() {
             }
@@ -159,6 +169,16 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 return this;
             }
 
+            public Builder broadcastEnabled(boolean broadcastEnabled) {
+                this.broadcastEnabled = broadcastEnabled;
+                return this;
+            }
+
+            public Builder bloomFilterName(String bloomFilterName) {
+                this.bloomFilterName = bloomFilterName;
+                return this;
+            }
+
             @Override
             public CacheableOperationExt build() {
                 CacheableOperationExt cacheableOperationExt = new CacheableOperationExt();
@@ -169,6 +189,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
                 cacheableOperationExt.setExpireTime(this.expireTime);
                 cacheableOperationExt.setBloomFilterEnabled(this.bloomFilterEnabled);
                 cacheableOperationExt.setCacheNullValues(this.cacheNullValues);
+                cacheableOperationExt.setBroadcastEnabled(this.broadcastEnabled);
+                cacheableOperationExt.setBloomFilterName(this.bloomFilterName);
                 return cacheableOperationExt;
             }
         }

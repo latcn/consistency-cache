@@ -30,6 +30,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
     private final DefaultReadHotspotDetector readStatistics;
     private final DefaultWriteHotspotDetector writeHotspotDetector;
     private final CacheCircuitBreaker circuitBreaker;
+    private final CacheBloomFilter cacheBloomFilter;
     private Broadcaster broadcaster;
     
     public DefaultCacheExecutor(LocalCacheManager localCacheManager,
@@ -37,7 +38,8 @@ public class DefaultCacheExecutor implements CacheExecutor {
                                 LocalCacheMarkerManager localCacheMarkerManager,
                                 DefaultWriteHotspotDetector writeHotspotDetector,
                                 DefaultReadHotspotDetector readStatistics,
-                                CacheCircuitBreaker circuitBreaker) {
+                                CacheCircuitBreaker circuitBreaker,
+                                CacheBloomFilter cacheBloomFilter) {
         this.localCacheManager = localCacheManager;
         this.distributedCacheManager = distributedCacheManager;
         this.localCacheMarkerManager = localCacheMarkerManager;
@@ -46,7 +48,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
         this.writeHotspotDetector = writeHotspotDetector;
         this.readStatistics = readStatistics;
         this.circuitBreaker = circuitBreaker;
-        
+        this.cacheBloomFilter = cacheBloomFilter;
         log.info("Initialized DefaultCacheExecutor with circuit breaker protection");
     }
 
@@ -64,20 +66,25 @@ public class DefaultCacheExecutor implements CacheExecutor {
         if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
             deleteLocalCache(cacheKey);
             // 判断是否写热key， 写热key且不要求较强一致性的数据 禁用广播
-            if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
-                    || !this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey())) {
-                this.broadcaster.addKey(cacheKey);
+            if (cacheKey.isBroadcastEnabled()) {
+                if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
+                        || !this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey())) {
+                    this.broadcaster.addKey(cacheKey);
+                }
             }
         } else {
             this.distributedCacheManager.remove(cacheKey);
             if (cacheKey.getCacheLevel() == CacheLevel.ADAPTIVE_CACHE) {
-                // todo 假定key.toString 不重复
-                List<String> nodeIds = this.localCacheMarkerManager.getActiveNodes(cacheKey.getKey().toString());
-                if(nodeIds.size()>0){
-                    this.localCacheMarkerManager.removeLocalCacheUsage(cacheKey.getKey().toString());
-                    if (!(nodeIds.size()==1 && NodeInstanceHolder.getNodeId().equals(nodeIds.get(0)))) {
-                        this.broadcaster.addKey(cacheKey);
+                if (cacheKey.isBroadcastEnabled()) {
+                    List<String> nodeIds = this.localCacheMarkerManager.getActiveNodes(cacheKey.getKey().toString());
+                    if(nodeIds.size()>0){
+                        this.localCacheMarkerManager.removeLocalCacheUsage(cacheKey.getKey().toString());
+                        if (!(nodeIds.size()==1 && NodeInstanceHolder.getNodeId().equals(nodeIds.get(0)))) {
+                            this.broadcaster.addKey(cacheKey);
+                        }
+                        deleteLocalCache(cacheKey);
                     }
+                } else {
                     deleteLocalCache(cacheKey);
                 }
             }
@@ -159,7 +166,9 @@ public class DefaultCacheExecutor implements CacheExecutor {
                 // Enhance if hot key
                 if (!isWriteHotKey && this.readStatistics.isHotKey(cacheKey.getKey())) {
                     // 向 redis 上报使用本地缓存的热 key, 更新使用本地缓存的数量
-                    this.localCacheMarkerManager.markLocalCacheUsage(cacheKey.getKey().toString(), cacheValue.getExpireTime());
+                    if (cacheKey.isBroadcastEnabled()) {
+                        this.localCacheMarkerManager.markLocalCacheUsage(cacheKey.getKey().toString(), cacheValue.getExpireTime());
+                    }
                     this.localCacheManager.put(cacheKey, cacheValue);
                 }
             }
@@ -206,6 +215,9 @@ public class DefaultCacheExecutor implements CacheExecutor {
                          cacheValue.setExpireTime(System.currentTimeMillis()+cacheKey.getExpireTimeMs());
                      }
                      cacheManager.put(k, cacheValue);
+/*                     if (cacheKey.isBloomFilterEnabled()) {
+                         this.cacheBloomFilter.add(cacheKey.getBloomFilterName(), cacheKey.getKey());
+                     }*/
                      return cacheValue;
                 });
         return value;
@@ -219,7 +231,15 @@ public class DefaultCacheExecutor implements CacheExecutor {
      */
     private boolean existsInBloomFilter(CacheKey cacheKey)  {
         if (cacheKey.isBloomFilterEnabled()) {
-            // todo
+            try {
+                if (this.cacheBloomFilter.exists(cacheKey.getBloomFilterName(), cacheKey.getKey().toString())) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } catch (Exception e) {
+                log.error("existsInBloomFilter", e);
+            }
         }
         return true;
     }

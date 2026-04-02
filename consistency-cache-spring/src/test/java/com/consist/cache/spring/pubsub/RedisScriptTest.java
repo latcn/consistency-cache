@@ -2,14 +2,18 @@ package com.consist.cache.spring.pubsub;
 
 import com.consist.cache.core.model.NodeInstanceHolder;
 import org.redisson.Redisson;
+import org.redisson.api.RCuckooFilter;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.cuckoofilter.CuckooFilterAddArgs;
+import org.redisson.api.cuckoofilter.CuckooFilterInitArgs;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.config.Config;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class RedisScriptTest {
 
@@ -212,6 +216,34 @@ public class RedisScriptTest {
         });
     }
 
+    public static void testRCuckooFilter() {
+        RCuckooFilter<String> filter = redissonClient.getCuckooFilter("user:cf2", StringCodec.INSTANCE);
+        // advanced initialization with detailed parameters
+        filter.init(CuckooFilterInitArgs
+                .capacity(100000)
+                .bucketSize(4)
+                .maxIterations(500)
+                .expansion(2));
+        // add a single element (allows duplicates)
+        boolean added = filter.add("element1");
+        // add element only if it does not already exist
+        boolean addedNew = filter.addIfAbsent("element2");
+        // bulk add with optional parameters
+        Set<String> addedItems = filter.add(
+                CuckooFilterAddArgs.<String>items(List.of("a", "b", "c"))
+                        .capacity(50000)
+                        .noCreate());
+        // bulk add only absent elements
+        Set<String> newItems = filter.addIfAbsent(
+                CuckooFilterAddArgs.<String>items(List.of("d", "e", "f"))
+                        .capacity(50000));
+        // check multiple elements at once
+        Set<String> existing = filter.exists(List.of("a", "b", "c", "d"));
+        boolean removed = filter.remove("element1");
+        System.out.println("--------------");
+
+    }
+    
     public static void main(String[] args) {
         //testAdd();
         //testRemove();

@@ -201,7 +201,7 @@ class ConcurrentPerformanceTest {
         long endTime = Runtime.getRuntime().freeMemory();
         
         // Trigger GC to get accurate memory reading
-        System.gc();
+        //System.gc();
         Thread.sleep(100);
         long afterGcMemory = Runtime.getRuntime().freeMemory();
 

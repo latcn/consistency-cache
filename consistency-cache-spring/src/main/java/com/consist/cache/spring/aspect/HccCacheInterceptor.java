@@ -156,6 +156,9 @@ public class HccCacheInterceptor extends CacheInterceptor {
                 .cacheLevel(cacheableOperationExt.getCacheLevel())
                 .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
                 .cacheNullValues(cacheableOperationExt.isCacheNullValues())
+                .broadcastEnabled(cacheableOperationExt.isBroadcastEnabled())
+                .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
+                .bloomFilterName(cacheableOperationExt.getBloomFilterName())
                 .build();
     }
 

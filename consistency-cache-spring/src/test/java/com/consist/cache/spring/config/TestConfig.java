@@ -2,6 +2,7 @@ package com.consist.cache.spring.config;
 
 import com.consist.cache.core.circuitbreaker.CacheCircuitBreaker;
 import com.consist.cache.core.distributed.DistributedCacheManager;
+import com.consist.cache.core.executor.CacheBloomFilter;
 import com.consist.cache.core.executor.CacheEvictHandler;
 import com.consist.cache.core.executor.CacheExecutor;
 import com.consist.cache.core.executor.DefaultCacheExecutor;
@@ -20,6 +21,7 @@ import com.consist.cache.core.pubsub.InvalidationBroadcaster;
 import com.consist.cache.spring.aspect.HccCacheAnnotationParser;
 import com.consist.cache.spring.aspect.HccCacheInterceptor;
 import com.consist.cache.spring.distributed.RedisCacheManager;
+import com.consist.cache.spring.executor.EnhanceRCuckooFilter;
 import com.consist.cache.spring.handler.SpringCacheEvictHandler;
 import com.consist.cache.spring.local.LocalCacheMarkerManagerImpl;
 import com.consist.cache.spring.local.adapter.CaffeineCacheAdapter;
@@ -131,10 +133,17 @@ public class TestConfig {
 
     @ConditionalOnMissingBean
     @Bean
+    public CacheBloomFilter cacheBloomFilter(RedissonClient redissonClient) {
+        return new EnhanceRCuckooFilter(redissonClient);
+    }
+
+    @ConditionalOnMissingBean
+    @Bean
     public CacheExecutor cacheExecutor(HccProperties properties,
                                        LocalCacheManager localCacheManager,
                                        LocalCacheMarkerManager localCacheMarkerManager,
-                                       DistributedCacheManager distributedCacheManager) {
+                                       DistributedCacheManager distributedCacheManager,
+                                       CacheBloomFilter cacheBloomFilter) {
 
         DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(
                 properties.getHotspot().getWriteWindowSeconds(),
@@ -155,7 +164,7 @@ public class TestConfig {
         );
         return new DefaultCacheExecutor(
                 localCacheManager, distributedCacheManager,
-                localCacheMarkerManager, writeHotspotDetector, readStatistics, circuitBreaker);
+                localCacheMarkerManager, writeHotspotDetector, readStatistics, circuitBreaker, cacheBloomFilter);
     }
 
     /**

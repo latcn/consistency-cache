@@ -22,10 +22,12 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Spring Boot -->
-        <spring-boot.version>2.7.18</spring-boot.version>
+        <!--<spring-boot.version>2.7.18</spring-boot.version>-->
+        <spring-boot.version>3.3.0</spring-boot.version>
         <!-- Dependencies -->
         <jackson.version>2.21.2</jackson.version>
         <redisson.version>4.3.0</redisson.version>
+        <!--<redisson.version>3.32.0</redisson.version>-->
         <caffeine.version>3.1.8</caffeine.version>
         <guava.version>33.5.0-jre</guava.version>
         <lombok.version>1.18.30</lombok.version>

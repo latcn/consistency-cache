@@ -25,4 +25,8 @@ public @interface HccCacheable {
     boolean bloomFilterEnabled() default false;
 
     boolean cacheNullValues() default true;
+
+    boolean broadcastEnabled() default true;
+
+    String bloomFilterName() default "";
 }

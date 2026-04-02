@@ -35,4 +35,9 @@ public class CacheKey<K> {
 
     @Builder.Default
     private boolean cacheNullValues = true;
+
+    @Builder.Default
+    private boolean broadcastEnabled = true;
+
+    private String bloomFilterName;
 }

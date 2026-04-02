@@ -15,4 +15,10 @@ public @interface HccCacheEvict {
     CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
 
     ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
+
+    boolean broadcastEnabled() default true;
+
+    boolean bloomFilterEnabled() default false;
+
+    String bloomFilterName() default "";
 }
