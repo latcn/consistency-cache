@@ -165,15 +165,7 @@ public class CacheCircuitBreaker {
         
         log.info("Circuit breaker recovered to CLOSED state");
     }
-    
-    /**
-     * Get current circuit state.
-     * @return current state
-     */
-    public State getState() {
-        return state;
-    }
-    
+
     /**
      * Get circuit breaker statistics.
      * @return stats object

@@ -7,7 +7,9 @@ import com.consist.cache.core.executor.CacheEvictHandler;
 import com.consist.cache.core.executor.CacheExecutor;
 import com.consist.cache.core.executor.DefaultCacheExecutor;
 import com.consist.cache.core.hotspot.reads.DefaultReadHotspotDetector;
+import com.consist.cache.core.hotspot.reads.ReadHotspotDetector;
 import com.consist.cache.core.hotspot.writes.DefaultWriteHotspotDetector;
+import com.consist.cache.core.hotspot.writes.WriteHotspotDetector;
 import com.consist.cache.core.local.LocalCacheFactory;
 import com.consist.cache.core.local.LocalCacheManager;
 import com.consist.cache.core.local.LocalCacheMarkerManager;
@@ -112,12 +114,7 @@ public class HccCacheAutoConfiguration {
 
     @ConditionalOnMissingBean
     @Bean
-    public CacheExecutor cacheExecutor(HccProperties properties,
-                                       LocalCacheManager localCacheManager,
-                                       LocalCacheMarkerManager localCacheMarkerManager,
-                                       DistributedCacheManager distributedCacheManager,
-                                       CacheBloomFilter cacheBloomFilter) {
-
+    public WriteHotspotDetector writeHotspotDetector(HccProperties properties) {
         DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(
                 properties.getHotspot().getWriteWindowSeconds(),
                 properties.getHotspot().getWriteInvalidationThreshold(),
@@ -125,19 +122,43 @@ public class HccCacheAutoConfiguration {
                 properties.getHotspot().getWriteBackoffMultiplier(),
                 properties.getHotspot().getWriteMaxBlacklistTime()
         );
-        DefaultReadHotspotDetector readStatistics  = new DefaultReadHotspotDetector(
+        return writeHotspotDetector;
+    }
+
+    @ConditionalOnMissingBean
+    @Bean
+    public ReadHotspotDetector readHotspotDetector(HccProperties properties) {
+        DefaultReadHotspotDetector readHotspotDetector  = new DefaultReadHotspotDetector(
                 properties.getHotspot().getReadHotKeyThreshold(),
                 properties.getHotspot().getReadWindowSizeMs(),
                 properties.getHotspot().getReadBucketCount());
+        return readHotspotDetector;
+    }
 
+    @ConditionalOnMissingBean
+    @Bean
+    public CacheCircuitBreaker circuitBreaker(HccProperties properties) {
         CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(
                 properties.getCircuitBreaker().getFailureThreshold(),
                 properties.getCircuitBreaker().getSuccessThreshold(),
                 properties.getCircuitBreaker().getTimeoutMs()
         );
+        return circuitBreaker;
+    }
+
+    @ConditionalOnMissingBean
+    @Bean
+    public CacheExecutor cacheExecutor(HccProperties properties,
+                                       LocalCacheManager localCacheManager,
+                                       LocalCacheMarkerManager localCacheMarkerManager,
+                                       DistributedCacheManager distributedCacheManager,
+                                       WriteHotspotDetector writeHotspotDetector,
+                                       ReadHotspotDetector readHotspotDetector,
+                                       CacheCircuitBreaker circuitBreaker,
+                                       CacheBloomFilter cacheBloomFilter) {
         return new DefaultCacheExecutor(
                 localCacheManager, distributedCacheManager,
-                localCacheMarkerManager, writeHotspotDetector, readStatistics, circuitBreaker, cacheBloomFilter);
+                localCacheMarkerManager, writeHotspotDetector, readHotspotDetector, circuitBreaker, cacheBloomFilter);
     }
 
     /**

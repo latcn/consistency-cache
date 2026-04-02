@@ -5,6 +5,7 @@ import com.consist.cache.core.util.TimeHolder;
 import com.consist.cache.core.util.TimerTask;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -22,6 +23,7 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector {
     private final int windowSizeMs;
     private final int bucketCount;
     private volatile long lastCleanupTime = System.currentTimeMillis();
+    private volatile long hotKeyCount = 0;
     
     /**
      * Create read QPS statistics tracker.
@@ -69,7 +71,12 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector {
         
         return isHot;
     }
-    
+
+    @Override
+    public long readHotKeyCount() {
+        return this.hotKeyCount;
+    }
+
     /**
      * Get current QPS for key.
      * @param key cache key
@@ -94,6 +101,7 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector {
             }
 
             int originalSize = this.counters.size();
+            int hotKeySize = 0;
             synchronized (this) {
                 // Double-check after acquiring lock
                 if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
@@ -101,10 +109,16 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector {
                 }
 
                 // Remove stale entries
-                this.counters.entrySet().removeIf(entry ->
-                    now - entry.getValue().lastAccessTime > COUNTER_TTL_MS
-                );
-
+                for(Map.Entry<Object, SlidingWindowCounter> entry: this.counters.entrySet()) {
+                    if (now - entry.getValue().lastAccessTime > COUNTER_TTL_MS) {
+                        this.counters.remove(entry.getKey());
+                    } else {
+                        if (entry.getValue().getQps() > this.hotKeyThreshold) {
+                            hotKeySize++;
+                        }
+                    }
+                }
+                this.hotKeyCount = hotKeySize;
                 lastCleanupTime = now;
             }
 

@@ -1,8 +1,5 @@
 package com.consist.cache.core.manager;
 
-import com.consist.cache.core.util.TimeHolder;
-import com.consist.cache.core.util.TimerTask;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -64,7 +61,6 @@ public class SingleFlightExecutor {
             }
         }
     }
-
 
     public static void main(String[] args) {
         Thread t1 = new Thread(()->{

@@ -5,6 +5,8 @@ spring:
   hcc:
     cache:
       enabled: true
+      metrics:
+        enabled: true
       local:
         initialCapacity: 1000
       hotspot:
@@ -19,3 +21,15 @@ spring:
     password: 
     database: 0
     timeout: 2000ms
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true

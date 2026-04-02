@@ -132,7 +132,12 @@ public class DefaultWriteHotspotDetector implements WriteHotspotDetector{
     public <T> boolean shouldBypassL1(T key) {
         return this.blacklist.isBlacklisted(key);
     }
-    
+
+    @Override
+    public long writeHotKeyCount() {
+        return this.blacklist.size();
+    }
+
     /**
      * Get current invalidation count for a key.
      * @param key cache key

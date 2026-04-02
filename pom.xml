@@ -34,6 +34,8 @@
         <slf4j.version>2.0.9</slf4j.version>
         <hutool.version>5.8.42</hutool.version>
         <netty.version>4.1.82.Final</netty.version>
+        <!-- micrometer -->
+        <micrometer.version>1.12.0</micrometer.version>
         <!-- Test -->
         <junit.version>5.10.1</junit.version>
         <mockito.version>5.8.0</mockito.version>
@@ -73,7 +75,6 @@
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -174,6 +175,21 @@
                 <version>${testcontainers.version}</version>
                 <scope>test</scope>
             </dependency>
+
+            <!-- Micrometer Core -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-core</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+
+            <!-- Micrometer Prometheus Registry -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 

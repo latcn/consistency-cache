@@ -5,7 +5,9 @@ import com.consist.cache.core.distributed.DistributedCacheManager;
 import com.consist.cache.core.exception.CacheError;
 import com.consist.cache.core.exception.CacheException;
 import com.consist.cache.core.hotspot.reads.DefaultReadHotspotDetector;
+import com.consist.cache.core.hotspot.reads.ReadHotspotDetector;
 import com.consist.cache.core.hotspot.writes.DefaultWriteHotspotDetector;
+import com.consist.cache.core.hotspot.writes.WriteHotspotDetector;
 import com.consist.cache.core.local.LocalCacheManager;
 import com.consist.cache.core.local.LocalCacheMarkerManager;
 import com.consist.cache.core.manager.*;
@@ -27,8 +29,8 @@ public class DefaultCacheExecutor implements CacheExecutor {
     private final LocalCacheMarkerManager localCacheMarkerManager;
     private final SingleFlightExecutor fromDb;
     private final SingleFlightExecutor fromDistributedCache;
-    private final DefaultReadHotspotDetector readStatistics;
-    private final DefaultWriteHotspotDetector writeHotspotDetector;
+    private final ReadHotspotDetector readStatistics;
+    private final WriteHotspotDetector writeHotspotDetector;
     private final CacheCircuitBreaker circuitBreaker;
     private final CacheBloomFilter cacheBloomFilter;
     private Broadcaster broadcaster;
@@ -36,8 +38,8 @@ public class DefaultCacheExecutor implements CacheExecutor {
     public DefaultCacheExecutor(LocalCacheManager localCacheManager,
                                 DistributedCacheManager distributedCacheManager,
                                 LocalCacheMarkerManager localCacheMarkerManager,
-                                DefaultWriteHotspotDetector writeHotspotDetector,
-                                DefaultReadHotspotDetector readStatistics,
+                                WriteHotspotDetector writeHotspotDetector,
+                                ReadHotspotDetector readStatistics,
                                 CacheCircuitBreaker circuitBreaker,
                                 CacheBloomFilter cacheBloomFilter) {
         this.localCacheManager = localCacheManager;

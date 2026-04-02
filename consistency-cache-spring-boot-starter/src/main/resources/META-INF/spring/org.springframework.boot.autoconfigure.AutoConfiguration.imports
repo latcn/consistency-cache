@@ -1,1 +1,2 @@
 com.consist.cache.starter.autoconfigure.HccCacheAutoConfiguration
+com.consist.cache.starter.autoconfigure.CacheMetricsAutoConfiguration
