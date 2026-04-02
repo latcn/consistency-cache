@@ -190,13 +190,6 @@ public class ProductService {
     public Product getProductById(Long productId) {
         return productRepository.findById(productId);
     }
-    
-    // High consistency mode (CP pattern)
-    @HccCacheable(key = "'product:' + #id", 
-                  expireTime = 600)
-    public Product getProductWithHighConsistency(Long id) {
-        return productRepository.findById(id);
-    }
 }
 ```
 
@@ -213,14 +206,6 @@ public class OrderService {
     public void cancelOrder(Long orderId) {
         orderRepository.cancel(orderId);
         // Cache automatically invalidated across all nodes
-    }
-    
-    // Transactional invalidation
-    @Transactional
-    @HccCacheEvict(key = "'inventory:' + #productId")
-    public void updateInventory(Long productId, Integer quantity) {
-        inventoryRepository.update(productId, quantity);
-        // Invalidation message broadcasted reliably
     }
 }
 ```
