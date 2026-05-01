@@ -14,6 +14,7 @@
         <module>consistency-cache-spring</module>
         <module>consistency-cache-spring-boot-starter</module>
         <module>consistency-cache-examples</module>
+        <module>admin-server</module>
     </modules>
 
     <properties>

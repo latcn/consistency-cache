@@ -1,0 +1,13 @@
+server:
+  port: 1080
+
+spring:
+  boot:
+    admin:
+      ui:
+        title: 服务监控中心
+        brand: <span>服务监控中心</span>
+    security:
+      user:
+        name: admin
+        password: admin

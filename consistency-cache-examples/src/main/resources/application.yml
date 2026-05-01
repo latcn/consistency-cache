@@ -2,6 +2,14 @@ server:
   port: 8080
 
 spring:
+  boot:
+    admin:
+      client:
+        url: http://localhost:1080
+        instance:
+          metadata:
+            user.name: admin
+            user.password: admin
   hcc:
     cache:
       enabled: true
@@ -21,11 +29,19 @@ spring:
     password: 
     database: 0
     timeout: 2000ms
+
 management:
+  server:
+    address: 127.0.0.1
+    port: 8080
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        include: '*'
+    health:
+      show-details: always
+  security:
+    enabled: false
   endpoint:
     prometheus:
       enabled: true
@@ -33,3 +49,7 @@ management:
     export:
       prometheus:
         enabled: true
+  tracing:
+    sampling:
+      # 采集抽样，1.0代表所有的链路都会被跟踪
+      probability: 1.0
