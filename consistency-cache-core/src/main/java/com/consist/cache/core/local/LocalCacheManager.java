@@ -8,17 +8,17 @@ import com.consist.cache.core.model.CacheValue;
 import com.consist.cache.core.model.ConsistencyLevel;
 import com.consist.cache.core.model.HccProperties;
 import lombok.Builder;
-import lombok.Data;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 
     private final HccProperties.LocalCacheProperties properties;
-    private final ConcurrentHashMap<ConsistencyLevel, LocalCache<Object, CacheValue>> cacheLevelMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ConsistencyLevel, LocalCache<Object, CacheValue>> cacheLevelMap;
     private final AtomicLong hitCount = new AtomicLong(0);
     private final AtomicLong missCount = new AtomicLong(0);
     private final AtomicLong evictionCount = new AtomicLong(0);
@@ -30,6 +30,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 
     public LocalCacheManager(HccProperties.LocalCacheProperties properties) {
         this.properties = properties;
+        this.cacheLevelMap = new ConcurrentHashMap<>();
     }
 
     public ConcurrentHashMap<ConsistencyLevel, LocalCache<Object, CacheValue>> getCacheLevelMap() {
@@ -51,13 +52,13 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
     @Override
     public CacheValue get(CacheKey cacheKey) {
         checkCacheKey(cacheKey);
-        CacheValue cacheValue = this.getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());
+        CacheValue cacheValue = getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());
         if (cacheValue == null) {
             this.missCount.incrementAndGet();
             return null;
         }
         if (cacheValue.isExpired()) {
-            this.getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
+            getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
             this.missCount.incrementAndGet();
             this.evictionCount.incrementAndGet();
             return null;
@@ -69,66 +70,48 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
     @Override
     public void put(CacheKey cacheKey, CacheValue cacheValue) {
         checkCacheKey(cacheKey);
-        this.getOrCreateCache(cacheKey.getConsistencyLevel()).put(cacheKey.getKey(), cacheValue);
+        getOrCreateCache(cacheKey.getConsistencyLevel()).put(cacheKey.getKey(), cacheValue);
     }
 
     public CacheValue getByActualKey(Object key) {
         checkActualCacheKey(key);
-        CacheValue cacheValue = null;
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-             cacheValue = entry.getValue().get(key);
-             if (cacheValue!=null) {
-                 return cacheValue;
-             }
-        }
-        return null;
+        return iterateCachesWithReturn(cache -> cache.get(key));
     }
 
     public void removeByActualKey(Object key) {
         checkActualCacheKey(key);
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-             entry.getValue().invalidate(key);
-        }
+        iterateCachesWithoutReturn(cache -> cache.invalidate(key));
     }
 
     @Override
     public void remove(CacheKey cacheKey) {
         if (containKey(cacheKey)) {
-            this.getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
+            getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
         }
     }
 
     public void clear() {
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-            entry.getValue().invalidateAll();
-        }
+        iterateCachesWithoutReturn(LocalCache::invalidateAll);
     }
 
     @Override
     public boolean containKey(CacheKey cacheKey) {
         checkCacheKey(cacheKey);
-        CacheValue cacheValue = this.getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());
-        if (cacheValue !=null && !cacheValue.isExpired()) {
-            return true;
-        }
-        return false;
+        CacheValue cacheValue = getOrCreateCache(cacheKey.getConsistencyLevel()).get(cacheKey.getKey());
+        return cacheValue != null && !cacheValue.isExpired();
     }
 
     public long getSize() {
-        long cacheSize = 0;
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-            cacheSize += entry.getValue().getSize();
-        }
-        return cacheSize;
+        long[] total = {0};
+        iterateCachesWithoutReturn(cache -> total[0] += cache.getSize());
+        return total[0];
     }
 
     /**
      * manually cleanUp() forces immediate processing
      */
     public void runEviction() {
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-              entry.getValue().cleanUp();
-        }
+        iterateCachesWithoutReturn(LocalCache::cleanUp);
     }
 
     private void checkCacheKey(CacheKey cacheKey) {
@@ -147,27 +130,24 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         }
     }
 
-    public CacheStats getStats() {
-        long totalRequests = this.hitCount.get() + this.missCount.get();
-        double hitRate = totalRequests > 0 ? (double) this.hitCount.get() / totalRequests : 0.0;
-        int cacheSize = 0;
-        int maxSize = 0;
-        for (Map.Entry<ConsistencyLevel,LocalCache<Object,CacheValue>> entry: this.cacheLevelMap.entrySet()) {
-            cacheSize += entry.getValue().getSize();
-            maxSize += entry.getValue().getMaxSize();
+    private <T> T iterateCachesWithReturn(java.util.function.Function<LocalCache<Object, CacheValue>, T> function) {
+        for (java.util.Map.Entry<ConsistencyLevel, LocalCache<Object, CacheValue>> entry : cacheLevelMap.entrySet()) {
+            T result = function.apply(entry.getValue());
+            if (result != null) {
+                return result;
+            }
         }
-        return CacheStats.builder()
-                .hitCount(this.hitCount.get())
-                .missCount(this.missCount.get())
-                .hitRate(hitRate)
-                .size(cacheSize)
-                .maxSize(maxSize)
-                .evictionCount(this.evictionCount.get())
-                .build();
+        return null;
     }
 
-    @Data
-    @Builder
+    private void iterateCachesWithoutReturn(Consumer<LocalCache<Object, CacheValue>> consumer) {
+        for (java.util.Map.Entry<ConsistencyLevel, LocalCache<Object, CacheValue>> entry : cacheLevelMap.entrySet()) {
+            consumer.accept(entry.getValue());
+        }
+    }
+
+    @lombok.Data
+    @lombok.Builder
     public static class CacheStats {
         private long hitCount;
         private long missCount;
@@ -177,7 +157,26 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
         private long evictionCount;
 
         public String getFormattedHitRate() {
-            return String.format("%.2f", this.hitRate * 100)+"%";
+            return String.format("%.2f", this.hitRate * 100) + "%";
         }
+    }
+
+    public CacheStats getStats() {
+        long totalRequests = this.hitCount.get() + this.missCount.get();
+        double hitRate = totalRequests > 0 ? (double) this.hitCount.get() / totalRequests : 0.0;
+        int[] totalSize = {0};
+        int[] totalMaxSize = {0};
+        iterateCachesWithoutReturn(cache -> {
+            totalSize[0] += cache.getSize();
+            totalMaxSize[0] += cache.getMaxSize();
+        });
+        return CacheStats.builder()
+                .hitCount(this.hitCount.get())
+                .missCount(this.missCount.get())
+                .hitRate(hitRate)
+                .size(totalSize[0])
+                .maxSize(totalMaxSize[0])
+                .evictionCount(this.evictionCount.get())
+                .build();
     }
 }

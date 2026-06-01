@@ -4,14 +4,17 @@ import com.consist.cache.core.circuitbreaker.CacheCircuitBreaker;
 import com.consist.cache.core.distributed.DistributedCacheManager;
 import com.consist.cache.core.exception.CacheError;
 import com.consist.cache.core.exception.CacheException;
-import com.consist.cache.core.hotspot.reads.DefaultReadHotspotDetector;
 import com.consist.cache.core.hotspot.reads.ReadHotspotDetector;
-import com.consist.cache.core.hotspot.writes.DefaultWriteHotspotDetector;
 import com.consist.cache.core.hotspot.writes.WriteHotspotDetector;
 import com.consist.cache.core.local.LocalCacheManager;
 import com.consist.cache.core.local.LocalCacheMarkerManager;
-import com.consist.cache.core.manager.*;
-import com.consist.cache.core.model.*;
+import com.consist.cache.core.manager.CacheManager;
+import com.consist.cache.core.manager.SingleFlightExecutor;
+import com.consist.cache.core.model.CacheKey;
+import com.consist.cache.core.model.CacheLevel;
+import com.consist.cache.core.model.CacheValue;
+import com.consist.cache.core.model.ConsistencyLevel;
+import com.consist.cache.core.model.NodeInstanceHolder;
 import com.consist.cache.core.pubsub.Broadcaster;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,30 +30,42 @@ public class DefaultCacheExecutor implements CacheExecutor {
     private final LocalCacheManager localCacheManager;
     private final DistributedCacheManager distributedCacheManager;
     private final LocalCacheMarkerManager localCacheMarkerManager;
-    private final SingleFlightExecutor fromDb;
-    private final SingleFlightExecutor fromDistributedCache;
+    private final SingleFlightExecutor dbSingleFlightExecutor;
+    private final SingleFlightExecutor distributedCacheSingleFlightExecutor;
     private final ReadHotspotDetector readStatistics;
     private final WriteHotspotDetector writeHotspotDetector;
-    private final CacheCircuitBreaker circuitBreaker;
+    private final CacheCircuitBreaker cacheCircuitBreaker;
     private final CacheBloomFilter cacheBloomFilter;
     private Broadcaster broadcaster;
-    
+
     public DefaultCacheExecutor(LocalCacheManager localCacheManager,
                                 DistributedCacheManager distributedCacheManager,
                                 LocalCacheMarkerManager localCacheMarkerManager,
                                 WriteHotspotDetector writeHotspotDetector,
                                 ReadHotspotDetector readStatistics,
-                                CacheCircuitBreaker circuitBreaker,
+                                CacheCircuitBreaker cacheCircuitBreaker,
                                 CacheBloomFilter cacheBloomFilter) {
-        this.localCacheManager = localCacheManager;
-        this.distributedCacheManager = distributedCacheManager;
-        this.localCacheMarkerManager = localCacheMarkerManager;
-        this.fromDb = new SingleFlightExecutor();
-        this.fromDistributedCache = new SingleFlightExecutor();
-        this.writeHotspotDetector = writeHotspotDetector;
-        this.readStatistics = readStatistics;
-        this.circuitBreaker = circuitBreaker;
-        this.cacheBloomFilter = cacheBloomFilter;
+        this(CacheExecutorConfig.builder()
+                .localCacheManager(localCacheManager)
+                .distributedCacheManager(distributedCacheManager)
+                .localCacheMarkerManager(localCacheMarkerManager)
+                .writeHotspotDetector(writeHotspotDetector)
+                .readStatistics(readStatistics)
+                .cacheCircuitBreaker(cacheCircuitBreaker)
+                .cacheBloomFilter(cacheBloomFilter)
+                .build());
+    }
+
+    public DefaultCacheExecutor(CacheExecutorConfig config) {
+        this.localCacheManager = config.getLocalCacheManager();
+        this.distributedCacheManager = config.getDistributedCacheManager();
+        this.localCacheMarkerManager = config.getLocalCacheMarkerManager();
+        this.dbSingleFlightExecutor = new SingleFlightExecutor();
+        this.distributedCacheSingleFlightExecutor = new SingleFlightExecutor();
+        this.writeHotspotDetector = config.getWriteHotspotDetector();
+        this.readStatistics = config.getReadStatistics();
+        this.cacheCircuitBreaker = config.getCacheCircuitBreaker();
+        this.cacheBloomFilter = config.getCacheBloomFilter();
         log.info("Initialized DefaultCacheExecutor with circuit breaker protection");
     }
 
@@ -66,29 +81,37 @@ public class DefaultCacheExecutor implements CacheExecutor {
     public void evict(CacheKey cacheKey) {
         checkCacheKey(cacheKey);
         if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
-            deleteLocalCache(cacheKey);
-            // 判断是否写热key， 写热key且不要求较强一致性的数据 禁用广播
-            if (cacheKey.isBroadcastEnabled()) {
-                if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
-                        || !this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey())) {
-                    this.broadcaster.addKey(cacheKey);
-                }
-            }
+            evictLocalCache(cacheKey);
         } else {
-            this.distributedCacheManager.remove(cacheKey);
-            if (cacheKey.getCacheLevel() == CacheLevel.ADAPTIVE_CACHE) {
-                if (cacheKey.isBroadcastEnabled()) {
-                    List<String> nodeIds = this.localCacheMarkerManager.getActiveNodes(cacheKey.getKey().toString());
-                    if(nodeIds.size()>0){
-                        this.localCacheMarkerManager.removeLocalCacheUsage(cacheKey.getKey().toString());
-                        if (!(nodeIds.size()==1 && NodeInstanceHolder.getNodeId().equals(nodeIds.get(0)))) {
-                            this.broadcaster.addKey(cacheKey);
-                        }
-                        deleteLocalCache(cacheKey);
+            evictDistributedCache(cacheKey);
+        }
+    }
+
+    private void evictLocalCache(CacheKey cacheKey) {
+        deleteLocalCache(cacheKey);
+        // 判断是否写热key， 写热key且不要求较强一致性的数据 禁用广播
+        if (cacheKey.isBroadcastEnabled()) {
+            if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
+                    || !this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey())) {
+                this.broadcaster.addKey(cacheKey);
+            }
+        }
+    }
+
+    private void evictDistributedCache(CacheKey cacheKey) {
+        this.distributedCacheManager.remove(cacheKey);
+        if (cacheKey.getCacheLevel() == CacheLevel.ADAPTIVE_CACHE) {
+            if (cacheKey.isBroadcastEnabled()) {
+                List<String> nodeIds = this.localCacheMarkerManager.getActiveNodes(cacheKey.getKey().toString());
+                if(nodeIds.size()>0) {
+                    this.localCacheMarkerManager.removeLocalCacheUsage(cacheKey.getKey().toString());
+                    if (!(nodeIds.size()==1 && NodeInstanceHolder.getNodeId().equals(nodeIds.get(0)))) {
+                        this.broadcaster.addKey(cacheKey);
                     }
-                } else {
                     deleteLocalCache(cacheKey);
                 }
+            } else {
+                deleteLocalCache(cacheKey);
             }
         }
     }
@@ -137,60 +160,71 @@ public class DefaultCacheExecutor implements CacheExecutor {
     }
 
     @Override
-    public CacheValue get(CacheKey cacheKey, Function doSingleFlightFun) {
+    public CacheValue get(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun) {
         checkCacheKey(cacheKey);
         this.readStatistics.recordRead(cacheKey.getKey());
         // 布隆过滤器校验
         if (!existsInBloomFilter(cacheKey)) {
             return null;
         }
-        if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
-            CacheValue cacheValue = this.localCacheManager.get(cacheKey);
-            if (cacheValue == null) {
-                cacheValue = loadFromDb(this.localCacheManager, cacheKey, doSingleFlightFun);
-            }
-            return cacheValue;
-        }
-        if (cacheKey.getCacheLevel() == CacheLevel.ADAPTIVE_CACHE) {
-            CacheValue cacheValue = null;
-            // 写热 key 直接从 L2 获取
-            boolean isWriteHotKey = this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey());
-            if (isWriteHotKey) {
-                cacheValue = this.localCacheManager.get(cacheKey);
-            }
-            if (cacheValue == null) {
-                cacheValue = getValueFromDistributedCache(cacheKey);
-            }
-            // 布隆过滤器判断是否存在，统计是否热 key
-            if (cacheValue == null) {
-                // L2 from db
-                cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
-                // Enhance if hot key
-                if (!isWriteHotKey && this.readStatistics.isHotKey(cacheKey.getKey())) {
-                    // 向 redis 上报使用本地缓存的热 key, 更新使用本地缓存的数量
-                    if (cacheKey.isBroadcastEnabled()) {
-                        this.localCacheMarkerManager.markLocalCacheUsage(cacheKey.getKey().toString(), cacheValue.getExpireTime());
-                    }
-                    this.localCacheManager.put(cacheKey, cacheValue);
-                }
-            }
-            return cacheValue;
-        }
-        if (cacheKey.getCacheLevel() == CacheLevel.L2_CACHE) {
-            CacheValue cacheValue = getValueFromDistributedCache(cacheKey);
-            if (cacheValue==null) {
-                cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
-            }
-            return cacheValue;
+        CacheLevel level = cacheKey.getCacheLevel();
+        if (level == CacheLevel.LOCAL_CACHE) {
+            return getFromLocalCache(cacheKey, doSingleFlightFun);
+        } else if (level == CacheLevel.ADAPTIVE_CACHE) {
+            return getFromAdaptiveCache(cacheKey, doSingleFlightFun);
+        } else if (level == CacheLevel.L2_CACHE) {
+            return getFromL2Cache(cacheKey, doSingleFlightFun);
         }
         return null;
+    }
+
+    private CacheValue getFromLocalCache(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun) {
+        CacheValue cacheValue = this.localCacheManager.get(cacheKey);
+        if (cacheValue == null) {
+            cacheValue = loadFromDb(this.localCacheManager, cacheKey, doSingleFlightFun);
+        }
+        return cacheValue;
+    }
+
+    private CacheValue getFromAdaptiveCache(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun) {
+        CacheValue cacheValue = null;
+        // 写热 key 直接从 L2 获取
+        boolean isWriteHotKey = this.writeHotspotDetector.shouldBypassL1(cacheKey.getKey());
+        if (isWriteHotKey) {
+            cacheValue = this.localCacheManager.get(cacheKey);
+        }
+        if (cacheValue == null) {
+            cacheValue = getValueFromDistributedCache(cacheKey);
+        }
+        // 布隆过滤器判断是否存在，统计是否热 key
+        if (cacheValue == null) {
+            // L2 from db
+            cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
+            // Enhance if hot key
+            if (!isWriteHotKey && this.readStatistics.isHotKey(cacheKey.getKey())) {
+                // 向 redis 上报使用本地缓存的热 key, 更新使用本地缓存的数量
+                if (cacheKey.isBroadcastEnabled()) {
+                    this.localCacheMarkerManager.markLocalCacheUsage(cacheKey.getKey().toString(), cacheValue.getExpireTime());
+                }
+                this.localCacheManager.put(cacheKey, cacheValue);
+            }
+        }
+        return cacheValue;
+    }
+
+    private CacheValue getFromL2Cache(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun) {
+        CacheValue cacheValue = getValueFromDistributedCache(cacheKey);
+        if (cacheValue==null) {
+            cacheValue = loadFromDb(this.distributedCacheManager, cacheKey, doSingleFlightFun);
+        }
+        return cacheValue;
     }
 
     private CacheValue getValueFromDistributedCache(CacheKey cacheKey) {
         CacheValue cacheValue;
         try {
-            cacheValue = circuitBreaker.execute(() ->
-                    this.fromDistributedCache.execute(cacheKey, (k)->this.distributedCacheManager.get(k))
+            cacheValue = cacheCircuitBreaker.execute(() ->
+                    this.distributedCacheSingleFlightExecutor.execute(cacheKey, (k)->this.distributedCacheManager.get(k))
             );
         } catch (CacheCircuitBreaker.CircuitBreakerOpenException e) {
             log.warn("Circuit breaker OPEN, bypassing distributed cache for key: {}", cacheKey.getKey());
@@ -200,7 +234,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
     }
 
     private CacheValue loadFromDb(CacheManager cacheManager, CacheKey cacheKey, Function doSingleFlightFun) {
-        CacheValue value = this.fromDb.execute(cacheKey,
+        CacheValue value = this.dbSingleFlightExecutor.execute(cacheKey,
                 (k)->{
                      Object result = doSingleFlightFun.apply(k.getKey());
                     if (result==null) {
@@ -210,16 +244,12 @@ public class DefaultCacheExecutor implements CacheExecutor {
                     }
                     CacheValue cacheValue = CacheValue.builder()
                              .value(result)
-                             //.expireTime(System.currentTimeMillis()+cacheKey.getExpireTimeMs())
                              .createdAt(System.currentTimeMillis())
                              .build();
                      if (cacheKey.getExpireTimeMs()>0) {
                          cacheValue.setExpireTime(System.currentTimeMillis()+cacheKey.getExpireTimeMs());
                      }
                      cacheManager.put(k, cacheValue);
-/*                     if (cacheKey.isBloomFilterEnabled()) {
-                         this.cacheBloomFilter.add(cacheKey.getBloomFilterName(), cacheKey.getKey());
-                     }*/
                      return cacheValue;
                 });
         return value;
@@ -231,14 +261,10 @@ public class DefaultCacheExecutor implements CacheExecutor {
      * @param cacheKey
      * @return
      */
-    private boolean existsInBloomFilter(CacheKey cacheKey)  {
+    private boolean existsInBloomFilter(CacheKey cacheKey) {
         if (cacheKey.isBloomFilterEnabled()) {
             try {
-                if (this.cacheBloomFilter.exists(cacheKey.getBloomFilterName(), cacheKey.getKey().toString())) {
-                    return true;
-                } else {
-                    return false;
-                }
+                return this.cacheBloomFilter.exists(cacheKey.getBloomFilterName(), cacheKey.getKey().toString());
             } catch (Exception e) {
                 log.error("existsInBloomFilter", e);
             }

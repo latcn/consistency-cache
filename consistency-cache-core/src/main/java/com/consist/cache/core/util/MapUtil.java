@@ -1,15 +1,16 @@
 package com.consist.cache.core.util;
 
 import java.util.HashSet;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
 public class MapUtil {
 
-    private static final int maxExpectedSize = (1 << 28)*3;
+    private static final int MAX_EXPECTED_SIZE = (1 << 28) * 3;
+    private static final int MAX_SELECTION_SIZE = 100000;
 
     /**
      * For hashMap
@@ -20,32 +21,30 @@ public class MapUtil {
         if (expectedSize < 0) {
             throw new IllegalArgumentException("expectedSize cannot be negative but was:" + expectedSize);
         }
-        // 2^30
-        return expectedSize < maxExpectedSize ? (int)Math.ceil((double)expectedSize / 0.75) : maxExpectedSize;
+        return expectedSize < MAX_EXPECTED_SIZE ? (int) Math.ceil((double) expectedSize / 0.75) : MAX_EXPECTED_SIZE;
     }
 
     public static <T> void copy(Set<T> oldSet, Set<T> newSet, boolean isRemove) {
-        /*T[] keys = (T[]) new Object[oldSet.size()];
-        oldSet.toArray(keys);
-        List<T> list = Arrays.asList(keys);
-        newSet.addAll(list);
-        if (isRemove) {
-            oldSet.removeAll(list);
-        }*/
         copy(oldSet, newSet, oldSet.size(), isRemove);
     }
 
     public static <T> void copy(Set<T> oldSet, Set<T> newSet, int maxExpectedSize, boolean isRemove) {
-        int expectedSize = maxExpectedSize>oldSet.size()?oldSet.size():maxExpectedSize;
-        for(T ele: oldSet) {
-            if (expectedSize<=0) {
-                return;
-            }
-            if (isRemove) {
-                oldSet.remove(ele);
-            }
+        int expectedSize = maxExpectedSize > oldSet.size() ? oldSet.size() : maxExpectedSize;
+        
+        if (expectedSize == 0) {
+            return;
+        }
+        
+        Iterator<T> iterator = oldSet.iterator();
+        int count = 0;
+        
+        while (iterator.hasNext() && count < expectedSize) {
+            T ele = iterator.next();
             newSet.add(ele);
-            expectedSize--;
+            if (isRemove) {
+                iterator.remove();
+            }
+            count++;
         }
     }
 
@@ -58,83 +57,35 @@ public class MapUtil {
      * @param <T>
      */
     public static <T> void randomSelection(Set<T> oldSet, Set<T> newSet, int maxExpectedSize, boolean isRemove) {
-        if (maxExpectedSize>oldSet.size()) {
-            copy(oldSet, newSet, maxExpectedSize, isRemove);
-        } else {
-            Function<Integer, Boolean> validLogic;
-            if (maxExpectedSize > oldSet.size()/2) {
-                Set<Integer> randomExclude = randomGenerate(oldSet.size()-maxExpectedSize, oldSet.size());
-                validLogic = (s)-> !randomExclude.contains(s);
-            } else {
-                Set<Integer> randomSelection = randomGenerate(maxExpectedSize, oldSet.size());
-                validLogic = (s)-> randomSelection.contains(s);
-            }
-            T[] list = (T[]) new Object[oldSet.size()];
-            oldSet.toArray(list);
-            for (int i=0; i<list.length; i++) {
-                if (validLogic.apply(i)) {
-                    newSet.add(list[i]);
-                    if (isRemove) {
-                        oldSet.remove(list[i]);
-                    }
-                }
-            }
+        int actualSize = Math.min(maxExpectedSize, oldSet.size());
+        if (actualSize <= 0) {
+            return;
         }
-    }
-
-    public static Set<Integer> randomGenerate(int size, int maxValue) {
-        Set<Integer> indexSet = new HashSet<>();
-        Random random = new Random();
-        while(indexSet.size()<size) {
-            indexSet.add(random.nextInt(maxValue));
+        
+        if (actualSize == oldSet.size()) {
+            copy(oldSet, newSet, actualSize, isRemove);
+            return;
         }
-        return indexSet;
-    }
-
-
-    public static void main(String[] args) {
-        Set<String> oldKeys = ConcurrentHashMap.newKeySet();
-        oldKeys.add("1");
-        oldKeys.add("2");
-        oldKeys.add("3");
-        oldKeys.add("4");
-        oldKeys.add("5");
-        Set<String> newKeys = ConcurrentHashMap.newKeySet();
-        randomSelection(oldKeys, newKeys, 4, true);
-        System.out.println("-------");
-    }
-
-    public static void testCopy() {
-        Set<String> oldKeys = ConcurrentHashMap.newKeySet();
-        oldKeys.add("1");
-        oldKeys.add("2");
-        oldKeys.add("3");
-        Set<String> newKeys = ConcurrentHashMap.newKeySet();
-        Thread t1 = new Thread(()->{
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            copy(oldKeys, newKeys, 2, true);
-        });
-
-        Thread t2 =  new Thread(()->{
-            oldKeys.add("4");
-            try {
-                Thread.sleep(2);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            oldKeys.add("5");
-        });
-        t1.start(); t2.start();
-        try {
-            t1.join();
-            t2.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        
+        Object[] elements = oldSet.toArray();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        
+        Set<T> selected = new HashSet<>(capacity(actualSize));
+        
+        for (int i = 0; i < actualSize; i++) {
+            int j = random.nextInt(i, elements.length);
+            
+            Object temp = elements[i];
+            elements[i] = elements[j];
+            elements[j] = temp;
+            
+            selected.add((T) elements[i]);
         }
-        System.out.println("------");
+        
+        newSet.addAll(selected);
+        
+        if (isRemove) {
+            oldSet.removeAll(selected);
+        }
     }
 }

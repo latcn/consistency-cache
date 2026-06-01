@@ -61,21 +61,4 @@ public class SingleFlightExecutor {
             }
         }
     }
-
-    public static void main(String[] args) {
-        Thread t1 = new Thread(()->{
-            try {
-                Thread.sleep(1000);
-                System.out.println("sub 1:"+Thread.currentThread().isInterrupted());
-            } catch (InterruptedException e) {
-                System.out.println("sub 2:"+Thread.currentThread().isInterrupted());
-                Thread.currentThread().interrupt();
-                System.out.println("sub 3:"+Thread.currentThread().isInterrupted());
-                throw new RuntimeException(e);
-            }
-        });
-        t1.start();
-        t1.interrupt();
-        System.out.println("main:"+t1.isInterrupted());
-    }
 }

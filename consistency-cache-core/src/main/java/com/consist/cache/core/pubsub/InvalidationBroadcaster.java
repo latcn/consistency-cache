@@ -12,6 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Broadcaster<T,S> {
 
+    private static final int INITIAL_RETRY_DELAY_MS = 1000;
+    private static final int MAX_RETRY_TIMES = 3;
+
     private final Set<String> channelNames;
     private final Set<Object> sendKeys = ConcurrentHashMap.newKeySet();
 
@@ -54,7 +57,7 @@ public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Br
             this.publisher.broadcastMessage(channelNames, invalidationMessage);
         } catch (Exception e) {
             // 重试延迟1秒执行
-            TimeHolder.addTask(new TimerTask(1000, ()->broadcastWithRetry(invalidationMessage, 0)));
+            TimeHolder.addTask(new TimerTask(INITIAL_RETRY_DELAY_MS, ()->broadcastWithRetry(invalidationMessage, 0)));
             log.error("publish message:{},ex", invalidationMessage, e);
         }
     }
@@ -65,13 +68,13 @@ public class InvalidationBroadcaster<T,S extends BroadcasterListener> extends Br
      */
     public void broadcastWithRetry(InvalidationMessage invalidationMessage, int retryTimes) {
         retryTimes++;
-        if (retryTimes>=3) {
+        if (retryTimes>=MAX_RETRY_TIMES) {
             return;
         }
         try {
             this.publisher.broadcastMessage(channelNames, invalidationMessage);
         } catch (Exception e) {
-            long actualDelay = 1000 * (1<<retryTimes);
+            long actualDelay = INITIAL_RETRY_DELAY_MS * (1<<retryTimes);
             int finalRetryTimes = retryTimes;
             TimeHolder.addTask(new TimerTask(actualDelay, ()->broadcastWithRetry(invalidationMessage, finalRetryTimes)));
         }

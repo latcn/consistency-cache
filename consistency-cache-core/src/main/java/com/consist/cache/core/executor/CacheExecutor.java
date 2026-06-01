@@ -39,6 +39,6 @@ public interface CacheExecutor {
      * @param doSingleFlightFun if get is null then do the function
      * @return
      */
-    CacheValue get(CacheKey cacheKey, Function doSingleFlightFun);
+    CacheValue get(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun);
 
 }

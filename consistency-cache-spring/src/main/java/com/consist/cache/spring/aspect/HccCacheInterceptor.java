@@ -22,12 +22,9 @@ import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
-import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -55,25 +52,37 @@ public class HccCacheInterceptor extends CacheInterceptor {
      * 重写拦截逻辑，支持解析自定义注解
      */
     @Override
-    public Object invoke(org.aopalliance.intercept.MethodInvocation invocation) throws Throwable {
+    public Object invoke(MethodInvocation invocation) throws Throwable {
         Method method = invocation.getMethod();
         Object target = invocation.getThis();
-        Assert.state(target != null, "Target must not be null");
-        Class<?> targetClass =  AopProxyUtils.ultimateTargetClass(target);
         CacheOperationSource cacheOperationSource = getCacheOperationSource();
-        if (cacheOperationSource != null) {
-            Collection<CacheOperation> operations = cacheOperationSource.getCacheOperations(method, targetClass);
-            if (!CollectionUtils.isEmpty(operations)) {
-                Optional<CacheOperation> cacheOperation =
-                         operations.stream().filter(a->a instanceof HccCacheAnnotationParser.CacheableOperationExt).findFirst();
-                if (cacheOperation.isPresent()) {
-                    HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt = (HccCacheAnnotationParser.CacheableOperationExt) cacheOperation.get();
-                    ActionWrapper actionWrapper = actionWrapperMap.get(cacheableOperationExt.getName());
-                    if (actionWrapper!=null) {
-                        return actionWrapper.accept(invocation, cacheableOperationExt);
-                    }
-                }
-            }
+
+        Optional<HccCacheAnnotationParser.CacheableOperationExt> cacheOperationOpt = findCacheOperation(cacheOperationSource, method, target);
+        if (cacheOperationOpt.isPresent()) {
+            return executeCacheOperation(invocation, cacheOperationOpt.get());
+        }
+        return super.invoke(invocation);
+    }
+
+    private Optional<HccCacheAnnotationParser.CacheableOperationExt> findCacheOperation(CacheOperationSource cacheOperationSource, Method method, Object target) {
+        if (cacheOperationSource == null || target == null) {
+            return Optional.empty();
+        }
+        Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+        Collection<CacheOperation> operations = cacheOperationSource.getCacheOperations(method, targetClass);
+        if (CollectionUtils.isEmpty(operations)) {
+            return Optional.empty();
+        }
+        return operations.stream()
+                .filter(op -> op instanceof HccCacheAnnotationParser.CacheableOperationExt)
+                .map(op -> (HccCacheAnnotationParser.CacheableOperationExt) op)
+                .findFirst();
+    }
+
+    private Object executeCacheOperation(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+        ActionWrapper actionWrapper = actionWrapperMap.get(cacheableOperationExt.getName());
+        if (actionWrapper != null) {
+            return actionWrapper.accept(invocation, cacheableOperationExt);
         }
         return super.invoke(invocation);
     }
@@ -83,7 +92,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
      * @return
      * @throws Throwable
      */
-    private Object handleHccCacheable(org.aopalliance.intercept.MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+    private Object handleHccCacheable(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
         Method method = invocation.getMethod();
         CacheKey cacheKey = parseKey(method, invocation.getArguments(), cacheableOperationExt);
         try {
@@ -115,7 +124,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
      * @return
      * @throws Throwable
      */
-    private Object handleHccCacheEvict(org.aopalliance.intercept.MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+    private Object handleHccCacheEvict(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
         InvalidationRecord invalidationRecord = new InvalidationRecord();
         CacheKey cacheKey = parseKey(invocation.getMethod(), invocation.getArguments(), cacheableOperationExt);
         invalidationRecord.setCacheKey(cacheKey.getKey().toString());
@@ -157,7 +166,6 @@ public class HccCacheInterceptor extends CacheInterceptor {
                 .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
                 .cacheNullValues(cacheableOperationExt.isCacheNullValues())
                 .broadcastEnabled(cacheableOperationExt.isBroadcastEnabled())
-                .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
                 .bloomFilterName(cacheableOperationExt.getBloomFilterName())
                 .build();
     }

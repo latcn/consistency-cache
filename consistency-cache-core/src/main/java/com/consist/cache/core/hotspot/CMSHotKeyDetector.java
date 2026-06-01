@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicLongArray;
  */
 public class CMSHotKeyDetector {
 
+    private static final int BATCH_SIZE_DIVISOR = 100;
+
     /**
      * CMS 参数
      * width: 桶数量
@@ -65,7 +67,7 @@ public class CMSHotKeyDetector {
         this.depth = depth;
         this.decayRate = decayRate;
         this.threshold = threshold;
-        this.batchSize = Math.max(1, width / 100); // 每次衰减约 1% 的桶
+        this.batchSize = Math.max(1, width / BATCH_SIZE_DIVISOR); // 每次衰减约 1% 的桶
         // 初始化种子
         this.seeds = new int[depth];
         for (int i = 0; i < depth; i++) {
