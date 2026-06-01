@@ -61,4 +61,8 @@ public class SingleFlightExecutor {
             }
         }
     }
+
+    public int getInflightCount() {
+        return inflightCalls.size();
+    }
 }

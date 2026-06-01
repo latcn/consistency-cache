@@ -25,16 +25,34 @@ public @interface HccCacheable {
     long expireTime() default 0;
 
     /**
-     * cacheLevel
-     * how to use L1 or L2 
+     * Cache level strategy
      */
     CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
 
     /**
-     * if use L1, different consistencyLevel use different local cache instance
-     * high must clean if cache invalid
+     * Consistency level (CP/AP)
      */
     ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
+
+    /**
+     * Enable Bloom filter for cache penetration prevention
+     */
+    boolean bloomFilterEnabled() default false;
+
+    /**
+     * Allow caching null values
+     */
+    boolean cacheNullValues() default true;
+
+    /**
+     * Enable broadcast invalidation to other nodes
+     */
+    boolean broadcastEnabled() default true;
+
+    /**
+     * Custom Bloom filter name (if multiple filters configured)
+     */
+    String bloomFilterName() default "";
 }
 ```
 
@@ -44,8 +62,8 @@ public @interface HccCacheable {
 @HccCacheable(key = "#id", expireTime = 300)
 public User getUser(Long id) { ... }
 
-// With consistency level
-@HccCacheable(key = "#id")
+// With Bloom filter and null value caching
+@HccCacheable(key = "#id", bloomFilterEnabled = true, cacheNullValues = true)
 public Product getProduct(Long id) { ... }
 ```
 
@@ -67,16 +85,29 @@ public @interface HccCacheEvict {
     String key();
 
     /**
-     * cacheLevel
-     * how to use L1 or L2 
+     * Cache level strategy
      */
     CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
 
     /**
-     * if use L1, different consistencyLevel use different local cache instance
-     * high must clean if cache invalid
+     * Consistency level (CP/AP)
      */
     ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
+
+    /**
+     * Enable broadcast invalidation to other nodes
+     */
+    boolean broadcastEnabled() default true;
+
+    /**
+     * Enable Bloom filter removal
+     */
+    boolean bloomFilterEnabled() default false;
+
+    /**
+     * Custom Bloom filter name
+     */
+    String bloomFilterName() default "";
 }
 ```
 
@@ -87,7 +118,7 @@ public @interface HccCacheEvict {
 public void cancelOrder(Long orderId) { ... }
 
 // Without broadcasting (local only)
-@HccCacheEvict(key = "#id")
+@HccCacheEvict(key = "#id", broadcastEnabled = false)
 public void updateLocalCache(Long id) { ... }
 ```
 
@@ -105,9 +136,15 @@ Represents a cache key with full configuration.
 @Builder
 public class CacheKey<K> {
     private K key;                    // Actual key value
-    private long expireTimeMs;        // Expiration time in ms
+    private long expireTimeMs;        // Expiration time in milliseconds
     private CacheLevel cacheLevel;    // L1/L2/Adaptive
     private ConsistencyLevel consistencyLevel; // CP/AP
+    
+    // Additional configuration
+    private boolean bloomFilterEnabled;    // Enable Bloom filter check
+    private boolean cacheNullValues;       // Cache null values
+    private boolean broadcastEnabled;      // Broadcast invalidation
+    private String bloomFilterName;        // Custom filter name
 }
 ```
 
@@ -118,6 +155,8 @@ CacheKey<String> key = CacheKey.<String>builder()
     .expireTimeMs(300000)
     .consistencyLevel(ConsistencyLevel.AVAILABLE)
     .cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+    .bloomFilterEnabled(true)
+    .cacheNullValues(true)
     .build();
 ```
 
@@ -132,17 +171,17 @@ Wrapper for cached values with metadata.
 @Data
 @Builder
 public class CacheValue<V> {
+    public static final long MAX_EXPIRE_TIME = Long.MAX_VALUE >> 1;
+    
     private V value;              // Actual cached value
-    private long expireTime;      // Absolute expiration timestamp
+    private long expireTime;      // Absolute expiration timestamp (ms since epoch)
     private long createdAt;       // Creation timestamp
-    private double weight;        // Weight for LRU (hot key enhancement)
+    private double weight;        // Weight for LRU prioritization
     
     // Utility methods
     public boolean isExpired();
     public boolean notExist();
     public long getTtl();
-    
-    // Extract value from wrapper
     public static <V> V extractValue(Object value);
 }
 ```
@@ -156,7 +195,7 @@ CacheValue<User> value = CacheValue.<User>builder()
     .createdAt(System.currentTimeMillis())
     .build();
 
-// Extract actual value
+// Extract actual value (handles null, expired, and non-CacheValue inputs)
 User user = CacheValue.extractValue(cacheValue);
 ```
 
@@ -196,9 +235,23 @@ Enum defining which cache tier to use.
 **Values**:
 ```java
 public enum CacheLevel {
-    LOCAL_CACHE,      // Only L1 (Caffeine)
-    L2_CACHE,         // Only L2 (Redis)
-    ADAPTIVE_CACHE    // Smart adaptive (recommended)
+    /**
+     * LOCAL_CACHE: Only L1 (Caffeine)
+     * Use for: Low update frequency data like system dictionaries
+     */
+    LOCAL_CACHE,
+    
+    /**
+     * ADAPTIVE_CACHE: Smart adaptive (recommended)
+     * Auto-enhance hot keys to L1, bypass L1 for write-hot keys
+     */
+    ADAPTIVE_CACHE,
+    
+    /**
+     * L2_CACHE: Only L2 (Redis)
+     * Use for: High consistency requirements
+     */
+    L2_CACHE
 }
 ```
 
@@ -215,31 +268,36 @@ Main interface for cache operations.
 public interface CacheExecutor {
     
     /**
-     * Get value from cache with loader fallback
-     * @param cacheKey Cache key configuration
-     * @param doSingleFlightFun Loader function if cache miss
-     * @return Cached or loaded value
+     * Set broadcaster for invalidation notifications
      */
-    CacheValue get(CacheKey cacheKey, Function doSingleFlightFun);
+    void setBroadcaster(Broadcaster broadcaster);
     
     /**
-     * Invalidate cache entry
+     * Delete local cache entry (used for broadcast invalidation)
+     * @param cacheKey Cache key to delete
+     */
+    void deleteLocalCache(CacheKey cacheKey);
+    
+    /**
+     * Invalidate cache entry (both L1 and L2)
      * @param cacheKey Key to invalidate
      */
     void evict(CacheKey cacheKey);
     
     /**
-     * Delete local cache only
-     * @param cacheKey Key to delete
-     */
-    void deleteLocalCache(CacheKey cacheKey);
-    
-    /**
-     * Check if key exists in cache
+     * Check if key exists (via Bloom filter if enabled)
      * @param cacheKey Key to check
      * @return true if exists
      */
     boolean exists(CacheKey cacheKey);
+    
+    /**
+     * Get value from cache with loader fallback
+     * @param cacheKey Cache key configuration
+     * @param doSingleFlightFun Loader function if cache miss
+     * @return Cached or loaded value
+     */
+    CacheValue get(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun);
 }
 ```
 
@@ -249,8 +307,9 @@ public interface CacheExecutor {
 private CacheExecutor cacheExecutor;
 
 public Data getData(Long id) {
-    CacheKey key = CacheKey.builder()
+    CacheKey<String> key = CacheKey.<String>builder()
         .key("data:" + id)
+        .expireTimeMs(300000)
         .build();
     
     return CacheValue.extractValue(
@@ -276,6 +335,11 @@ public class SingleFlightExecutor {
      * @return Result (shared among concurrent callers)
      */
     public <K,V> V execute(K key, Function<K, V> doSingleFlightFun);
+    
+    /**
+     * Get current inflight call count
+     */
+    public int getInflightCount();
 }
 ```
 
@@ -291,6 +355,12 @@ public class SingleFlightExecutor {
 
 Three-state circuit breaker for fault tolerance.
 
+**Constructor**:
+```java
+public CacheCircuitBreaker()  // Default settings
+public CacheCircuitBreaker(int failureThreshold, int successThreshold, long timeoutMs)
+```
+
 **Methods**:
 ```java
 public class CacheCircuitBreaker {
@@ -302,11 +372,6 @@ public class CacheCircuitBreaker {
      * @throws CircuitBreakerOpenException if circuit is OPEN
      */
     public <T> T execute(Supplier<T> supplier);
-    
-    /**
-     * Get current circuit state
-     */
-    public State getState();
     
     /**
      * Get statistics
@@ -327,149 +392,14 @@ public class CacheCircuitBreaker {
 
 **State Enum**:
 ```java
-public enum State {
+private enum State {
     CLOSED,     // Normal operation
     OPEN,       // Tripped, failing fast
     HALF_OPEN   // Testing recovery
 }
 ```
 
----
-
-## Hotspot Detectors | 热点检测器
-
-### ReadQpsStatistics
-
-Sliding window QPS tracker for read operations.
-
-**Constructor**:
-```java
-/**
- * @param hotKeyThreshold QPS threshold (default: 100)
- * @param windowSizeMs Window size in ms (default: 1000)
- * @param bucketCount Number of buckets (default: 10)
- */
-public ReadQpsStatistics(double hotKeyThreshold, 
-                         int windowSizeMs, 
-                         int bucketCount)
-```
-
-**Methods**:
-```java
-// Record a read operation
-public <T> void recordRead(T key);
-
-// Check if key is hot
-public <T> boolean isHotKey(T key);
-
-// Get current QPS
-public <T> double getQps(T key);
-
-// Cleanup stale counters
-public void cleanup();
-```
-
-**Usage**:
-```java
-ReadQpsStatistics stats = new ReadQpsStatistics(100.0, 1000, 10);
-
-// On each read
-stats.recordRead(cacheKey);
-
-// Check before caching
-if (stats.isHotKey(cacheKey)) {
-    // Enhance to local cache
-    localCache.put(cacheKey, value);
-}
-```
-
----
-
-### EnhancedWriteHotspotDetector
-
-Write hotspot detector with exponential backoff.
-
-**Constructor**:
-```java
-/**
- * @param windowSeconds Sliding window size in seconds
- * @param invalidationThreshold Invalidations before blacklisting
- * @param baseBlacklistTtl Initial blacklist duration (ms)
- * @param backoffMultiplier Exponential backoff multiplier
- * @param maxBlacklistTime Maximum blacklist duration (ms)
- */
-public EnhancedWriteHotspotDetector(int windowSeconds,
-                                    int invalidationThreshold,
-                                    long baseBlacklistTtl,
-                                    double backoffMultiplier,
-                                    long maxBlacklistTime)
-```
-
-**Methods**:
-```java
-// Record invalidation
-public <T> void recordInvalidation(T key);
-
-// Check if should bypass L1
-public <T> boolean shouldBypassL1(T key);
-
-// Get invalidation count
-public <T> int getInvalidationCount(T key);
-
-// Cleanup old entries
-public void cleanup();
-```
-
----
-
-## Statistics & Monitoring | 统计监控
-
-### LocalCacheManager.CacheStats
-
-Cache statistics container.
-
-**Fields**:
-```java
-@Data
-@Builder
-public static class CacheStats {
-    private long hitCount;        // Total cache hits
-    private long missCount;       // Total cache misses
-    private double hitRate;       // Hit rate (0.0-1.0)
-    private long size;            // Current cache size
-    private long maxSize;         // Maximum configured size
-    private long evictionCount;   // Total evictions
-    
-    // Formatted hit rate for display
-    public String getFormattedHitRate() {
-        return String.format("%.2f%%", hitRate * 100);
-    }
-}
-```
-
-**Usage**:
-```java
-@Autowired
-private LocalCacheManager cacheManager;
-
-@GetMapping("/cache/stats")
-public CacheStats getStats() {
-    CacheStats stats = cacheManager.getStats();
-    
-    log.info("Hit Rate: {}", stats.getFormattedHitRate());
-    log.info("Cache Size: {}/{}", stats.getSize(), stats.getMaxSize());
-    
-    return stats;
-}
-```
-
----
-
-### CacheCircuitBreaker.CircuitStats
-
-Circuit breaker statistics.
-
-**Fields**:
+**CircuitStats**:
 ```java
 @Data
 @Builder
@@ -480,16 +410,61 @@ public static class CircuitStats {
     private int totalCalls;       // Total calls made
     private int rejectedCalls;    // Calls rejected when OPEN
     
-    // Derived metric
-    public double getRejectionRate() {
-        return totalCalls > 0 ? (double) rejectedCalls / totalCalls : 0.0;
-    }
+    public double getRejectionRate();
 }
 ```
 
 ---
 
-## Utility Methods | 工具方法
+## Hotspot Detectors | 热点检测器
+
+### CMSHotKeyDetector
+
+Count-Min Sketch based hot key detector. High-performance, concurrent-safe implementation.
+
+**Constructor**:
+```java
+/**
+ * @param width Number of buckets (suggested: 10000-1000000)
+ * @param depth Number of hash functions (suggested: 5-10)
+ * @param decayRate Decay rate (0.90 ~ 0.99)
+ * @param threshold Hot key threshold
+ */
+public CMSHotKeyDetector(int width, int depth, float decayRate, int threshold)
+```
+
+**Methods**:
+```java
+// Record a read/write operation
+public void record(String key);
+
+// Get estimated frequency
+public long estimateCount(String key);
+
+// Check if key is hot
+public boolean isHotKey(String key);
+
+// Get configuration
+public int getWidth();
+public int getDepth();
+```
+
+**Usage**:
+```java
+CMSHotKeyDetector detector = new CMSHotKeyDetector(10000, 5, 0.95f, 100);
+
+// On each read
+detector.record(cacheKey);
+
+// Check before caching
+if (detector.isHotKey(cacheKey)) {
+    localCache.put(cacheKey, value);
+}
+```
+
+---
+
+## Statistics & Monitoring | 统计监控
 
 ### CacheValue.extractValue()
 
@@ -504,14 +479,12 @@ public static <V> V extractValue(Object value)
 - Returns `null` if input is `null`
 - Returns input directly if not CacheValue instance
 - Checks expiration and returns `null` if expired
-- Extracts actual value from CacheValue
+- Checks if value exists and returns `null` if not
 
 **Examples**:
 ```java
 // From CacheValue
-CacheValue<String> cv = CacheValue.<String>builder()
-    .value("hello")
-    .build();
+CacheValue<String> cv = CacheValue.<String>builder().value("hello").build();
 String v1 = CacheValue.extractValue(cv);  // "hello"
 
 // From raw value
@@ -538,6 +511,16 @@ Custom exception for cache operations.
 public static CacheException newInstance(CacheError error)
 ```
 
+**CacheError Values**:
+```java
+public enum CacheError {
+    EMPTY_KEY(100001, "key can't be null"),
+    ERROR_KEY_TYPE(100002, "key type is not supported"),
+    EMPTY_BROADCASTER_TOPIC(100003, "BroadcasterListener topic can't be empty"),
+    NOT_EXISTS_LOCAL_CACHE_CLASS(100004, "not exists local cache class")
+}
+```
+
 **Usage**:
 ```java
 if (key == null) {
@@ -553,39 +536,10 @@ Thrown when circuit breaker is OPEN.
 ```java
 try {
     value = circuitBreaker.execute(() -> cache.get(key));
-} catch (CircuitBreakerOpenException e) {
+} catch (CacheCircuitBreaker.CircuitBreakerOpenException e) {
     // Fallback strategy
     value = loadFromDatabase(key);
 }
-```
-
----
-
-## Configuration Properties | 配置属性
-
-### LocalCacheProperties
-
-Configuration for local cache behavior.
-
-**Fields**:
-```java
-@Data
-public class LocalCacheProperties {
-    private boolean enabled;          // Enable local cache
-    private long maximumSize;         // Max entries
-    private long expireAfterWrite;    // TTL in seconds
-    // ... additional settings
-}
-```
-
-**YAML Configuration**:
-```yaml
-hcc:
-  cache:
-    local:
-      enabled: true
-      maximum-size: 10000
-      expire-after-write: 300s
 ```
 
 ---
@@ -641,64 +595,7 @@ hcc:
 - System configurations
 - Analytics data
 
-### 4. Error Handling
-
-**Recommended Pattern**:
-```java
-@HccCacheable(key = "#id")
-public Data getData(Long id) {
-    try {
-        return repository.findById(id);
-    } catch (DataNotFoundException e) {
-        // Return null to cache miss
-        return null;
-    } catch (Exception e) {
-        // Let exception propagate for logging
-        throw e;
-    }
-}
-```
-
----
-
-## Performance Tips | 性能提示
-
-### 1. Minimize Key Serialization
-
-Use simple key types (String, Long, Integer) instead of complex objects.
-
-```java
-// GOOD: Simple key
-@HccCacheable(key = "#userId")
-
-// AVOID: Complex key requiring serialization
-@HccCacheable(key = "#userQueryObject.toString()")
-```
-
-### 2. Batch Operations
-
-For multiple keys, consider batch loading:
-
-```java
-// Instead of N individual calls
-List<Data> results = keys.stream()
-    .map(key -> cacheExecutor.get(key, loader))
-    .collect(Collectors.toList());
-
-// Consider implementing batch loader
-```
-
-### 3. Monitor Hot Keys
-
-Regularly check hotspot detection logs:
-
-```bash
-# Look for these patterns in logs
-grep "Hot key detected" application.log
-grep "Write hotspot detected" application.log
-```
-
 ---
 
 *API Reference Version: 1.0.0*  
-*Last Updated: March 31, 2026*
+*Last Updated: June 2026*

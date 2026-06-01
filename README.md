@@ -16,11 +16,12 @@ Consistency Cache is a high-performance distributed cache consistency middleware
 
 - ✅ **Multi-Level Cache**: L1 (Local Caffeine) + L2 (Distributed Redis) two-tier architecture
 - ✅ **Consistency Guarantee**: Flexible CP/AP switching for different business requirements
-- ✅ **Hotspot Detection**: Automatic read/write hotspot identification with intelligent optimization
+- ✅ **Hotspot Detection**: High-performance Count-Min Sketch based hot key detection with automatic read/write hotspot identification
 - ✅ **Reliable Invalidation**: Transaction-based outbox pattern with Redis Pub/Sub broadcast
 - ✅ **Spring Integration**: Annotation-based cache management with zero configuration
 - ✅ **Circuit Breaker Protection**: Built-in three-state circuit breaker preventing cascade failures
 - ✅ **SingleFlight Pattern**: Request collapsing to prevent cache breakdown
+- ✅ **Bloom Filter Support**: Optional cache penetration prevention
 
 ---
 
@@ -29,7 +30,7 @@ Consistency Cache is a high-performance distributed cache consistency middleware
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Application Layer                     │
-│                   (Spring AOP Interceptor)                │
+│                   (Spring AOP Interceptor)              │
 └─────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -48,8 +49,8 @@ Consistency Cache is a high-performance distributed cache consistency middleware
         └───────────────────┬───────────────────┘
                             ↓
             ┌───────────────────────────────┐
-            │   Hotspot Detector            │
-            │  (Read/Write Statistics)      │
+            │   CMS Hotspot Detector        │
+            │  (Count-Min Sketch)           │
             └───────────────────────────────┘
                             ↓
             ┌───────────────────────────────┐
@@ -71,7 +72,6 @@ The SingleFlight pattern ensures that only one thread executes the actual data l
 - Thread-safe with proper cleanup
 
 ```java
-// Example: Multiple threads requesting same key
 CacheValue value = cacheExecutor.get(cacheKey, key -> {
     // This loader will be executed ONLY ONCE
     // All other threads waiting will get the same result
@@ -79,22 +79,25 @@ CacheValue value = cacheExecutor.get(cacheKey, key -> {
 });
 ```
 
-#### 2. HotspotDetector
+#### 2. CMSHotKeyDetector
 
-Uses sliding window algorithm to statistically track access frequency in real-time, automatically identifying read hotspots and write hotspots. 
+Uses Count-Min Sketch probabilistic data structure for real-time access frequency tracking. This high-performance implementation automatically identifies read hotspots and write hotspots.
 
 **Features**:
-- Read-hot keys → Enhanced to local cache
-- Write-hot keys → Bypass local cache to avoid thrashing
-- Configurable QPS thresholds
-- Automatic stale counter cleanup
+- **Thread-safe**: Based on AtomicLongArray, lock-free high performance
+- **Precision correction**: Handles cold key identification
+- **Stable decay**: Uses Math.round for accurate exponential decay
+- **Hash optimization**: Combined seed and bitwise operations for uniform distribution
+
+**Read-hot keys** → Enhanced to local cache  
+**Write-hot keys** → Bypass local cache to avoid thrashing
 
 ```java
-// Configuration example
-ReadQpsStatistics readStats = new ReadQpsStatistics(
-    100.0,    // QPS threshold for hot key detection
-    1000,     // Sliding window size in milliseconds
-    10        // Number of buckets in window
+CMSHotKeyDetector detector = new CMSHotKeyDetector(
+    10000,    // Width (number of buckets)
+    5,        // Depth (number of hash functions)
+    0.95f,    // Decay rate
+    100       // Hot key threshold
 );
 ```
 
@@ -136,7 +139,7 @@ Implements distributed invalidation notifications based on Redis Pub/Sub, combin
 **Maven**:
 ```xml
 <dependency>
-    <groupId>com.consist.cache</groupId>
+    <groupId>io.github.latcn</groupId>
     <artifactId>consistency-cache-spring-boot-starter</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -144,7 +147,7 @@ Implements distributed invalidation notifications based on Redis Pub/Sub, combin
 
 **Gradle**:
 ```gradle
-implementation 'com.consist.cache:consistency-cache-spring-boot-starter:1.0.0'
+implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.0'
 ```
 
 ### Configuration
@@ -161,6 +164,10 @@ hcc:
       enabled: true
       maximum-size: 10000
       expire-after-write: 300s
+    
+    # Distributed cache configuration
+    distributed:
+      redisson-config: classpath:redisson-config.yml
     
     # Hotspot detection configuration
     hotspot:
@@ -179,8 +186,8 @@ hcc:
 #### 1. Cacheable Annotation
 
 ```java
-import com.consist.cache.spring.annotation.HccCacheable;
-import com.consist.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.spring.annotation.HccCacheable;
+import io.github.latcn.cache.core.model.ConsistencyLevel;
 
 @Service
 public class ProductService {
@@ -190,13 +197,21 @@ public class ProductService {
     public Product getProductById(Long productId) {
         return productRepository.findById(productId);
     }
+    
+    // With high consistency level
+    @HccCacheable(key = "'product:' + #id", 
+                  expireTime = 600,
+                  consistencyLevel = ConsistencyLevel.HIGH)
+    public Product getProductWithHighConsistency(Long id) {
+        return productRepository.findById(id);
+    }
 }
 ```
 
 #### 2. Cache Eviction Annotation
 
 ```java
-import com.consist.cache.spring.annotation.HccCacheEvict;
+import io.github.latcn.cache.spring.annotation.HccCacheEvict;
 
 @Service
 public class OrderService {
@@ -206,6 +221,12 @@ public class OrderService {
     public void cancelOrder(Long orderId) {
         orderRepository.cancel(orderId);
         // Cache automatically invalidated across all nodes
+    }
+    
+    @Transactional
+    @HccCacheEvict(key = "'inventory:' + #productId")
+    public void updateInventory(Long productId, Integer quantity) {
+        inventoryRepository.update(productId, quantity);
     }
 }
 ```
@@ -218,11 +239,13 @@ private CacheExecutor cacheExecutor;
 
 public User getUserWithFallback(Long userId) {
     // Build cache key with full control
-    CacheKey cacheKey = CacheKey.builder()
+    CacheKey<String> cacheKey = CacheKey.<String>builder()
         .key("user:" + userId)
         .expireTimeMs(300000)
         .consistencyLevel(ConsistencyLevel.AVAILABLE)
         .cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+        .bloomFilterEnabled(true)
+        .cacheNullValues(true)
         .build();
     
     // Execute with automatic SingleFlight and circuit breaker
@@ -256,7 +279,7 @@ public User getUserWithFallback(Long userId) {
 | Component | Per Entry | Description |
 |-----------|-----------|-------------|
 | Local Cache (Caffeine) | ~200 bytes | Including metadata |
-| Hotspot Counter | ~40 bytes | Sliding window statistics |
+| Hotspot Counter (CMS) | ~40 bytes | Count-Min Sketch statistics |
 | Circuit Breaker State | ~100 bytes | State machine info |
 
 ---
@@ -267,16 +290,13 @@ public User getUserWithFallback(Long userId) {
 
 **CP Mode (High Consistency)** - Use for critical data:
 ```java
-@HccCacheable(key = "#id", 
-        consistencyLevel = ConsistencyLevel.HIGH
-              )
+@HccCacheable(key = "#id", consistencyLevel = ConsistencyLevel.HIGH)
 // Best for: Inventory, pricing, account balance
 ```
 
 **AP Mode (High Availability)** - Use for eventually consistent data:
 ```java
-@HccCacheable(key = "#id",
-        consistencyLevel = ConsistencyLevel.AVAILABLE)
+@HccCacheable(key = "#id", consistencyLevel = ConsistencyLevel.AVAILABLE)
 // Best for: Product details, user profiles, configurations
 ```
 
@@ -287,12 +307,21 @@ public User getUserWithFallback(Long userId) {
 **ADAPTIVE_CACHE**: Intelligent adaptive (recommended, auto-optimizes)
 
 ```java
-@HccCacheable(key = "#id",
-        cacheLevel = CacheLevel.ADAPTIVE_CACHE)
+@HccCacheable(key = "#id", cacheLevel = CacheLevel.ADAPTIVE_CACHE)
 // Automatically adjusts strategy based on access patterns
 ```
 
-### 3. Monitoring & Metrics
+### 3. Bloom Filter Configuration
+
+Enable Bloom filter to prevent cache penetration:
+```java
+@HccCacheable(key = "#id", bloomFilterEnabled = true)
+public Data getData(Long id) {
+    return repository.findById(id);
+}
+```
+
+### 4. Monitoring & Metrics
 
 Expose cache statistics via actuator endpoints:
 
@@ -309,13 +338,11 @@ public class CacheMonitorController {
     
     @GetMapping("/stats")
     public CacheStats getCacheStats() {
-        // Returns hit rate, size, eviction count, etc.
         return cacheManager.getStats();
     }
     
     @GetMapping("/circuit-breaker")
-    public CircuitStats getCircuitBreakerStats() {
-        // Returns state, failure count, rejection rate
+    public CacheCircuitBreaker.CircuitStats getCircuitBreakerStats() {
         return circuitBreaker.getStats();
     }
 }
@@ -386,7 +413,7 @@ alerts:
 
 **Solutions**:
 
-1. Enable Bloom filter (if available):
+1. Enable Bloom filter:
 ```java
 @HccCacheable(key = "#id", bloomFilterEnabled = true)
 ```
@@ -443,10 +470,11 @@ circuit-breaker:
 **Core Features**:
 - ✅ Multi-level cache architecture (L1 + L2)
 - ✅ SingleFlight request collapsing
-- ✅ Read/write hotspot detection
+- ✅ CMS-based read/write hotspot detection
 - ✅ Three-state circuit breaker
 - ✅ Reliable invalidation broadcasting
 - ✅ Spring annotation integration
+- ✅ Bloom filter support
 
 **Known Limitations**:
 - No Micrometer metrics export (planned for v1.1.0)
@@ -487,7 +515,7 @@ We welcome contributions of all kinds!
 
 ```bash
 # 1. Fork the repository
-git fork https://github.com/your-org/consistency-cache
+git fork https://github.com/latcn/consistency-cache
 
 # 2. Create a feature branch
 git checkout -b feature/amazing-feature
@@ -532,8 +560,8 @@ limitations under the License.
 
 ## 📧 Contact Us
 
-- **Project Homepage**: https://github.com/your-org/consistency-cache
-- **Issue Tracker**: https://github.com/your-org/consistency-cache/issues
+- **Project Homepage**: https://github.com/latcn/consistency-cache
+- **Issue Tracker**: https://github.com/latcn/consistency-cache/issues
 - **Mailing List**: dev@consistency-cache.org
 - **Twitter**: @ConsistencyCache
 

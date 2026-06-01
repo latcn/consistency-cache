@@ -5,15 +5,17 @@ import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
+import io.github.latcn.cache.core.manager.SingleFlightExecutor;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.binder.MeterBinder;
 
-/**
- * Cache Metrics Binder for Micrometer
- * Binds cache performance metrics to MeterRegistry for Prometheus scraping
- */
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
 public class CacheMetricsBinder implements MeterBinder {
 
     private final LocalCacheManager localCacheManager;
@@ -21,62 +23,68 @@ public class CacheMetricsBinder implements MeterBinder {
     private final CacheCircuitBreaker circuitBreaker;
     private final ReadHotspotDetector readHotspotDetector;
     private final WriteHotspotDetector writeHotspotDetector;
-    
+    private final SingleFlightExecutor singleFlightExecutor;
+
     private MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, Timer> getDurationTimers = new ConcurrentHashMap<>();
+    private final AtomicLong hitCount = new AtomicLong(0);
+    private final AtomicLong missCount = new AtomicLong(0);
+    private final AtomicLong invalidationSuccessCount = new AtomicLong(0);
+    private final AtomicLong invalidationFailureCount = new AtomicLong(0);
 
     public CacheMetricsBinder(LocalCacheManager localCacheManager,
                               DistributedCacheManager distributedCacheManager,
                               CacheCircuitBreaker circuitBreaker,
                               ReadHotspotDetector readHotspotDetector,
                               WriteHotspotDetector writeHotspotDetector) {
+        this(localCacheManager, distributedCacheManager, circuitBreaker,
+             readHotspotDetector, writeHotspotDetector, null);
+    }
+
+    public CacheMetricsBinder(LocalCacheManager localCacheManager,
+                              DistributedCacheManager distributedCacheManager,
+                              CacheCircuitBreaker circuitBreaker,
+                              ReadHotspotDetector readHotspotDetector,
+                              WriteHotspotDetector writeHotspotDetector,
+                              SingleFlightExecutor singleFlightExecutor) {
         this.localCacheManager = localCacheManager;
         this.distributedCacheManager = distributedCacheManager;
         this.circuitBreaker = circuitBreaker;
         this.readHotspotDetector = readHotspotDetector;
         this.writeHotspotDetector = writeHotspotDetector;
+        this.singleFlightExecutor = singleFlightExecutor;
     }
 
     @Override
     public void bindTo(MeterRegistry registry) {
         this.meterRegistry = registry;
-        
-        // L1 Cache Metrics
+
         bindLocalCacheMetrics();
-        
-        // L2 Cache Metrics
         bindDistributedCacheMetrics();
-        
-        // Circuit Breaker Metrics
         bindCircuitBreakerMetrics();
-        
-        // System Performance Metrics
         bindSystemPerformanceMetrics();
+        bindInvalidationMetrics();
+        bindSingleFlightMetrics();
     }
 
-    /**
-     * Bind L1 (Local) Cache Metrics
-     */
     private void bindLocalCacheMetrics() {
         if (localCacheManager == null) {
             return;
         }
 
-        // Cache Hit/Miss Counter
         Counter.builder("hcc_cache_requests_total")
                 .description("Total number of cache requests (hit + miss)")
                 .tag("cache_level", "L1")
                 .tag("type", "requests")
                 .register(meterRegistry);
 
-        // Hit Count Gauge
-        Gauge.builder("hcc_cache_hits_total", localCacheManager, 
+        Gauge.builder("hcc_cache_hits_total", localCacheManager,
                         manager -> manager.getStats().getHitCount())
                 .description("Total number of cache hits")
                 .tag("cache_level", "L1")
                 .baseUnit("hits")
                 .register(meterRegistry);
 
-        // Miss Count Gauge
         Gauge.builder("hcc_cache_misses_total", localCacheManager,
                         manager -> manager.getStats().getMissCount())
                 .description("Total number of cache misses")
@@ -84,7 +92,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("misses")
                 .register(meterRegistry);
 
-        // Hit Rate Gauge
         Gauge.builder("hcc_cache_hit_ratio", localCacheManager,
                         manager -> manager.getStats().getHitRate())
                 .description("Cache hit rate (0.0-1.0)")
@@ -92,7 +99,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("ratio")
                 .register(meterRegistry);
 
-        // Cache Size Gauge
         Gauge.builder("hcc_cache_size", localCacheManager,
                         manager -> manager.getStats().getSize())
                 .description("Current number of entries in cache")
@@ -100,7 +106,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("entries")
                 .register(meterRegistry);
 
-        // Max Size Gauge
         Gauge.builder("hcc_cache_max_size", localCacheManager,
                         manager -> manager.getStats().getMaxSize())
                 .description("Maximum configured cache size")
@@ -108,7 +113,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("entries")
                 .register(meterRegistry);
 
-        // Eviction Count Gauge
         Gauge.builder("hcc_cache_evictions_total", localCacheManager,
                         manager -> manager.getStats().getEvictionCount())
                 .description("Total number of cache evictions")
@@ -117,15 +121,11 @@ public class CacheMetricsBinder implements MeterBinder {
                 .register(meterRegistry);
     }
 
-    /**
-     * Bind L2 (Distributed) Cache Metrics
-     */
     private void bindDistributedCacheMetrics() {
         if (distributedCacheManager == null) {
             return;
         }
 
-        // Redis Connection Status
         Gauge.builder("hcc_distributed_cache_connected", distributedCacheManager,
                         manager -> distributedCacheManager.isHealthy() ? 1 : 0)
                 .description("Redis connection status (1=connected, 0=disconnected)")
@@ -133,7 +133,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("status")
                 .register(meterRegistry);
 
-        // L2 Cache Operations Counter
         Counter.builder("hcc_distributed_cache_operations_total")
                 .description("Total number of distributed cache operations")
                 .tag("cache_level", "L2")
@@ -141,15 +140,11 @@ public class CacheMetricsBinder implements MeterBinder {
                 .register(meterRegistry);
     }
 
-    /**
-     * Bind Circuit Breaker Metrics
-     */
     private void bindCircuitBreakerMetrics() {
         if (circuitBreaker == null) {
             return;
         }
 
-        // Circuit State Gauge (0=CLOSED, 1=OPEN, 2=HALF_OPEN)
         Gauge.builder("hcc_circuit_breaker_state", circuitBreaker,
                         breaker -> {
                             String state = breaker.getStats().getState()+"";
@@ -165,7 +160,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("state")
                 .register(meterRegistry);
 
-        // Failure Count Gauge
         Gauge.builder("hcc_circuit_breaker_failures_total", circuitBreaker,
                         breaker -> breaker.getStats().getFailureCount())
                 .description("Current failure count")
@@ -173,7 +167,6 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("failures")
                 .register(meterRegistry);
 
-        // Success Count Gauge
         Gauge.builder("hcc_circuit_breaker_successes_total", circuitBreaker,
                         breaker -> breaker.getStats().getSuccessCount())
                 .description("Current success count")
@@ -181,36 +174,91 @@ public class CacheMetricsBinder implements MeterBinder {
                 .baseUnit("successes")
                 .register(meterRegistry);
 
-        // Rejected Calls Counter
         Counter.builder("hcc_circuit_breaker_rejected_total")
                 .description("Total number of calls rejected when circuit is OPEN")
                 .tag("component", "circuitbreaker")
                 .register(meterRegistry);
     }
 
-    /**
-     * Bind System Performance Metrics
-     */
     private void bindSystemPerformanceMetrics() {
-        // Hotspot Detection Metrics
-        if (readHotspotDetector!=null) {
-            // Read Hotspot Count
+        if (readHotspotDetector != null) {
             Gauge.builder("hcc_hotspot_read_hotkeys_count", readHotspotDetector,
-                            readKey-> readKey.readHotKeyCount() )
+                            readKey -> readKey.readHotKeyCount())
                     .description("Number of read hotspot keys detected")
                     .tag("hotspot_type", "read")
+                    .tag("type", "read")
                     .baseUnit("keys")
                     .register(meterRegistry);
         }
-        if (writeHotspotDetector!=null) {
-            // Write Hotspot Count
+        if (writeHotspotDetector != null) {
             Gauge.builder("hcc_hotspot_write_hotkeys_count", writeHotspotDetector,
-                            writeKey->writeKey.writeHotKeyCount())
+                            writeKey -> writeKey.writeHotKeyCount())
                     .description("Number of write hotspot keys detected")
                     .tag("hotspot_type", "write")
+                    .tag("type", "write")
                     .baseUnit("keys")
                     .register(meterRegistry);
         }
     }
 
+    private void bindInvalidationMetrics() {
+        Counter.builder("cache_invalidation_publish_total")
+                .description("Total number of invalidation messages published")
+                .tag("result", "success")
+                .register(meterRegistry);
+
+        Counter.builder("cache_invalidation_publish_total")
+                .description("Total number of invalidation messages published")
+                .tag("result", "failure")
+                .register(meterRegistry);
+
+        Timer.builder("cache_invalidation_delay")
+                .description("Delay in invalidation message publishing")
+                .register(meterRegistry);
+    }
+
+    private void bindSingleFlightMetrics() {
+        if (singleFlightExecutor == null) {
+            return;
+        }
+
+        Counter.builder("singleflight_requests_total")
+                .description("Total number of merged requests")
+                .register(meterRegistry);
+
+        Gauge.builder("singleflight_inflight_requests", singleFlightExecutor,
+                        executor -> executor.getInflightCount())
+                .description("Number of requests currently being merged")
+                .baseUnit("requests")
+                .register(meterRegistry);
+    }
+
+    public void recordCacheGet(String cacheLevel, String result, long durationMs) {
+        String key = cacheLevel + "_" + result;
+        getDurationTimers.computeIfAbsent(key, k ->
+            Timer.builder("cache_get_duration")
+                .tag("cache_level", cacheLevel)
+                .tag("result", result)
+                .register(meterRegistry)
+        ).record(durationMs, TimeUnit.MILLISECONDS);
+
+        if ("hit".equals(result)) {
+            hitCount.incrementAndGet();
+        } else if ("miss".equals(result)) {
+            missCount.incrementAndGet();
+        }
+    }
+
+    public void recordInvalidationPublish(boolean success) {
+        if (success) {
+            invalidationSuccessCount.incrementAndGet();
+        } else {
+            invalidationFailureCount.incrementAndGet();
+        }
+    }
+
+    public double calculateHitRatio() {
+        long total = hitCount.get() + missCount.get();
+        return total > 0 ? (double) hitCount.get() / total : 0.0;
+    }
 }

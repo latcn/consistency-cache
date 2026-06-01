@@ -1,5 +1,6 @@
 package io.github.latcn.cache.core.pubsub;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,289 +9,289 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
-/**
- * Unit tests for InvalidationBroadcaster
- */
 @DisplayName("InvalidationBroadcaster Tests")
 class InvalidationBroadcasterTest {
 
     @Mock
     private BroadcastPublisher publisher;
-    
+
     @Mock
-    private BroadcastSubscriber subscriber;
+    private BroadcastSubscriber<Object, BroadcasterListener> subscriber;
 
     private AutoCloseable mocks;
+    private InvalidationBroadcaster<Object, BroadcasterListener> broadcaster;
 
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
     }
 
+    @AfterEach
+    void tearDown() throws Exception {
+        if (broadcaster != null) {
+            broadcaster.preDestroy();
+        }
+        mocks.close();
+    }
+
     @Test
     @DisplayName("Should add key to pending set")
     void testAddKey() throws Exception {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        // When
         broadcaster.addKey("test-key");
+        broadcaster.publish();
 
-        // Then - Should not throw exception
-        // Note: We can't directly verify sendKeys as it's private
+        verify(publisher).broadcastMessage(eq(channels), any(InvalidationMessage.class));
     }
 
     @Test
     @DisplayName("Should ignore null keys")
     void testAddNullKey() {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        // When - Should not throw exception
         broadcaster.addKey(null);
+        broadcaster.publish();
 
-        // Then
         verifyNoInteractions(publisher);
     }
 
     @Test
     @DisplayName("Should publish when batch size is reached")
     void testBatchPublishing() throws Exception {
-        // Given
-        int batchSize = 5;
+        int batchSize = 3;
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, batchSize, 5
         );
 
-        doNothing().when(publisher).broadcastMessage(anySet(), any(InvalidationMessage.class));
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        // When - Add keys up to batch size
-        for (int i = 0; i < batchSize; i++) {
-            broadcaster.addKey("key-" + i);
-        }
+        broadcaster.addKey("key-1");
+        broadcaster.addKey("key-2");
+        broadcaster.addKey("key-3");
 
-        // Then - Should have triggered publish
-        // Note: Actual verification is difficult due to async nature
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "Batch publish should have been triggered");
+        verify(publisher).broadcastMessage(eq(channels), any(InvalidationMessage.class));
     }
 
     @Test
     @DisplayName("Should create InvalidationMessage with correct structure")
     void testInvalidationMessageStructure() {
-        // Given
-        Set<Object> keys = ConcurrentHashMap.newKeySet();
-        keys.add("key-1");
-        keys.add("key-2");
+        Set<Object> keys = new HashSet<>(Arrays.asList("key-1", "key-2"));
         
         InvalidationMessage message = new InvalidationMessage();
         message.setKeys(keys);
 
-        // Then
         assertNotNull(message.getMessageId());
         assertEquals(keys, message.getKeys());
+        assertNotNull(message.getNodeId());
     }
 
     @Test
     @DisplayName("Should handle retry logic")
     void testRetryLogic() throws Exception {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        // Simulate failure then success
-        doThrow(new RuntimeException("Network error"))
-            .doNothing()
-            .when(publisher).broadcastMessage(anySet(), any(InvalidationMessage.class));
+        AtomicInteger attemptCount = new AtomicInteger(0);
+        CountDownLatch latch = new CountDownLatch(1);
+        
+        doAnswer(invocation -> {
+            int attempt = attemptCount.incrementAndGet();
+            if (attempt == 1) {
+                throw new RuntimeException("Network error");
+            }
+            latch.countDown();
+            return null;
+        }).when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        InvalidationMessage message = new InvalidationMessage();
-        Set keys = ConcurrentHashMap.newKeySet();
-        keys.addAll(Arrays.asList("retry-key"));
-        message.setKeys(keys);
+        broadcaster.addKey("retry-key");
+        broadcaster.publish();
 
-        // When - First call fails, second succeeds
-        try {
-            broadcaster.publish();
-        } catch (Exception e) {
-            // Expected
-        }
-
-        // Trigger retry manually
-        broadcaster.broadcastWithRetry(message, 0);
-
-        // Then - Should have retried
-        //verify(publisher, times(2)).broadcastMessage(anySet(), any(InvalidationMessage.class));
+        assertTrue(latch.await(5, TimeUnit.SECONDS), "Retry should succeed");
+        assertEquals(2, attemptCount.get(), "Should have retried once");
     }
 
     @Test
     @DisplayName("Should stop retrying after max retries")
     void testMaxRetries() throws Exception {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
         doThrow(new RuntimeException("Persistent error"))
-            .when(publisher).broadcastMessage(anySet(), any(InvalidationMessage.class));
+            .when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        InvalidationMessage message = new InvalidationMessage();
-        Set keys = ConcurrentHashMap.newKeySet();
-        keys.addAll(Arrays.asList("failing-key"));
-        message.setKeys(keys);
+        broadcaster.addKey("failing-key");
+        broadcaster.publish();
 
-        // When - Retry multiple times
-        for (int i=0; i<4; i++) {
-            broadcaster.broadcastWithRetry(message, i);
-        }
-        // Then - Should stop after 3 retries
-        verify(publisher, atMost(3)).broadcastMessage(anySet(), any(InvalidationMessage.class));
+        Thread.sleep(5000);
+
+        verify(publisher, org.mockito.Mockito.times(4)).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
     }
 
     @Test
     @DisplayName("Should use exponential backoff for retries")
     void testExponentialBackoff() throws Exception {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        doThrow(new RuntimeException("Error")).when(publisher).broadcastMessage(anySet(), any());
-
-        InvalidationMessage message = new InvalidationMessage();
-        Set keys = ConcurrentHashMap.newKeySet();
-        keys.addAll(Arrays.asList("backoff-test"));
-        message.setKeys(keys);
-
-        AtomicBoolean firstAttemptDone = new AtomicBoolean(false);
+        AtomicLong firstAttemptTime = new AtomicLong(0);
+        AtomicLong secondAttemptTime = new AtomicLong(0);
+        AtomicInteger attemptCount = new AtomicInteger(0);
         CountDownLatch latch = new CountDownLatch(1);
 
-        // Mock with timing verification
         doAnswer(invocation -> {
-            if (!firstAttemptDone.get()) {
-                firstAttemptDone.set(true);
+            int attempt = attemptCount.incrementAndGet();
+            long currentTime = System.currentTimeMillis();
+            
+            if (attempt == 1) {
+                firstAttemptTime.set(currentTime);
                 throw new RuntimeException("First failure");
+            } else {
+                secondAttemptTime.set(currentTime);
+                latch.countDown();
             }
-            latch.countDown();
             return null;
-        }).when(publisher).broadcastMessage(anySet(), any());
+        }).when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        // When
-        broadcaster.broadcastWithRetry(message, 0);
+        broadcaster.addKey("backoff-test");
+        broadcaster.publish();
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS), "Retry should complete");
         
-        // Wait and trigger completion
-        latch.await(5, TimeUnit.SECONDS);
-
-        // Then - Should have attempted at least once
-        verify(publisher, atLeastOnce()).broadcastMessage(anySet(), any());
+        long delay = secondAttemptTime.get() - firstAttemptTime.get();
+        assertTrue(delay >= 900, "Exponential backoff delay should be at least 1 second");
     }
 
     @Test
     @DisplayName("Should handle empty key set gracefully")
     void testEmptyKeySet() {
-        // Given
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        // When
         broadcaster.publish();
 
-        // Then - Should not throw exception or publish
         verifyNoInteractions(publisher);
     }
 
     @Test
     @DisplayName("Should support multiple channels")
     void testMultipleChannels() throws Exception {
-        // Given
         Set<String> channels = Set.of("channel-1", "channel-2", "channel-3");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        doNothing().when(publisher).broadcastMessage(anySet(), any(InvalidationMessage.class));
+        doNothing().when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        // When
         broadcaster.addKey("multi-channel-key");
         broadcaster.publish();
 
-        // Then
         verify(publisher).broadcastMessage(eq(channels), any(InvalidationMessage.class));
     }
 
     @Test
-    @DisplayName("Should track retry count per message")
-    void testRetryCountTracking() throws Exception {
-        // Given
+    @DisplayName("Should handle concurrent publish calls")
+    void testConcurrentPublish() throws Exception {
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        doThrow(new RuntimeException("Error")).when(publisher).broadcastMessage(anySet(), any());
-
-        InvalidationMessage message = new InvalidationMessage();
-        Set keys = ConcurrentHashMap.newKeySet();
-        keys.addAll(Arrays.asList("tracked-key"));
-        message.setKeys(keys);
-
-        // When - Multiple retry attempts
-        try {
-            broadcaster.broadcastWithRetry(message, 0);
-        } catch (Exception e) {
-            // Ignore
-        }
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<InvalidationMessage> capturedMessage = new AtomicReference<>();
         
-        try {
-            broadcaster.broadcastWithRetry(message, 1);
-        } catch (Exception e) {
-            // Ignore
-        }
+        doAnswer(invocation -> {
+            capturedMessage.set((InvalidationMessage) invocation.getArgument(1));
+            latch.countDown();
+            return null;
+        }).when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        // Then - Should track retries internally
-        // The retry count map should have been updated
+        broadcaster.addKey("key-1");
+        broadcaster.addKey("key-2");
+
+        Thread thread1 = new Thread(broadcaster::publish);
+        Thread thread2 = new Thread(broadcaster::publish);
+        
+        thread1.start();
+        thread2.start();
+        
+        thread1.join();
+        thread2.join();
+
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "Publish should complete");
+        
+        assertNotNull(capturedMessage.get());
+        assertEquals(2, capturedMessage.get().getKeys().size());
     }
 
     @Test
-    @DisplayName("Should clean up retry map after success")
-    void testRetryMapCleanup() throws Exception {
-        // Given
+    @DisplayName("Should publish correct keys")
+    void testPublishCorrectKeys() throws Exception {
         Set<String> channels = Set.of("channel-1");
-        InvalidationBroadcaster broadcaster = new InvalidationBroadcaster(
+        broadcaster = new InvalidationBroadcaster<>(
             publisher, subscriber, new ArrayList<>(), channels, 10, 5
         );
 
-        doNothing().when(publisher).broadcastMessage(anySet(), any());
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<InvalidationMessage> capturedMessage = new AtomicReference<>();
+        
+        doAnswer(invocation -> {
+            capturedMessage.set((InvalidationMessage) invocation.getArgument(1));
+            latch.countDown();
+            return null;
+        }).when(publisher).broadcastMessage(any(Set.class), any(InvalidationMessage.class));
 
-        InvalidationMessage message = new InvalidationMessage();
-        Set keys = ConcurrentHashMap.newKeySet();
-        keys.addAll(Arrays.asList("cleanup-key"));
-        message.setKeys(keys);
+        broadcaster.addKey("key-a");
+        broadcaster.addKey("key-b");
+        broadcaster.addKey("key-c");
+        broadcaster.publish();
 
-        // When - Successful broadcast
-        broadcaster.broadcastWithRetry(message, 0);
-
-        // Then - Should have removed from retry map after success
-        // This prevents memory leaks
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "Publish should complete");
+        
+        assertNotNull(capturedMessage.get());
+        Set<Object> keys = capturedMessage.get().getKeys();
+        assertEquals(3, keys.size());
+        assertTrue(keys.contains("key-a"));
+        assertTrue(keys.contains("key-b"));
+        assertTrue(keys.contains("key-c"));
     }
 }
