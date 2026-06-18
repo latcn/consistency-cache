@@ -6,10 +6,31 @@
     <parent>
         <groupId>io.github.latcn</groupId>
         <artifactId>consistency-cache</artifactId>
-        <version>1.0.0</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>consistency-cache-spring-boot-starter</artifactId>
+
+    <name>consistency-cache-spring-boot-starter</name>
+    <description>HCC consistency-cache-spring-boot-starter</description>
+    <url>https://github.com/latcn/consistency-cache/consistency-cache-spring-boot-starter</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>latcn</name>
+            <email>quantum_code@yeah.net</email>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/latcn/consistency-cache</url>
+        <connection>git://github.com/latcn/consistency-cache.git</connection>
+    </scm>
 
     <properties>
         <java.version>17</java.version>
@@ -35,5 +56,14 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.github.latcn</groupId>
+        <artifactId>consistency-cache</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>consistency-cache-bom</artifactId>
+    <packaging>pom</packaging>
+
+    <name>consistency-cache-bom</name>
+    <description>HCC BOM</description>
+    <url>https://github.com/latcn/consistency-cache/consistency-cache-bom</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>latcn</name>
+            <email>quantum_code@yeah.net</email>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/latcn/consistency-cache</url>
+        <connection>git://github.com/latcn/consistency-cache.git</connection>
+    </scm>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+            <dependency>
+                <groupId>io.github.latcn</groupId>
+                <artifactId>consistency-cache-core</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.latcn</groupId>
+                <artifactId>consistency-cache-spring</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.latcn</groupId>
+                <artifactId>consistency-cache-spring-boot-starter</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <addDefaultEntries>true</addDefaultEntries>
+                                </manifest>
+                                <manifestEntries>
+                                    <BOM-Type>Version-Management-Only</BOM-Type>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
