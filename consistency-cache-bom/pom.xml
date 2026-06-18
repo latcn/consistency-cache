@@ -33,62 +33,24 @@
         <connection>git://github.com/latcn/consistency-cache.git</connection>
     </scm>
 
-    <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencyManagement>
         <dependencies>
-
             <dependency>
                 <groupId>io.github.latcn</groupId>
                 <artifactId>consistency-cache-core</artifactId>
                 <version>${revision}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.github.latcn</groupId>
                 <artifactId>consistency-cache-spring</artifactId>
                 <version>${revision}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.github.latcn</groupId>
                 <artifactId>consistency-cache-spring-boot-starter</artifactId>
                 <version>${revision}</version>
             </dependency>
-
         </dependencies>
     </dependencyManagement>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>jar-no-fork</goal>
-                        </goals>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <addDefaultEntries>true</addDefaultEntries>
-                                </manifest>
-                                <manifestEntries>
-                                    <BOM-Type>Version-Management-Only</BOM-Type>
-                                </manifestEntries>
-                            </archive>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>

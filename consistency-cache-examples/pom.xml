@@ -13,17 +13,11 @@
     <artifactId>consistency-cache-examples</artifactId>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <snakeyaml.version>2.5</snakeyaml.version>
+        <admin-starter.version>3.3.0</admin-starter.version>
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
-            <version>2.5</version>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -31,12 +25,12 @@
         <dependency>
             <groupId>io.github.latcn</groupId>
             <artifactId>consistency-cache-spring-boot-starter</artifactId>
-            <version>1.0.0</version>
+            <version>${revision}</version>
         </dependency>
         <dependency>
             <groupId>de.codecentric</groupId>
             <artifactId>spring-boot-admin-starter-client</artifactId>
-            <version>3.3.0</version>
+            <version>${admin-starter.version}</version>
         </dependency>
     </dependencies>
 
