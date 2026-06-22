@@ -7,23 +7,24 @@ import org.redisson.api.RedissonClient;
 
 public class RTopicSubscriber implements BroadcastSubscriber<Integer, InvalidationListener> {
 
-    private final RedissonClient redissonClient;
+	private final RedissonClient redissonClient;
 
-    public RTopicSubscriber(RedissonClient redissonClient) {
-        this.redissonClient = redissonClient;
-    }
+	public RTopicSubscriber(RedissonClient redissonClient) {
+		this.redissonClient = redissonClient;
+	}
 
-    @Override
-    public Integer broadcastSubscribe(String channelName, InvalidationListener listener) {
-        RTopic rTopic = redissonClient.getTopic(channelName);
-        // 注册监听器
-        return rTopic.addListener(BroadcastMessage.class, listener);
-    }
+	@Override
+	public Integer broadcastSubscribe(String channelName, InvalidationListener listener) {
+		RTopic rTopic = redissonClient.getTopic(channelName);
+		// 注册监听器
+		return rTopic.addListener(BroadcastMessage.class, listener);
+	}
 
-    @Override
-    public void removeSubscribe(String channelName, Integer listenerId) {
-        // 销毁时移除监听器
-        RTopic topic = redissonClient.getTopic(channelName);
-        topic.removeListener(listenerId);
-    }
+	@Override
+	public void removeSubscribe(String channelName, Integer listenerId) {
+		// 销毁时移除监听器
+		RTopic topic = redissonClient.getTopic(channelName);
+		topic.removeListener(listenerId);
+	}
+
 }

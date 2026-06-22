@@ -15,11 +15,18 @@ import lombok.Data;
 @Builder
 public class CacheExecutorConfig {
 
-    private final LocalCacheManager localCacheManager;
-    private final io.github.latcn.cache.core.distributed.DistributedCacheManager distributedCacheManager;
-    private final LocalCacheMarkerManager localCacheMarkerManager;
-    private final WriteHotspotDetector writeHotspotDetector;
-    private final ReadHotspotDetector readStatistics;
-    private final CacheCircuitBreaker cacheCircuitBreaker;
-    private final CacheBloomFilter cacheBloomFilter;
+	private final LocalCacheManager localCacheManager;
+
+	private final io.github.latcn.cache.core.distributed.DistributedCacheManager distributedCacheManager;
+
+	private final LocalCacheMarkerManager localCacheMarkerManager;
+
+	private final WriteHotspotDetector writeHotspotDetector;
+
+	private final ReadHotspotDetector readStatistics;
+
+	private final CacheCircuitBreaker cacheCircuitBreaker;
+
+	private final CacheBloomFilter cacheBloomFilter;
+
 }

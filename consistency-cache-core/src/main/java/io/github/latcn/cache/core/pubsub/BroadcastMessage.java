@@ -1,28 +1,24 @@
 package io.github.latcn.cache.core.pubsub;
 
-import lombok.Data;
-
 import java.io.Serializable;
 import java.util.UUID;
+import lombok.Data;
 
 @Data
 public abstract class BroadcastMessage implements Serializable {
 
-    /**
-     * Unique message identifier (for deduplication).
-     * Format: timestamp-uuid
-     */
-    protected String messageId;
+	/**
+	 * Unique message identifier (for deduplication). Format: timestamp-uuid
+	 */
+	protected String messageId;
 
-    /**
-     * Source node identifier (for debugging/tracing).
-     * Format: hostname-pid
-     */
-    protected String nodeId;
+	/**
+	 * Source node identifier (for debugging/tracing). Format: hostname-pid
+	 */
+	protected String nodeId;
 
-
-    protected String generateMessageId() {
-        return System.currentTimeMillis() + "-" + UUID.randomUUID();
-    }
+	protected String generateMessageId() {
+		return System.currentTimeMillis() + "-" + UUID.randomUUID();
+	}
 
 }

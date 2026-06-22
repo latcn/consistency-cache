@@ -1,9 +1,9 @@
 package io.github.latcn.cache.core.model;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.DisplayName;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for CacheValue
@@ -11,193 +11,190 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("CacheValue Tests")
 class CacheValueTest {
 
-    @Test
-    @DisplayName("Should create CacheValue with default values")
-    void testDefaultConstructor() {
-        // When
-        CacheValue<String> cacheValue = new CacheValue<>();
+	@Test
+	@DisplayName("Should create CacheValue with default values")
+	void testDefaultConstructor() {
+		// When
+		CacheValue<String> cacheValue = new CacheValue<>();
 
-        // Then
-        assertNotNull(cacheValue);
-        assertEquals(CacheValue.MAX_EXPIRE_TIME, cacheValue.getExpireTime());
-        assertEquals(0, cacheValue.getCreatedAt());
-        assertEquals(1.0, cacheValue.getWeight(), 0.01);
-    }
+		// Then
+		assertNotNull(cacheValue);
+		assertEquals(CacheValue.MAX_EXPIRE_TIME, cacheValue.getExpireTime());
+		assertEquals(0, cacheValue.getCreatedAt());
+		assertEquals(1.0, cacheValue.getWeight(), 0.01);
+	}
 
-    @Test
-    @DisplayName("Should create CacheValue with builder")
-    void testBuilder() {
-        // Given
-        long expireTime = System.currentTimeMillis() + 60000;
-        long createdAt = System.currentTimeMillis();
+	@Test
+	@DisplayName("Should create CacheValue with builder")
+	void testBuilder() {
+		// Given
+		long expireTime = System.currentTimeMillis() + 60000;
+		long createdAt = System.currentTimeMillis();
 
-        // When
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("test-value")
-                .expireTime(expireTime)
-                .createdAt(createdAt)
-                .weight(2.0)
-                .build();
+		// When
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("test-value")
+			.expireTime(expireTime)
+			.createdAt(createdAt)
+			.weight(2.0)
+			.build();
 
-        // Then
-        assertEquals("test-value", cacheValue.getValue());
-        assertEquals(expireTime, cacheValue.getExpireTime());
-        assertEquals(createdAt, cacheValue.getCreatedAt());
-        assertEquals(2.0, cacheValue.getWeight(), 0.01);
-    }
+		// Then
+		assertEquals("test-value", cacheValue.getValue());
+		assertEquals(expireTime, cacheValue.getExpireTime());
+		assertEquals(createdAt, cacheValue.getCreatedAt());
+		assertEquals(2.0, cacheValue.getWeight(), 0.01);
+	}
 
-    @Test
-    @DisplayName("Should check if cache value is not expired")
-    void testIsNotExpired() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("valid")
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
+	@Test
+	@DisplayName("Should check if cache value is not expired")
+	void testIsNotExpired() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("valid")
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
 
-        // Then
-        assertFalse(cacheValue.isExpired());
-    }
+		// Then
+		assertFalse(cacheValue.isExpired());
+	}
 
-    @Test
-    @DisplayName("Should check if cache value is expired")
-    void testIsExpired() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("expired")
-                .expireTime(System.currentTimeMillis() - 1000)
-                .build();
+	@Test
+	@DisplayName("Should check if cache value is expired")
+	void testIsExpired() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("expired")
+			.expireTime(System.currentTimeMillis() - 1000)
+			.build();
 
-        // Then
-        assertTrue(cacheValue.isExpired());
-    }
+		// Then
+		assertTrue(cacheValue.isExpired());
+	}
 
-    @Test
-    @DisplayName("Should check if value is null")
-    void testNotExist() {
-        // Given
-        CacheValue<String> cacheValue1 = CacheValue.<String>builder()
-                .value(null)
-                .build();
-        
-        CacheValue<String> cacheValue2 = CacheValue.<String>builder()
-                .value("present")
-                .build();
+	@Test
+	@DisplayName("Should check if value is null")
+	void testNotExist() {
+		// Given
+		CacheValue<String> cacheValue1 = CacheValue.<String>builder().value(null).build();
 
-        // Then
-        assertTrue(cacheValue1.notExist());
-        assertFalse(cacheValue2.notExist());
-    }
+		CacheValue<String> cacheValue2 = CacheValue.<String>builder().value("present").build();
 
-    @Test
-    @DisplayName("Should calculate TTL correctly")
-    void testGetTtl() {
-        // Given
-        long createdAt = System.currentTimeMillis();
-        long expireTime = createdAt + 30000; // 30 seconds
+		// Then
+		assertTrue(cacheValue1.notExist());
+		assertFalse(cacheValue2.notExist());
+	}
 
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("test")
-                .createdAt(createdAt)
-                .expireTime(expireTime)
-                .build();
+	@Test
+	@DisplayName("Should calculate TTL correctly")
+	void testGetTtl() {
+		// Given
+		long createdAt = System.currentTimeMillis();
+		long expireTime = createdAt + 30000; // 30 seconds
 
-        // When
-        long ttl = cacheValue.getTtl();
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("test")
+			.createdAt(createdAt)
+			.expireTime(expireTime)
+			.build();
 
-        // Then
-        assertEquals(30000, ttl, 100); // Allow 100ms tolerance
-    }
+		// When
+		long ttl = cacheValue.getTtl();
 
-    @Test
-    @DisplayName("Should extract value from CacheValue wrapper")
-    void testExtractValueFromCacheValue() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("wrapped-value")
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
+		// Then
+		assertEquals(30000, ttl, 100); // Allow 100ms tolerance
+	}
 
-        // When
-        String extracted = CacheValue.extractValue(cacheValue);
+	@Test
+	@DisplayName("Should extract value from CacheValue wrapper")
+	void testExtractValueFromCacheValue() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("wrapped-value")
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
 
-        // Then
-        assertEquals("wrapped-value", extracted);
-    }
+		// When
+		String extracted = CacheValue.extractValue(cacheValue);
 
-    @Test
-    @DisplayName("Should return null when extracting from expired CacheValue")
-    void testExtractValueFromExpiredCacheValue() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("expired-value")
-                .expireTime(System.currentTimeMillis() - 1000)
-                .build();
+		// Then
+		assertEquals("wrapped-value", extracted);
+	}
 
-        // When
-        String extracted = CacheValue.extractValue(cacheValue);
+	@Test
+	@DisplayName("Should return null when extracting from expired CacheValue")
+	void testExtractValueFromExpiredCacheValue() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("expired-value")
+			.expireTime(System.currentTimeMillis() - 1000)
+			.build();
 
-        // Then
-        assertNull(extracted);
-    }
+		// When
+		String extracted = CacheValue.extractValue(cacheValue);
 
-    @Test
-    @DisplayName("Should return null when extracting from CacheValue with null value")
-    void testExtractValueWithNullValue() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value(null)
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
+		// Then
+		assertNull(extracted);
+	}
 
-        // When
-        String extracted = CacheValue.extractValue(cacheValue);
+	@Test
+	@DisplayName("Should return null when extracting from CacheValue with null value")
+	void testExtractValueWithNullValue() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value(null)
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
 
-        // Then
-        assertNull(extracted);
-    }
+		// When
+		String extracted = CacheValue.extractValue(cacheValue);
 
-    @Test
-    @DisplayName("Should extract value directly if not CacheValue")
-    void testExtractValueNonCacheValue() {
-        // Given
-        String directValue = "direct-value";
+		// Then
+		assertNull(extracted);
+	}
 
-        // When
-        String extracted = CacheValue.extractValue(directValue);
+	@Test
+	@DisplayName("Should extract value directly if not CacheValue")
+	void testExtractValueNonCacheValue() {
+		// Given
+		String directValue = "direct-value";
 
-        // Then
-        assertEquals("direct-value", extracted);
-    }
+		// When
+		String extracted = CacheValue.extractValue(directValue);
 
-    @Test
-    @DisplayName("Should handle null input in extractValue")
-    void testExtractValueNull() {
-        // When
-        String extracted = CacheValue.extractValue(null);
+		// Then
+		assertEquals("direct-value", extracted);
+	}
 
-        // Then
-        assertNull(extracted);
-    }
+	@Test
+	@DisplayName("Should handle null input in extractValue")
+	void testExtractValueNull() {
+		// When
+		String extracted = CacheValue.extractValue(null);
 
-    @Test
-    @DisplayName("Should generate proper toString representation")
-    void testToString() {
-        // Given
-        CacheValue<String> cacheValue = CacheValue.<String>builder()
-                .value("test")
-                .expireTime(1234567890L)
-                .createdAt(1234567800L)
-                .weight(1.5)
-                .build();
+		// Then
+		assertNull(extracted);
+	}
 
-        // When
-        String str = cacheValue.toString();
+	@Test
+	@DisplayName("Should generate proper toString representation")
+	void testToString() {
+		// Given
+		CacheValue<String> cacheValue = CacheValue.<String>builder()
+			.value("test")
+			.expireTime(1234567890L)
+			.createdAt(1234567800L)
+			.weight(1.5)
+			.build();
 
-        // Then
-        assertTrue(str.contains("value=test"));
-        assertTrue(str.contains("expireTime=1234567890"));
-        assertTrue(str.contains("createdAt=1234567800"));
-        assertTrue(str.contains("weight=1.5"));
-    }
+		// When
+		String str = cacheValue.toString();
+
+		// Then
+		assertTrue(str.contains("value=test"));
+		assertTrue(str.contains("expireTime=1234567890"));
+		assertTrue(str.contains("createdAt=1234567800"));
+		assertTrue(str.contains("weight=1.5"));
+	}
+
 }

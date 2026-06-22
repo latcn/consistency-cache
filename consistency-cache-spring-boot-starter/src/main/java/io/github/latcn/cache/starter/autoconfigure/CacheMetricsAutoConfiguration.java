@@ -20,45 +20,41 @@ import org.springframework.context.annotation.Bean;
  */
 @Slf4j
 @AutoConfiguration
-@ConditionalOnClass(name = {"io.micrometer.core.instrument.MeterRegistry", "io.micrometer.prometheus.PrometheusMeterRegistry"})
+@ConditionalOnClass(
+		name = { "io.micrometer.core.instrument.MeterRegistry", "io.micrometer.prometheus.PrometheusMeterRegistry" })
 public class CacheMetricsAutoConfiguration {
 
-    /**
-     * Create Prometheus metrics for cache monitoring
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "spring.hcc.cache.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PrometheusCacheMetrics prometheusCacheMetrics(LocalCacheManager localCacheManager,
-                                                         DistributedCacheManager distributedCacheManager,
-                                                         CacheCircuitBreaker circuitBreaker,
-                                                         ReadHotspotDetector readHotspotDetector,
-                                                         WriteHotspotDetector writeHotspotDetector) {
-        log.info("Initializing Prometheus Cache Metrics...");
-        return new PrometheusCacheMetrics(
-            localCacheManager,
-            distributedCacheManager,
-            circuitBreaker,
-            readHotspotDetector,
-            writeHotspotDetector
-        );
-    }
+	/**
+	 * Create Prometheus metrics for cache monitoring
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	@ConditionalOnProperty(prefix = "spring.hcc.cache.metrics", name = "enabled", havingValue = "true",
+			matchIfMissing = true)
+	public PrometheusCacheMetrics prometheusCacheMetrics(LocalCacheManager localCacheManager,
+			DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
+			ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
+		log.info("Initializing Prometheus Cache Metrics...");
+		return new PrometheusCacheMetrics(localCacheManager, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
+	}
 
-    /**
-     * Expose MeterRegistry for other components to use
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public MeterRegistry meterRegistry(PrometheusCacheMetrics prometheusCacheMetrics) {
-        return prometheusCacheMetrics.getCacheMetricsManager().getMeterRegistry();
-    }
+	/**
+	 * Expose MeterRegistry for other components to use
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	public MeterRegistry meterRegistry(PrometheusCacheMetrics prometheusCacheMetrics) {
+		return prometheusCacheMetrics.getCacheMetricsManager().getMeterRegistry();
+	}
 
-    /**
-     * Optional: Expose CacheMetricsManager as a bean for direct usage
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public CacheMetricsManager cacheMetricsManager(PrometheusCacheMetrics prometheusCacheMetrics) {
-        return prometheusCacheMetrics.getCacheMetricsManager();
-    }
+	/**
+	 * Optional: Expose CacheMetricsManager as a bean for direct usage
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	public CacheMetricsManager cacheMetricsManager(PrometheusCacheMetrics prometheusCacheMetrics) {
+		return prometheusCacheMetrics.getCacheMetricsManager();
+	}
+
 }

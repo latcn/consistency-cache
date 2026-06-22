@@ -2,9 +2,10 @@ package io.github.latcn.cache.core.hotspot.writes;
 
 public interface WriteHotspotDetector {
 
-    <T> void recordInvalidation(T key);
+	<T> void recordInvalidation(T key);
 
-    <T> boolean shouldBypassL1(T key);
+	<T> boolean shouldBypassL1(T key);
 
-    long writeHotKeyCount();
+	long writeHotKeyCount();
+
 }

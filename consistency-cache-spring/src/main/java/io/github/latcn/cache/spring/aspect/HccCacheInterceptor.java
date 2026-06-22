@@ -9,6 +9,12 @@ import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.InvalidationRecord;
 import io.github.latcn.cache.core.model.NodeInstanceHolder;
 import io.github.latcn.cache.core.util.StringUtil;
+import io.github.latcn.cache.spring.uid.SnowflakeGeneratorHolder;
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
@@ -24,154 +30,160 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.util.CollectionUtils;
 
-import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-
 @Slf4j
 public class HccCacheInterceptor extends CacheInterceptor {
 
-    private final CacheExecutor cacheExecutor;
-    private final CacheEvictHandler cacheEvictHandler;
-    private static final ExpressionParser PARSER = new SpelExpressionParser();
-    private final ConcurrentHashMap<String, Expression> expressionCache = new ConcurrentHashMap<>();
-    private final Map<String, ActionWrapper> actionWrapperMap;
+	private final CacheExecutor cacheExecutor;
 
-    public HccCacheInterceptor(CacheExecutor cacheExecutor, CacheEvictHandler cacheEvictHandler) {
-        this.cacheExecutor = cacheExecutor;
-        this.cacheEvictHandler = cacheEvictHandler;
-        this.actionWrapperMap = Map.ofEntries(
-                Map.entry("HccCacheable", this::handleHccCacheable),
-                Map.entry("HccCacheEvict", this::handleHccCacheEvict)
-        );
-    }
+	private final CacheEvictHandler cacheEvictHandler;
 
-    /**
-     * 重写拦截逻辑，支持解析自定义注解
-     */
-    @Override
-    public Object invoke(MethodInvocation invocation) throws Throwable {
-        Method method = invocation.getMethod();
-        Object target = invocation.getThis();
-        CacheOperationSource cacheOperationSource = getCacheOperationSource();
+	private static final ExpressionParser PARSER = new SpelExpressionParser();
 
-        Optional<HccCacheAnnotationParser.CacheableOperationExt> cacheOperationOpt = findCacheOperation(cacheOperationSource, method, target);
-        if (cacheOperationOpt.isPresent()) {
-            return executeCacheOperation(invocation, cacheOperationOpt.get());
-        }
-        return super.invoke(invocation);
-    }
+	private final ConcurrentHashMap<String, Expression> expressionCache = new ConcurrentHashMap<>();
 
-    private Optional<HccCacheAnnotationParser.CacheableOperationExt> findCacheOperation(CacheOperationSource cacheOperationSource, Method method, Object target) {
-        if (cacheOperationSource == null || target == null) {
-            return Optional.empty();
-        }
-        Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
-        Collection<CacheOperation> operations = cacheOperationSource.getCacheOperations(method, targetClass);
-        if (CollectionUtils.isEmpty(operations)) {
-            return Optional.empty();
-        }
-        return operations.stream()
-                .filter(op -> op instanceof HccCacheAnnotationParser.CacheableOperationExt)
-                .map(op -> (HccCacheAnnotationParser.CacheableOperationExt) op)
-                .findFirst();
-    }
+	private final Map<String, ActionWrapper> actionWrapperMap;
 
-    private Object executeCacheOperation(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
-        ActionWrapper actionWrapper = actionWrapperMap.get(cacheableOperationExt.getName());
-        if (actionWrapper != null) {
-            return actionWrapper.accept(invocation, cacheableOperationExt);
-        }
-        return super.invoke(invocation);
-    }
+	public HccCacheInterceptor(CacheExecutor cacheExecutor, CacheEvictHandler cacheEvictHandler) {
+		this.cacheExecutor = cacheExecutor;
+		this.cacheEvictHandler = cacheEvictHandler;
+		this.actionWrapperMap = Map.ofEntries(Map.entry("HccCacheable", this::handleHccCacheable),
+				Map.entry("HccCacheEvict", this::handleHccCacheEvict));
+	}
 
-    /**
-     * @param invocation
-     * @return
-     * @throws Throwable
-     */
-    private Object handleHccCacheable(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
-        Method method = invocation.getMethod();
-        CacheKey cacheKey = parseKey(method, invocation.getArguments(), cacheableOperationExt);
-        try {
-            return CacheValue.extractValue(cacheExecutor.get(cacheKey, (k) -> {
-                try {
-                    return invocation.proceed();
-                } catch (Throwable e) {
-                    // Unwrap and rethrow original exception
-                    if (e instanceof RuntimeException) {
-                        throw (RuntimeException) e;
-                    }
-                    throw new RuntimeException(e);
-                }
-            }));
-        } catch (RuntimeException e) {
-            // Rethrow business exceptions directly
-            throw e;
-        } catch (Exception e) {
-            // 降级保护：缓存出错不影响业务
-            log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);
-            return invocation.proceed();
-        }
-    }
+	/**
+	 * 重写拦截逻辑，支持解析自定义注解
+	 */
+	@Override
+	public Object invoke(MethodInvocation invocation) throws Throwable {
+		Method method = invocation.getMethod();
+		Object target = invocation.getThis();
+		CacheOperationSource cacheOperationSource = getCacheOperationSource();
 
-    /**
-     * 处理缓存失效
-     * @param invocation
-     * @param cacheableOperationExt
-     * @return
-     * @throws Throwable
-     */
-    private Object handleHccCacheEvict(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
-        InvalidationRecord invalidationRecord = new InvalidationRecord();
-        CacheKey cacheKey = parseKey(invocation.getMethod(), invocation.getArguments(), cacheableOperationExt);
-        invalidationRecord.setCacheKey(cacheKey.getKey().toString());
-        invalidationRecord.setUid(NodeInstanceHolder.getSnowflakeGenerator().next().toString());
-        invalidationRecord.setCacheLevel(cacheKey.getCacheLevel().toString());
-        invalidationRecord.setConsistencyLevel(cacheKey.getConsistencyLevel().toString());
-        invalidationRecord.setNodeId(NodeInstanceHolder.getNodeId());
-        invalidationRecord.setOperationType(InvalidationRecord.OperationType.DELETE.toString());
-        Object result = null;
-        try {
-            result = cacheEvictHandler.startInvalidate(invalidationRecord, ()->invocation.proceed());
-            cacheEvictHandler.addToSuccess(invalidationRecord);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return result;
-    }
+		Optional<HccCacheAnnotationParser.CacheableOperationExt> cacheOperationOpt = findCacheOperation(
+				cacheOperationSource, method, target);
+		if (cacheOperationOpt.isPresent()) {
+			return executeCacheOperation(invocation, cacheOperationOpt.get());
+		}
+		return super.invoke(invocation);
+	}
 
-    private CacheKey parseKey(Method method, Object[] args, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) {
-        ParameterNameDiscoverer discoverer = new DefaultParameterNameDiscoverer();
-        String[] paramNames = discoverer.getParameterNames(method);
-        String spELString = cacheableOperationExt.getKey();
-        // 获取缓存的表达式对象，避免重复编译
-        Expression expression = expressionCache.computeIfAbsent(spELString, PARSER::parseExpression);
-        // 创建上下文
-        EvaluationContext context = new StandardEvaluationContext();
-        for (int i = 0; i < paramNames.length; i++) {
-            context.setVariable(paramNames[i], args[i]);
-        }
-        String actualKey = expression.getValue(context, String.class);
-        if (StringUtil.isNullOrEmpty(actualKey)) {
-            throw CacheException.newInstance(CacheError.EMPTY_KEY);
-        }
-        return CacheKey.builder()
-                .key(actualKey)
-                .expireTimeMs(cacheableOperationExt.getExpireTime())
-                .consistencyLevel(cacheableOperationExt.getConsistencyLevel())
-                .cacheLevel(cacheableOperationExt.getCacheLevel())
-                .bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
-                .cacheNullValues(cacheableOperationExt.isCacheNullValues())
-                .broadcastEnabled(cacheableOperationExt.isBroadcastEnabled())
-                .bloomFilterName(cacheableOperationExt.getBloomFilterName())
-                .build();
-    }
+	private Optional<HccCacheAnnotationParser.CacheableOperationExt> findCacheOperation(
+			CacheOperationSource cacheOperationSource, Method method, Object target) {
+		if (cacheOperationSource == null || target == null) {
+			return Optional.empty();
+		}
+		Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+		Collection<CacheOperation> operations = cacheOperationSource.getCacheOperations(method, targetClass);
+		if (CollectionUtils.isEmpty(operations)) {
+			return Optional.empty();
+		}
+		return operations.stream()
+			.filter(op -> op instanceof HccCacheAnnotationParser.CacheableOperationExt)
+			.map(op -> (HccCacheAnnotationParser.CacheableOperationExt) op)
+			.findFirst();
+	}
 
-    @FunctionalInterface
-    interface ActionWrapper {
-        Object accept(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable;
-    }
+	private Object executeCacheOperation(MethodInvocation invocation,
+			HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+		ActionWrapper actionWrapper = actionWrapperMap.get(cacheableOperationExt.getName());
+		if (actionWrapper != null) {
+			return actionWrapper.accept(invocation, cacheableOperationExt);
+		}
+		return super.invoke(invocation);
+	}
+
+	/**
+	 * @param invocation
+	 * @return
+	 * @throws Throwable
+	 */
+	private Object handleHccCacheable(MethodInvocation invocation,
+			HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+		Method method = invocation.getMethod();
+		CacheKey cacheKey = parseKey(method, invocation.getArguments(), cacheableOperationExt);
+		try {
+			return CacheValue.extractValue(cacheExecutor.get(cacheKey, (k) -> {
+				try {
+					return invocation.proceed();
+				}
+				catch (Throwable e) {
+					// Unwrap and rethrow original exception
+					if (e instanceof RuntimeException) {
+						throw (RuntimeException) e;
+					}
+					throw new RuntimeException(e);
+				}
+			}));
+		}
+		catch (Exception e) {
+			// 降级保护：缓存出错不影响业务
+			log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);
+			return invocation.proceed();
+		}
+	}
+
+	/**
+	 * 处理缓存失效
+	 * @param invocation
+	 * @param cacheableOperationExt
+	 * @return
+	 * @throws Throwable
+	 */
+	private Object handleHccCacheEvict(MethodInvocation invocation,
+			HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+		InvalidationRecord invalidationRecord = new InvalidationRecord();
+		CacheKey cacheKey = parseKey(invocation.getMethod(), invocation.getArguments(), cacheableOperationExt);
+		invalidationRecord.setCacheKey(cacheKey.getKey().toString());
+		invalidationRecord.setUid(SnowflakeGeneratorHolder.getSnowflakeGenerator().next().toString());
+		invalidationRecord.setCacheLevel(cacheKey.getCacheLevel().toString());
+		invalidationRecord.setConsistencyLevel(cacheKey.getConsistencyLevel().toString());
+		invalidationRecord.setNodeId(NodeInstanceHolder.getNodeId());
+		invalidationRecord.setOperationType(InvalidationRecord.OperationType.DELETE.toString());
+		Object result = null;
+		try {
+			result = cacheEvictHandler.startInvalidate(invalidationRecord, () -> invocation.proceed());
+			cacheEvictHandler.addToSuccess(invalidationRecord);
+		}
+		catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		return result;
+	}
+
+	private CacheKey parseKey(Method method, Object[] args,
+			HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) {
+		ParameterNameDiscoverer discoverer = new DefaultParameterNameDiscoverer();
+		String[] paramNames = discoverer.getParameterNames(method);
+		String spELString = cacheableOperationExt.getKey();
+		// 获取缓存的表达式对象，避免重复编译
+		Expression expression = expressionCache.computeIfAbsent(spELString, PARSER::parseExpression);
+		// 创建上下文
+		EvaluationContext context = new StandardEvaluationContext();
+		for (int i = 0; i < paramNames.length; i++) {
+			context.setVariable(paramNames[i], args[i]);
+		}
+		String actualKey = expression.getValue(context, String.class);
+		if (StringUtil.isNullOrEmpty(actualKey)) {
+			throw CacheException.newInstance(CacheError.EMPTY_KEY);
+		}
+		return CacheKey.builder()
+			.key(actualKey)
+			.expireTimeMs(cacheableOperationExt.getExpireTime())
+			.consistencyLevel(cacheableOperationExt.getConsistencyLevel())
+			.cacheLevel(cacheableOperationExt.getCacheLevel())
+			.bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())
+			.cacheNullValues(cacheableOperationExt.isCacheNullValues())
+			.broadcastEnabled(cacheableOperationExt.isBroadcastEnabled())
+			.bloomFilterName(cacheableOperationExt.getBloomFilterName())
+			.build();
+	}
+
+	@FunctionalInterface
+	interface ActionWrapper {
+
+		Object accept(MethodInvocation invocation, HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt)
+				throws Throwable;
+
+	}
+
 }

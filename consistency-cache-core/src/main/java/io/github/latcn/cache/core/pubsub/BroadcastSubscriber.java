@@ -2,7 +2,8 @@ package io.github.latcn.cache.core.pubsub;
 
 public interface BroadcastSubscriber<T, S extends BroadcasterListener> {
 
-    T broadcastSubscribe(String channelName, S listener);
+	T broadcastSubscribe(String channelName, S listener);
 
-    void removeSubscribe(String channelName, T listenerId);
+	void removeSubscribe(String channelName, T listenerId);
+
 }

@@ -10,32 +10,33 @@ import org.springframework.stereotype.Service;
 @Service
 public class TestService {
 
-    @HccCacheable(key = "#id", expireTime = 300)
-    public String getDataWithCache(Long id) {
-        return "actual-data-" + id;
-    }
+	@HccCacheable(key = "#id", expireTime = 300)
+	public String getDataWithCache(Long id) {
+		return "actual-data-" + id;
+	}
 
-    @HccCacheEvict(key = "#id")
-    public String deleteData(Long id) {
-        return "deleted-" + id;
-    }
+	@HccCacheEvict(key = "#id")
+	public String deleteData(Long id) {
+		return "deleted-" + id;
+	}
 
-    @HccCacheable(key = "#userId", expireTime = 600)
-    public String getUserById(Long userId) {
-        return "user-" + userId;
-    }
+	@HccCacheable(key = "#userId", expireTime = 600)
+	public String getUserById(Long userId) {
+		return "user-" + userId;
+	}
 
-    @HccCacheable(key = "#type + '-' + #id", expireTime = 300)
-    public String getCompositeData(String type, Long id) {
-        return type + "-data-" + id;
-    }
+	@HccCacheable(key = "#type + '-' + #id", expireTime = 300)
+	public String getCompositeData(String type, Long id) {
+		return type + "-data-" + id;
+	}
 
-    public String getWithoutAnnotation(String param) {
-        return param + "-result";
-    }
+	public String getWithoutAnnotation(String param) {
+		return param + "-result";
+	}
 
-    @HccCacheable(key = "'nullable'", expireTime = 60)
-    public String getNullableData(String data) {
-        return data;
-    }
+	@HccCacheable(key = "'nullable'", expireTime = 60)
+	public String getNullableData(String data) {
+		return data;
+	}
+
 }

@@ -5,6 +5,9 @@ import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.pubsub.InvalidationMessage;
 import io.github.latcn.cache.spring.config.TestConfig;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,73 +17,65 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.test.context.ContextConfiguration;
 
-import java.util.Arrays;
-import java.util.Set;
-import java.util.UUID;
-
 @DisplayName("HccCacheInterceptor Spring Integration Tests")
 @SpringBootTest
 @EnableAspectJAutoProxy
-@ContextConfiguration(classes = {
-        TestConfig.class
-}
-)
+@ContextConfiguration(classes = { TestConfig.class })
 public class RedisPubSub {
 
-    @Autowired
-    private RedissonClient redissonClient;
-    @Autowired
-    private CacheExecutor cacheExecutor;
+	@Autowired
+	private RedissonClient redissonClient;
 
-    @Autowired
-    private LocalCacheMarkerManager localCacheMarkerManager;
+	@Autowired
+	private CacheExecutor cacheExecutor;
 
-    private RTopicPublisher rTopicPublisher;
-    private RTopicSubscriber rTopicSubscriber;
-    private ReliablePublisher reliablePublisher;
-    private ReliableSubscriber reliableSubscriber;
-    private static final String channelName = "invalidmessage";
+	@Autowired
+	private LocalCacheMarkerManager localCacheMarkerManager;
 
-    @BeforeEach
-    public void setUp() {
-        this.rTopicPublisher = new RTopicPublisher(redissonClient);
-        this.rTopicSubscriber = new RTopicSubscriber(redissonClient);
-        this.reliablePublisher = new ReliablePublisher(redissonClient);
-        this.reliableSubscriber = new ReliableSubscriber(redissonClient);
-        for (int i=0; i<3; i++) {
-            new Thread(
-                    ()-> rTopicSubscriber.broadcastSubscribe(channelName, new InvalidationListener(
-                            UUID.randomUUID().toString(), Arrays.asList(channelName), cacheExecutor
-                    ))
-            ).start();
-        }
-    }
+	private RTopicPublisher rTopicPublisher;
 
-    @Test
-    public void publish() throws InterruptedException {
-        setUp();
-        InvalidationMessage invalidationMessage = new InvalidationMessage();
-        for(int i=0; i<2;i++) {
-            CacheKey cacheKey = CacheKey.builder()
-                    .key(i+":"+UUID.randomUUID()).build();
-            invalidationMessage.addKey(cacheKey);
-        }
-        rTopicPublisher.broadcastMessage(Set.of(channelName), invalidationMessage);
-        Thread.sleep(100000);
-       /* CacheKey cacheKey = CacheKey.builder()
-                .key("0:"+UUID.randomUUID()).build();
-        this.cacheExecutor.evict(cacheKey);*/
-    }
+	private RTopicSubscriber rTopicSubscriber;
 
+	private ReliablePublisher reliablePublisher;
 
-    @Test
-    public void testRedisClean() {
-        localCacheMarkerManager.markLocalCacheUsage("k1", System.currentTimeMillis()+1000*1000);
-        localCacheMarkerManager.markLocalCacheUsage("k2", System.currentTimeMillis()+1000*1000);
-        localCacheMarkerManager.doCleanUp();
-    }
+	private ReliableSubscriber reliableSubscriber;
 
+	private static final String channelName = "invalidmessage";
 
+	@BeforeEach
+	public void setUp() {
+		this.rTopicPublisher = new RTopicPublisher(redissonClient);
+		this.rTopicSubscriber = new RTopicSubscriber(redissonClient);
+		this.reliablePublisher = new ReliablePublisher(redissonClient);
+		this.reliableSubscriber = new ReliableSubscriber(redissonClient);
+		for (int i = 0; i < 3; i++) {
+			new Thread(() -> rTopicSubscriber.broadcastSubscribe(channelName,
+					new InvalidationListener(UUID.randomUUID().toString(), Arrays.asList(channelName), cacheExecutor)))
+				.start();
+		}
+	}
 
+	@Test
+	public void publish() throws InterruptedException {
+		setUp();
+		InvalidationMessage invalidationMessage = new InvalidationMessage();
+		for (int i = 0; i < 2; i++) {
+			CacheKey cacheKey = CacheKey.builder().key(i + ":" + UUID.randomUUID()).build();
+			invalidationMessage.addKey(cacheKey);
+		}
+		rTopicPublisher.broadcastMessage(Set.of(channelName), invalidationMessage);
+		Thread.sleep(100000);
+		/*
+		 * CacheKey cacheKey = CacheKey.builder() .key("0:"+UUID.randomUUID()).build();
+		 * this.cacheExecutor.evict(cacheKey);
+		 */
+	}
+
+	@Test
+	public void testRedisClean() {
+		localCacheMarkerManager.markLocalCacheUsage("k1", System.currentTimeMillis() + 1000 * 1000);
+		localCacheMarkerManager.markLocalCacheUsage("k2", System.currentTimeMillis() + 1000 * 1000);
+		localCacheMarkerManager.doCleanUp();
+	}
 
 }

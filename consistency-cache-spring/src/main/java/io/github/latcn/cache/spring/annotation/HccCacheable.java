@@ -2,31 +2,31 @@ package io.github.latcn.cache.spring.annotation;
 
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
-
 import java.lang.annotation.*;
 
-@Target({ElementType.METHOD})
+@Target({ ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface HccCacheable {
 
-    String key();
+	String key();
 
-    /**
-     * seconds
-     * @return
-     */
-    long expireTime() default 0;
+	/**
+	 * seconds
+	 * @return
+	 */
+	long expireTime() default 0;
 
-    CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
+	CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
 
-    ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
+	ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
 
-    boolean bloomFilterEnabled() default false;
+	boolean bloomFilterEnabled() default false;
 
-    boolean cacheNullValues() default true;
+	boolean cacheNullValues() default true;
 
-    boolean broadcastEnabled() default true;
+	boolean broadcastEnabled() default true;
 
-    String bloomFilterName() default "";
+	String bloomFilterName() default "";
+
 }

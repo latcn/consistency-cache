@@ -23,31 +23,34 @@ import org.slf4j.LoggerFactory;
  * IO utility class
  */
 public class IOUtil {
-    private static final Logger LOGGER = LoggerFactory.getLogger(IOUtil.class);
 
-    /**
-     * Close Closeable resources
-     * @param closeables the closeables
-     */
-    public static void close(AutoCloseable... closeables) {
-        if (closeables!=null && closeables.length > 0) {
-            for (AutoCloseable closeable : closeables) {
-                close(closeable);
-            }
-        }
-    }
+	private static final Logger LOGGER = LoggerFactory.getLogger(IOUtil.class);
 
-    /**
-     * Close Closeable resource
-     * @param closeable the closeable
-     */
-    public static void close(AutoCloseable closeable) {
-        if (closeable != null) {
-            try {
-                closeable.close();
-            } catch (Exception e) {
-                LOGGER.warn("Failed to close resource", e);
-            }
-        }
-    }
+	/**
+	 * Close Closeable resources
+	 * @param closeables the closeables
+	 */
+	public static void close(AutoCloseable... closeables) {
+		if (closeables != null && closeables.length > 0) {
+			for (AutoCloseable closeable : closeables) {
+				close(closeable);
+			}
+		}
+	}
+
+	/**
+	 * Close Closeable resource
+	 * @param closeable the closeable
+	 */
+	public static void close(AutoCloseable closeable) {
+		if (closeable != null) {
+			try {
+				closeable.close();
+			}
+			catch (Exception e) {
+				LOGGER.warn("Failed to close resource", e);
+			}
+		}
+	}
+
 }

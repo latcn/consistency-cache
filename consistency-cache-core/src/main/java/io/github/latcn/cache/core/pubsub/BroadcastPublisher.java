@@ -4,5 +4,6 @@ import java.util.Set;
 
 public interface BroadcastPublisher {
 
-    void broadcastMessage(Set<String> channelNames, BroadcastMessage message);
+	void broadcastMessage(Set<String> channelNames, BroadcastMessage message);
+
 }
