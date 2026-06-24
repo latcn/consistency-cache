@@ -82,8 +82,9 @@ public class HccCacheAutoConfiguration {
 
 	@ConditionalOnMissingBean
 	@Bean
-	public DistributedCacheManager distributedCacheManager(RedissonClient redissonClient) {
-		return new RedisCacheManager(redissonClient);
+	public DistributedCacheManager distributedCacheManager(RedissonClient redissonClient, HccProperties properties) {
+		return new RedisCacheManager(redissonClient, properties.getDistributed().getMaxBatchSize(),
+				properties.getDistributed().getMaxWaitInMs());
 	}
 
 	@ConditionalOnMissingBean

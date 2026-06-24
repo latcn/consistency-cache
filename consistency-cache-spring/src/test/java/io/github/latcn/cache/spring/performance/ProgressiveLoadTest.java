@@ -63,7 +63,7 @@ class ProgressiveLoadTest {
 
 		localCacheManager = new LocalCacheManager(properties.getLocal());
 		LocalCacheMarkerManager markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
-		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient);
+		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
 		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0,
@@ -116,7 +116,7 @@ class ProgressiveLoadTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Progressive load test - find breaking point")
 	void testProgressiveLoadFindBreakingPoint() throws InterruptedException {
 		System.out.println("=== Progressive Load Test - Finding Breaking Point ===");
@@ -211,7 +211,7 @@ class ProgressiveLoadTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Progressive load test - read-write mix with increasing load")
 	void testProgressiveReadWriteMix() throws InterruptedException {
 		System.out.println("=== Progressive Read-Write Mix Test ===");
@@ -296,7 +296,7 @@ class ProgressiveLoadTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Progressive load test - resource monitoring")
 	void testProgressiveResourceMonitoring() throws InterruptedException {
 		System.out.println("=== Progressive Resource Monitoring ===");

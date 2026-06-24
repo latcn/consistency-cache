@@ -103,7 +103,7 @@ public class TestConfig {
 	@ConditionalOnMissingBean
 	@Bean
 	public DistributedCacheManager distributedCacheManager(RedissonClient redissonClient) {
-		return new RedisCacheManager(redissonClient);
+		return new RedisCacheManager(redissonClient, 100, 10);
 	}
 
 	@ConditionalOnMissingBean

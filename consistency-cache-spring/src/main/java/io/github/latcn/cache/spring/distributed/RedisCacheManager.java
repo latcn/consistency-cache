@@ -1,26 +1,91 @@
 package io.github.latcn.cache.spring.distributed;
 
+import io.github.latcn.cache.core.distributed.CacheOperation;
+import io.github.latcn.cache.core.distributed.CacheOperationType;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheValue;
+import io.github.latcn.cache.core.util.SafeFifoQueue;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RBucket;
-import org.redisson.api.RedissonClient;
+import org.redisson.api.*;
 
 @Slf4j
 public class RedisCacheManager implements DistributedCacheManager {
 
 	private final RedissonClient redissonClient;
 
-	public RedisCacheManager(RedissonClient redissonClient) {
+	private final int maxBatchSize;
+
+	private final int maxWaitInMs;
+
+	private final ScheduledExecutorService scheduledExecutorService;
+
+	private final SafeFifoQueue<CacheOperation> cacheOperations = new SafeFifoQueue();
+
+	private final AtomicBoolean batchExecuteIsRunning = new AtomicBoolean(false);
+
+	private final AtomicInteger handlerSucCount = new AtomicInteger(0);
+
+	private final AtomicInteger batchExecCount = new AtomicInteger(0);
+
+	public RedisCacheManager(RedissonClient redissonClient, int maxBatchSize, int maxWaitInMs) {
 		this.redissonClient = redissonClient;
+		this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, r -> {
+			Thread thread = new Thread(r);
+			thread.setName("RedisCacheManager Bulk Operation Thread");
+			thread.setDaemon(true);
+			return thread;
+		});
+		this.maxBatchSize = maxBatchSize;
+		this.maxWaitInMs = maxWaitInMs;
+		this.scheduledExecutorService.scheduleAtFixedRate(this::batchExecute, maxWaitInMs, maxWaitInMs,
+				TimeUnit.MILLISECONDS);
 	}
 
 	@Override
 	public boolean isHealthy() {
 		return RedissonClusterHealthCheck.checkClusterHealth(redissonClient);
+	}
+
+	@Override
+	public CompletableFuture<CacheValue> getInBatch(CacheKey key) {
+		return addToCacheOperations(CacheOperationType.GET, key, null);
+	}
+
+	@Override
+	public CompletableFuture<Boolean> putInBatch(CacheKey key, CacheValue cacheValue) {
+		return addToCacheOperations(CacheOperationType.PUT, key, cacheValue);
+	}
+
+	@Override
+	public CompletableFuture<Boolean> removeInBatch(CacheKey key) {
+		return addToCacheOperations(CacheOperationType.REMOVE, key, null);
+	}
+
+	private CompletableFuture addToCacheOperations(CacheOperationType cacheOperationType, CacheKey cacheKey,
+			CacheValue cacheValue) {
+		CompletableFuture completableFuture = new CompletableFuture<>();
+		ConcurrentLinkedQueue linkedQueue = new ConcurrentLinkedQueue<>();
+		linkedQueue.add(completableFuture);
+		CacheOperation cacheOperation = CacheOperation.builder()
+			.operationType(cacheOperationType)
+			.key(cacheKey)
+			.cacheValue(cacheValue)
+			.results(linkedQueue)
+			.createTime(System.currentTimeMillis())
+			.build();
+		CacheOperation oldCacheOperation = this.cacheOperations.put(cacheOperation);
+		if (oldCacheOperation != null) {
+			cacheOperation.getResults().addAll(oldCacheOperation.getResults());
+		}
+		return completableFuture;
 	}
 
 	@Override
@@ -58,6 +123,119 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	private String actualKey(CacheKey cacheKey) {
 		return cacheKey.getKey().toString();
+	}
+
+	/**
+	 * redisson 批量执行
+	 */
+	private void batchExecute() {
+		if (!batchExecuteIsRunning.compareAndSet(false, true)) {
+			return;
+		}
+		long startTime = System.currentTimeMillis();
+		try {
+			batchExecCount.incrementAndGet();
+			BatchOptions options = BatchOptions.defaults();
+			final List<CacheOperation> batchOperations = new ArrayList<>();
+			RBatch batch = redissonClient.createBatch(options);
+
+			while (maxBatchSize > batchOperations.size() && System.currentTimeMillis() - startTime < maxWaitInMs) {
+				List<CacheOperation> operations = cacheOperations.drain(maxBatchSize - batchOperations.size());
+				if (operations == null || operations.size() == 0) {
+					Thread.sleep(1);
+				}
+				for (CacheOperation cacheOperation : operations) {
+					if (cacheOperation.getOperationType() == CacheOperationType.GET) {
+						batch.getBucket(actualKey(cacheOperation.getKey())).getAsync();
+					}
+					else if (cacheOperation.getOperationType() == CacheOperationType.PUT) {
+						CacheValue cacheValue = cacheOperation.getCacheValue();
+						if (cacheValue.getExpireTime() >= CacheValue.MAX_EXPIRE_TIME) {
+							batch.getBucket(actualKey(cacheOperation.getKey())).setAsync(cacheValue);
+						}
+						else {
+							if (cacheValue.isExpired()) {
+								completeCacheOperation(cacheOperation, false);
+								continue;
+							}
+							long duration = cacheValue.getExpireTime() - System.currentTimeMillis();
+							if (duration <= 0) {
+								completeCacheOperation(cacheOperation, false);
+								continue;
+							}
+							batch.getBucket(actualKey(cacheOperation.getKey()))
+								.setAsync(cacheValue, Duration.of(duration, ChronoUnit.MILLIS));
+						}
+					}
+					else if (cacheOperation.getOperationType() == CacheOperationType.REMOVE) {
+						batch.getBucket(actualKey(cacheOperation.getKey())).deleteAsync();
+					}
+					batchOperations.add(cacheOperation);
+				}
+			}
+			if (batchOperations.size() > 0) {
+				log.debug("============batchExecute-{}  batch-size {} , totalAdd: {}, totalRemove:{}",
+						batchExecCount.get(), batchOperations.size(), cacheOperations.getAddCounter(),
+						cacheOperations.getRemoveCounter());
+				BatchResult<?> batchResult = batch.execute();
+				List<?> responses = batchResult.getResponses();
+				log.debug("============batchExecute-{} responses {}", batchExecCount.get(), responses.size());
+				completeCacheOperation(batchOperations, responses);
+				log.debug("============batchExecute-{} batch already get success: {}", batchExecCount.get(),
+						handlerSucCount.get());
+			}
+		}
+		catch (Exception e) {
+			log.error("batchExecute ex", e);
+		}
+		finally {
+			batchExecuteIsRunning.compareAndSet(true, false);
+		}
+	}
+
+	private void completeCacheOperation(List<CacheOperation> cacheOperations, List<?> responses) {
+		if (cacheOperations == null || cacheOperations.size() == 0) {
+			log.error("completeCacheOperation cacheOperations is empty");
+			return;
+		}
+		for (int i = 0; i < cacheOperations.size(); i++) {
+			CacheOperation cacheOperation = cacheOperations.get(i);
+			try {
+				Object response = responses.get(i);
+				if (cacheOperation.getOperationType() == CacheOperationType.GET) {
+					if (response instanceof CacheValue) {
+						completeCacheOperation(cacheOperation, response);
+					}
+					else {
+						completeCacheOperation(cacheOperation, null);
+					}
+				}
+				else {
+					if (response instanceof Exception) {
+						completeCacheOperation(cacheOperation, false);
+					}
+					else {
+						completeCacheOperation(cacheOperation, true);
+					}
+				}
+			}
+			catch (Exception e) {
+				log.error("completeCacheOperation", e);
+			}
+		}
+	}
+
+	private void completeCacheOperation(CacheOperation cacheOperation, Object result) {
+		try {
+			ConcurrentLinkedQueue<CompletableFuture> concurrentLinkedQueue = cacheOperation.getResults();
+			concurrentLinkedQueue.forEach(cf -> {
+				cf.complete(result);
+				handlerSucCount.incrementAndGet();
+			});
+		}
+		catch (Exception e) {
+			log.error("completeCacheOperation", e);
+		}
 	}
 
 }

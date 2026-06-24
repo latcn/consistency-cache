@@ -26,7 +26,7 @@ class LocalCacheStressTest {
 		localCacheManager = new LocalCacheManager(properties);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Local cache write throughput test")
 	void testLocalCacheWriteThroughput() throws InterruptedException {
 		int[] threadCounts = { 10, 50, 100, 200 };
@@ -70,7 +70,7 @@ class LocalCacheStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Local cache read throughput test")
 	void testLocalCacheReadThroughput() throws InterruptedException {
 		int warmupSize = 50000;
@@ -130,7 +130,7 @@ class LocalCacheStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Local cache read-write mix test")
 	void testLocalCacheReadWriteMix() throws InterruptedException {
 		int warmupSize = 20000;
@@ -201,7 +201,7 @@ class LocalCacheStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Local cache eviction performance test")
 	void testLocalCacheEvictionPerformance() throws InterruptedException {
 		HccProperties.LocalCacheProperties smallProps = new HccProperties.LocalCacheProperties();

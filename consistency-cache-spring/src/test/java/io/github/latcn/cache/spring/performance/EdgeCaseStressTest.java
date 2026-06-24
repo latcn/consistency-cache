@@ -61,7 +61,7 @@ class EdgeCaseStressTest {
 
 		localCacheManager = new LocalCacheManager(properties.getLocal());
 		LocalCacheMarkerManager markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
-		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient);
+		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
 		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0,
@@ -96,7 +96,7 @@ class EdgeCaseStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Cache stampede test - thundering herd on expired key")
 	void testCacheStampede() throws InterruptedException {
 		System.out.println("=== Cache Stampede Test ===");
@@ -154,7 +154,7 @@ class EdgeCaseStressTest {
 				((threadCount - loadCount.get()) * 100.0) / threadCount);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("SingleFlight thundering herd protection")
 	void testSingleFlightProtection() throws InterruptedException {
 		System.out.println("=== SingleFlight Thundering Herd Protection ===");
@@ -202,7 +202,7 @@ class EdgeCaseStressTest {
 				((threadCount - actualExecutions.get()) * 100.0) / threadCount);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Hotspot detection under extreme data skew")
 	void testHotspotDetectionWithDataSkew() throws InterruptedException {
 		System.out.println("=== Hotspot Detection with Data Skew ===");
@@ -260,7 +260,7 @@ class EdgeCaseStressTest {
 				falsePositives, coldKeyCount);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Memory pressure test with large cache size")
 	void testMemoryPressure() throws InterruptedException {
 		System.out.println("=== Memory Pressure Test ===");
@@ -316,7 +316,7 @@ class EdgeCaseStressTest {
 				(double) memoryUsed / entryCount);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Cache eviction under high write pressure")
 	void testEvictionUnderPressure() throws InterruptedException {
 		System.out.println("=== Cache Eviction Under High Pressure ===");
@@ -368,7 +368,7 @@ class EdgeCaseStressTest {
 				totalInserts, duration, qps, smallCache.getSize());
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Concurrent cache operations with mixed consistency levels")
 	void testMixedConsistencyLevels() throws InterruptedException {
 		System.out.println("=== Mixed Consistency Levels Test ===");

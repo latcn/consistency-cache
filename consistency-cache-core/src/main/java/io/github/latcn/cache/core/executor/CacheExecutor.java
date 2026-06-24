@@ -3,6 +3,7 @@ package io.github.latcn.cache.core.executor;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.pubsub.Broadcaster;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
@@ -11,12 +12,6 @@ import java.util.function.Function;
 public interface CacheExecutor {
 
 	void setBroadcaster(Broadcaster broadcaster);
-
-	/**
-	 * 接收失效的广播消息时，删除本地缓存
-	 * @param cacheKey
-	 */
-	void deleteLocalCache(CacheKey cacheKey);
 
 	/**
 	 * 当持久数据变更时，失效L2/L1缓存
@@ -38,5 +33,9 @@ public interface CacheExecutor {
 	 * @return
 	 */
 	CacheValue get(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun);
+
+	CompletableFuture<Boolean> evictAsync(CacheKey cacheKey);
+
+	CompletableFuture<CacheValue> getAsync(CacheKey cacheKey, Function<Object, Object> doSingleFlightFun);
 
 }

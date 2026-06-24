@@ -8,12 +8,15 @@ public class HccProperties {
 
 	private LocalCacheProperties local;
 
+	private DistributedProperties distributed;
+
 	private HotspotProperties hotspot;
 
 	private CircuitBreakerProperties circuitBreaker;
 
 	public HccProperties() {
 		this.local = new LocalCacheProperties();
+		this.distributed = new DistributedProperties();
 		this.hotspot = new HotspotProperties();
 		this.circuitBreaker = new CircuitBreakerProperties();
 	}
@@ -65,6 +68,16 @@ public class HccProperties {
 		 * 自定义本地缓存类
 		 */
 		private String customCacheClz;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	public static class DistributedProperties {
+
+		private int maxBatchSize = 100;
+
+		private int maxWaitInMs = 10;
 
 	}
 

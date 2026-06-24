@@ -28,7 +28,7 @@ class RedisMarkerStressTest {
 		markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Redis marker concurrent mark test")
 	void testMarkerConcurrentMark() throws InterruptedException {
 		int[] threadCounts = { 20, 50, 100, 200 };
@@ -68,7 +68,7 @@ class RedisMarkerStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Redis marker concurrent remove test")
 	void testMarkerConcurrentRemove() throws InterruptedException {
 		int warmupCount = 50000;
@@ -111,7 +111,7 @@ class RedisMarkerStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Redis marker multi-node simulation test")
 	void testMarkerMultiNodeSimulation() throws InterruptedException {
 		int nodeCount = 10;
@@ -158,7 +158,7 @@ class RedisMarkerStressTest {
 				totalOps.get(), duration, qps);
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Redis marker cleanup performance test")
 	void testMarkerCleanupPerformance() throws InterruptedException {
 		int warmupCount = 100000;
@@ -177,7 +177,7 @@ class RedisMarkerStressTest {
 		}
 	}
 
-	//@Test
+	// @Test
 	@DisplayName("Redis marker get active nodes performance")
 	void testGetActiveNodesPerformance() throws InterruptedException {
 		int keyCount = 1000;

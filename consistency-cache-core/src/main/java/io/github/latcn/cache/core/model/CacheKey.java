@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.model;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -40,5 +42,11 @@ public class CacheKey<K> {
 	private boolean broadcastEnabled = true;
 
 	private String bloomFilterName;
+
+	public static void check(CacheKey cacheKey) {
+		if (cacheKey == null || cacheKey.getKey() == null) {
+			throw CacheException.newInstance(CacheError.EMPTY_KEY);
+		}
+	}
 
 }
