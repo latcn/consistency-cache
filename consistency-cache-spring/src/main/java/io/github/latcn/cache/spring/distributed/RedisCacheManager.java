@@ -6,6 +6,7 @@ import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.util.SafeFifoQueue;
+import io.github.latcn.cache.core.util.TimeUtil;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -136,14 +137,14 @@ public class RedisCacheManager implements DistributedCacheManager {
 		if (!batchExecuteIsRunning.compareAndSet(false, true)) {
 			return;
 		}
-		long startTime = System.currentTimeMillis();
+		long startTime = TimeUtil.currentNanoToMil();
 		final List<CacheOperation> batchOperations = new ArrayList<>();
 		try {
 			batchExecCount.incrementAndGet();
 			BatchOptions options = BatchOptions.defaults();
 			RBatch batch = redissonClient.createBatch(options);
 
-			while (maxBatchSize > batchOperations.size() && System.currentTimeMillis() - startTime < maxWaitInMs) {
+			while (maxBatchSize > batchOperations.size() && (TimeUtil.currentNanoToMil() - startTime) < maxWaitInMs) {
 				List<CacheOperation> operations = cacheOperations.drain(maxBatchSize - batchOperations.size());
 				if (operations == null || operations.size() == 0) {
 					Thread.sleep(EMPTY_POLL_SLEEP_MILLISECONDS);

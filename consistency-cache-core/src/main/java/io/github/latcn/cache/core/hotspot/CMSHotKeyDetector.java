@@ -1,160 +1,262 @@
 package io.github.latcn.cache.core.hotspot;
 
+
+import io.github.latcn.cache.core.util.NumberUtil;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Count-Min Sketch 是一种概率型数据结构，专门用于稀疏数据流的频率统计。 核心思想是：用空间换时间，且用极小的空间换取可接受的误差。它非常适合在 Java
- * 内存中存储海量 Key 的计数， 而不需要为每个 Key 单独开辟一个对象。 CMS 的内部结构是一个二维矩阵（网格），由两部分参数决定： a. 深度
- * (d)：矩阵的行数。代表使用了多少个不同的哈希函数。 b. 宽度 (w)：矩阵的列数。代表哈希后的桶的数量。 写入操作： 假设我们要统计 Key "Apple"
- * 的出现次数，系统会使用d个不同的哈希函数， 例如将 "Apple" 哈希成d个索引位置, 将这 d 个位置的计数器都加1。 读取操作： 当我们需要查询 "Apple"
- * 的频率时，同样的d个哈希函数映射到位置，关键取这d个值中的最小值； 在写入时，不同的 Key 可能会哈希到同一个位置（发生碰撞，导致计数偏大），
- * 为了修正误差，我们取最小值。这个最小值代表：只有在这d个哈希函数中，"Apple" 都落在了"最空闲"或"最少碰撞"的位置上， 实际上，因为hash碰撞，这个桶最小值总是
- * >= 这个key的真实值 误差分析： CMS 的最大误差概率（误判率）取决于宽度 w: error Probability = 1/(e*w)。
+ * Count-Min Sketch 热点检测器（分片优化版）
  *
- * 高性能、并发安全的 Count-Min Sketch3 热点检测器 特性： 1. 并发安全：基于 AtomicLongArray，无锁高性能。 2.
- * 精度修正：修复了初始化偏差，支持冷 Key 识别。 3. 稳定衰减：使用 Math.round 确保衰减精度。 4. Hash 优化：结合种子和位运算，分布更均匀。
+ * <h2>算法设计思路</h2>
+ * Count-Min Sketch (CMS) 是一种概率性数据结构，用于在有限内存下统计海量数据流中元素的频率。
+ * 核心思想：使用 d 个独立的哈希函数，将每个元素映射到 d 个计数桶中，记录时所有对应桶 +1，
+ * 查询时取 d 个桶的最小值作为估计频率。
+ *
+ * <p>为什么取最小值？因为哈希碰撞只会导致计数偏高，取最小值能最大程度抵消碰撞影响。
+ *
+ * <p>本实现专为热点检测优化：
+ * <ul>
+ *   <li><b>分片衰减</b>：将宽度分成 segmentCount 片，每次只衰减一片，降低单次 CPU 峰值。</li>
+ *   <li><b>惰性衰减</b>：由后台线程定时执行，不阻塞业务线程。</li>
+ *   <li><b>异常回滚</b>：若衰减失败，回滚时间戳和分片指针，保证一致性。</li>
+ *   <li><b>哈希优化</b>：采用乘法混合（与黄金分割常数相乘），大幅降低碰撞概率。</li>
+ * </ul>
+ *
+ * <h2>参数计算与预估</h2>
+ * <ul>
+ *   <li><b>宽度 (width)</b>：决定相对误差上限。误差率 ε = 1/width，因此 width = ceil(1/ε)。
+ *   若要求 1% 误差，width ≥ 1000,000。</li>
+ *   <li><b>深度 (depth)</b>：决定误差概率。单次查询误差超过 ε 的概率 ≤ e^{-depth}。
+ *   depth=3 时概率约 4.98%，depth=5 时约 0.67%。</li>
+ *   <li><b>衰减率 (decayRate)</b>：每次衰减时，计数乘以 (1 - decayRate)。
+ *   若间隔为 interval (秒)，则半衰期 = -ln(2) / ln(1 - decayRate) * interval。
+ *   建议 decayRate 0.1~0.2，使计数在几秒内遗忘旧数据。</li>
+ *   <li><b>衰减间隔 (decayIntervalMs)</b>：决定 CPU 开销与实时性。间隔越短，计数越实时但 CPU 越高。
+ *   典型值 100~500ms。</li>
+ * </ul>
+ *
+ * <h2>调优建议</h2>
+ * <ul>
+ *   <li>若 QPS 高、热 key 多，可增大 width 以降低误差，但内存线性增加。</li>
+ *   <li>若 CPU 紧张，可增大 decayIntervalMs 或减小 segmentCount（减少分片数）。</li>
+ *   <li>若业务对冷热判别敏感，可适当增大 depth 以降低误差概率。</li>
+ * </ul>
  */
-public class CMSHotKeyDetector {
+@Slf4j
+public class CMSHotKeyDetector implements AutoCloseable {
 
-	private static final int BATCH_SIZE_DIVISOR = 100;
-
-	/**
-	 * CMS 参数 width: 桶数量 depth: 哈希函数数量 seeds: 哈希种子
-	 */
+	// 每行桶的数量（列数），决定相对误差上限 ε = 1/width
 	private final int width;
 
+	// 哈希函数数量（行数），决定误差概率 P ≤ e^{-depth}
 	private final int depth;
 
+	// 二维计数器数组，每个元素为 AtomicLongArray，线程安全
 	private final AtomicLongArray[] counters;
 
+	// 每行独立的哈希种子，保证不同行使用不同哈希函数
 	private final int[] seeds;
 
+	// 每次衰减的比率，值域 [0,1]，例如 0.15 表示衰减 15%
+	private final double decayRate;
+
+	// 衰减执行间隔（毫秒），后台线程按此频率执行衰减
+	private final long decayIntervalMs;
+
+	// 分片数量，宽度被分成 segmentCount 片，每次只衰减一片
+	private final int segmentCount;
+
+	// 每个分片的列数（最后一片可能小于此值）
+	private final int segmentSize;
+
+	// 上次成功衰减的纳秒时间戳，用于防重叠和异常回滚
+	private final AtomicLong lastDecayTime = new AtomicLong(System.nanoTime());
+
+	// 后台衰减调度器
+	private final ScheduledExecutorService decayExecutor;
+
+	// 关闭标志，防止关闭后继续操作
+	private volatile boolean closed = false;
+
+	// 当前正在衰减的分片索引（0 ~ segmentCount-1），volatile 保证可见性
+	private volatile int currentSegment = 0;
+
+	// ========== 监控指标 ==========
+	private final AtomicLong decayRunCount = new AtomicLong(0);       // 成功衰减次数
+	private final AtomicLong decaySkipCount = new AtomicLong(0);      // 因并发而跳过的衰减次数
+	private final AtomicLong totalDecayTimeMs = new AtomicLong(0);    // 累计衰减耗时（毫秒）
+	private final AtomicLong totalDecayItems = new AtomicLong(0);     // 累计衰减的桶数（仅非零）
+	private final AtomicLong warnCount = new AtomicLong(0);           // 超时警告计数
+
 	/**
-	 * 滑动窗口参数 decayRate: 衰减率 (0.90 ~ 0.99) threshold: 热点阈值 batchSize: 每次随机衰减的桶数量
+	 * 构造 CMS 热点检测器（分片衰减）。
+	 *
+	 * @param widthInput            桶宽度（列数），建议 100,000 ~ 1,000,000
+	 * @param depth            哈希函数数量（行数），建议 3 ~ 5
+	 * @param decayRate        衰减率，建议 0.1 ~ 0.2
+	 * @param decayIntervalMs  衰减间隔（毫秒），建议 100 ~ 1000
+	 * @param segmentCount     分片数，建议 4 ~ 8（单次扫描量 = width/segmentCount）
 	 */
-	private final float decayRate;
-
-	private final int threshold;
-
-	private final int batchSize;
-
-	/**
-	 * 构造函数
-	 * @param width 宽度 (建议 10000-1000000)
-	 * @param depth 深度 (建议 5-10)
-	 * @param decayRate 衰减率 (0.0-1.0)，例如 0.90 表示每次衰减 10%
-	 * @param threshold 热点阈值
-	 */
-	public CMSHotKeyDetector(int width, int depth, float decayRate, int threshold) {
-		this.width = width;
+	public CMSHotKeyDetector(int widthInput, int depth, double decayRate, long decayIntervalMs, int segmentCount) {
+		if (widthInput <= 0 || depth <= 0 || decayRate < 0 || decayRate > 1 || decayIntervalMs <= 0 || segmentCount <= 0) {
+			throw new IllegalArgumentException("Invalid parameters");
+		}
+		this.width = NumberUtil.nextPowerOfTwo(widthInput);
 		this.depth = depth;
 		this.decayRate = decayRate;
-		this.threshold = threshold;
-		this.batchSize = Math.max(1, width / BATCH_SIZE_DIVISOR); // 每次衰减约 1% 的桶
-		// 初始化种子
+		this.decayIntervalMs = decayIntervalMs;
+		this.segmentCount = segmentCount;
+		this.segmentSize = (width + segmentCount - 1) / segmentCount;
+
+		this.counters = new AtomicLongArray[depth];
 		this.seeds = new int[depth];
 		for (int i = 0; i < depth; i++) {
-			this.seeds[i] = (int) (Math.random() * Integer.MAX_VALUE);
+			counters[i] = new AtomicLongArray(width);
+			seeds[i] = ThreadLocalRandom.current().nextInt();
 		}
-		// 初始化计数器数组 (使用 AtomicLongArray 保证并发安全)
-		this.counters = new AtomicLongArray[depth];
-		for (int i = 0; i < depth; i++) {
-			this.counters[i] = new AtomicLongArray(width);
+
+		// 启动单个后台线程定时衰减
+		this.decayExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+			Thread t = new Thread(r);
+			t.setDaemon(true);
+			t.setName("CMS-Decay");
+			t.setUncaughtExceptionHandler((thread, ex) ->
+					log.error("CMS decay thread died", ex));
+			return t;
+		});
+		this.decayExecutor.scheduleAtFixedRate(this::safeDecay, decayIntervalMs, decayIntervalMs, TimeUnit.MILLISECONDS);
+	}
+
+	/** 安全衰减入口，捕获所有异常防止线程中断 */
+	private void safeDecay() {
+		if (closed) return;
+		try {
+			decayPartial();
+		} catch (Throwable t) {
+			log.error("Decay task failed, will retry", t);
 		}
 	}
 
 	/**
-	 * 写入 Key (记录一次读写) 时间复杂度: O(d) 其中 d 是深度
+	 * 执行一次分片衰减。
+	 * 使用 CAS 尝试抢占衰减机会，若失败则跳过（说明其他线程已执行）。
+	 * 若成功，则对当前分片进行衰减，并移动到下一个分片。
+	 * 若衰减过程异常，回滚时间戳和分片指针，以便下次重试。
 	 */
+	private void decayPartial() {
+		long nowNano = System.nanoTime();
+		long expected = lastDecayTime.get();
+		if (!lastDecayTime.compareAndSet(expected, nowNano)) {
+			decaySkipCount.incrementAndGet();
+			return; // 其他线程已更新，跳过本次
+		}
+
+		int seg = currentSegment;
+		try {
+			doDecaySegment(seg, nowNano);
+		} catch (Throwable t) {
+			// 回滚时间戳和分片指针，保持一致性
+			lastDecayTime.set(expected);
+			currentSegment = seg;
+            log.error("Decay failed for segment {}", seg, t);
+			throw t;
+		}
+		currentSegment = (seg + 1) % segmentCount;
+	}
+
+	/**
+	 * 衰减指定分片的所有桶。
+	 * 只处理计数 > 0 的桶，减少无效操作。
+	 * 记录耗时，若超过间隔则输出警告（每10次输出一次 Warn，其余 Fine）。
+	 */
+	private void doDecaySegment(int seg, long nowNano) {
+		int start = seg * segmentSize;
+		int end = Math.min(start + segmentSize, width);
+		long startMs = System.currentTimeMillis();
+		long itemCount = 0;
+		for (int i = 0; i < depth; i++) {
+			AtomicLongArray row = counters[i];
+			for (int col = start; col < end; col++) {
+				long current = row.get(col);
+				if (current > 0) {
+					long decayed = (long) (current * (1 - decayRate));
+					row.set(col, Math.max(0, decayed));
+					itemCount++;
+				}
+			}
+		}
+		long duration = System.currentTimeMillis() - startMs;
+		totalDecayTimeMs.addAndGet(duration);
+		decayRunCount.incrementAndGet();
+		totalDecayItems.addAndGet(itemCount);
+
+		if (duration > decayIntervalMs) {
+			long w = warnCount.incrementAndGet();
+			if (w % 10 == 0) {
+                log.error("Decay segment {} took {}ms, exceeding interval {}ms", seg, duration, decayIntervalMs);
+			} else {
+                log.error("Decay segment {} took {}ms (exceeded)", seg, duration);
+			}
+		}
+	}
+
+	/** 记录一次访问（增加计数） */
 	public void record(String key) {
-		// 1. 增加计数
-		long[] indices = hash(key);
-		for (int i = 0; i < depth; i++) {
-			int index = (int) indices[i];
-			// 原子自增
-			counters[i].getAndAdd(index, 1);
-		}
-		// 2. 批量衰减 (模拟时间流逝)
-		decay();
-	}
-
-	/**
-	 * 获取 Key 的估算频率 时间复杂度: O(d)
-	 */
-	public long estimateCount(String key) {
-		long[] indices = hash(key);
-		long min = Long.MAX_VALUE;
-		for (int i = 0; i < depth; i++) {
-			int index = (int) indices[i];
-			long val = counters[i].get(index);
-			min = Math.min(min, val);
-		}
-		// min == Long.MAX_VALUE 极其罕见 (除非初始化错误)，返回 0 表示未见
-		return (min == Long.MAX_VALUE) ? 0 : min;
-	}
-
-	/**
-	 * 判断是否为热点 Key
-	 */
-	public boolean isHotKey(String key) {
-		return estimateCount(key) >= threshold;
-	}
-
-	/**
-	 * 哈希函数：生成 d 个索引 优化点：结合种子和位运算扰动
-	 */
-	private long[] hash(String key) {
-		long[] indices = new long[depth];
+		if (closed) throw new IllegalStateException("Closed");
+		if (key == null) throw new NullPointerException("key cannot be null");
 		int h = key.hashCode();
 		for (int i = 0; i < depth; i++) {
-			// 关键优化：将种子加入哈希计算，保证不同种子的结果不同
-			h ^= seeds[i];
-			// 位运算扰动，分散哈希值
-			h ^= (h >>> 20) ^ (h >>> 12);
-			h = h ^ (h >>> 7) ^ (h >>> 4);
-			// 取模并转为正数
-			indices[i] = (h & 0x7fffffffL) % width;
-		}
-		return indices;
-	}
-
-	/**
-	 * 批量衰减计数器 逻辑：随机选取 batchSize 个桶，进行指数衰减
-	 */
-	private void decay() {
-		for (int k = 0; k < batchSize; k++) {
-			// 随机选取一个桶
-			int row = ThreadLocalRandom.current().nextInt(depth);
-			int col = ThreadLocalRandom.current().nextInt(width);
-			// 原子读取
-			long current = counters[row].get(col);
-			// 防止溢出和无效计算
-			if (current <= 0)
-				continue;
-			// 指数衰减：使用 Math.round 保证精度
-			// 例如：100 * 0.95 = 95.0 -> 95
-			// 1 * 0.95 = 0.95 -> 1
-			long nextVal = Math.round(current * decayRate);
-			// 优化：如果衰减后小于等于 0，直接归零，减少后续计算量
-			if (nextVal <= 0) {
-				counters[row].set(col, 0);
-			}
-			else {
-				counters[row].set(col, nextVal);
-			}
+			int col = NumberUtil.hash(h, seeds[i], width);
+			counters[i].getAndIncrement(col);
 		}
 	}
 
-	/**
-	 * 获取当前内部计数器大小 (仅供测试或监控使用)
-	 */
-	public int getWidth() {
-		return width;
+	/** 估算 key 的访问频率（取所有行对应桶的最小值） */
+	public long estimateCount(String key) {
+		if (closed) throw new IllegalStateException("Closed");
+		if (key == null) throw new NullPointerException("key cannot be null");
+		int h = key.hashCode();
+		long min = Long.MAX_VALUE;
+		for (int i = 0; i < depth; i++) {
+			int col = NumberUtil.hash(h, seeds[i], width);
+			long v = counters[i].get(col);
+			if (v < min) min = v;
+		}
+		return min;
 	}
 
-	public int getDepth() {
-		return depth;
+	// ========== 监控指标 ==========
+	public long getDecayRunCount() { return decayRunCount.get(); }
+	public long getDecaySkipCount() { return decaySkipCount.get(); }
+	public long getTotalDecayTimeMs() { return totalDecayTimeMs.get(); }
+	public long getTotalDecayItems() { return totalDecayItems.get(); }
+	public double getAvgDecayTimeMs() {
+		long runs = decayRunCount.get();
+		return runs == 0 ? 0 : totalDecayTimeMs.get() / (double) runs;
 	}
 
+	@Override
+	public void close() {
+		closed = true;
+		decayExecutor.shutdown();
+		try {
+			if (!decayExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+				decayExecutor.shutdownNow();
+				if (!decayExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+					log.warn("CMS decay executor did not terminate");
+				}
+			}
+		} catch (InterruptedException e) {
+			decayExecutor.shutdownNow();
+			Thread.currentThread().interrupt();
+		}
+		// 释放数组引用，帮助 GC
+		for (int i = 0; i < depth; i++) counters[i] = null;
+	}
 }

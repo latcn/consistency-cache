@@ -137,13 +137,10 @@ public class TestConfig {
 			CacheBloomFilter cacheBloomFilter) {
 
 		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(
-				properties.getHotspot().getWriteWindowSeconds(),
 				properties.getHotspot().getWriteInvalidationThreshold(),
 				properties.getHotspot().getWriteBaseBlacklistTtl(), properties.getHotspot().getWriteBackoffMultiplier(),
 				properties.getHotspot().getWriteMaxBlacklistTime(), properties.getHotspot().getBlacklistMaxSize());
-		DefaultReadHotspotDetector readStatistics = new DefaultReadHotspotDetector(
-				properties.getHotspot().getReadHotKeyThreshold(), properties.getHotspot().getReadWindowSizeMs(),
-				properties.getHotspot().getReadBucketCount());
+		DefaultReadHotspotDetector readStatistics = new DefaultReadHotspotDetector(properties.getHotspot().getReadHotKeyThreshold());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(
 				properties.getCircuitBreaker().getFailureThreshold(),

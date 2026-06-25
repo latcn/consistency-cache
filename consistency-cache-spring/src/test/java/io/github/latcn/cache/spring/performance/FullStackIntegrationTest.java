@@ -22,6 +22,7 @@ import io.github.latcn.cache.spring.pubsub.RTopicSubscriber;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,7 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
+@Slf4j
 @DisplayName("Full Stack Integration Stress Tests")
 class FullStackIntegrationTest {
 
@@ -63,9 +65,9 @@ class FullStackIntegrationTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 200, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0, 300000,
+		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(1000, 60000, 2.0, 300000,
 				1000);
-		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
+		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0);
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,
 				Set.of(org.redisson.client.RedisConnectionException.class));
@@ -114,10 +116,8 @@ class FullStackIntegrationTest {
 			}).start();
 		}
 		countDownLatch.await(100, TimeUnit.SECONDS);
-		System.out.println("-----------");
 	}
 
-	// @Test
 	@DisplayName("Full stack cache read performance")
 	void testFullStackReadPerformance() throws InterruptedException {
 		int warmupSize = 50000;
@@ -171,16 +171,10 @@ class FullStackIntegrationTest {
 							futureList.add(result);
 							keyList.add(key);
 						}
-						try {
-							// System.out.println("----------micro circle start
-							// -------------");
-							latch1.await();
-							// System.out.println("----------micro circle
-							// end-------------");
-						}
-						catch (InterruptedException e) {
-							throw new RuntimeException(e);
-						}
+						latch1.await();
+					}
+					catch (InterruptedException e) {
+						throw new RuntimeException(e);
 					}
 					finally {
 						latch.countDown();
@@ -195,13 +189,11 @@ class FullStackIntegrationTest {
 			long total = hits.get() + misses.get();
 			double qps = (total * 1000.0) / duration;
 			double hitRate = (hits.get() * 100.0) / total;
-			System.out.printf(
-					"FullStack Read | Threads: %d | Hits: %d | Misses: %d | HitRate: %.2f%% | Duration: %dms | QPS: %.2f%n",
+			log.info("FullStack Read | Threads: {} | Hits: {} | Misses: {} | HitRate: {:.}%% | Duration: {}ms | QPS: {:.}",
 					threadCount, hits.get(), misses.get(), hitRate, duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Full stack cache write performance")
 	void testFullStackWritePerformance() throws InterruptedException {
 		int[] threadCounts = { 10, 50, 100 };
@@ -246,12 +238,11 @@ class FullStackIntegrationTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("FullStack Write | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("FullStack Write | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Full stack cache evict performance")
 	void testFullStackEvictPerformance() throws InterruptedException {
 		int warmupSize = 20000;
@@ -306,12 +297,11 @@ class FullStackIntegrationTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("FullStack Evict | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("FullStack Evict | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Full stack read-write mix performance")
 	void testFullStackReadWriteMix() throws InterruptedException {
 		int warmupSize = 30000;
@@ -385,8 +375,7 @@ class FullStackIntegrationTest {
 
 				long total = readOps.get() + writeOps.get();
 				double qps = (total * 1000.0) / duration;
-				System.out.printf(
-						"FullStack Mix | ReadRatio: %d%% | Threads: %d | Reads: %d | Writes: %d | Duration: %dms | QPS: %.2f%n",
+				log.info("FullStack Mix | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
 						readRatio, threadCount, readOps.get(), writeOps.get(), duration, qps);
 			}
 		}

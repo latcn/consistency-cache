@@ -57,6 +57,9 @@ public class LocalCacheBlacklist {
 	 * @return true if blacklisted and not expired
 	 */
 	public <T> boolean isBlacklisted(T key) {
+		if (key==null) {
+			return false;
+		}
 		Long expireTime = this.blacklist.get(key);
 		if (expireTime == null) {
 			return false;
@@ -94,7 +97,9 @@ public class LocalCacheBlacklist {
 	 */
 	public void autoCleanup() {
 		long now = System.currentTimeMillis();
+		log.info("autoCleanup pre {},{}", System.currentTimeMillis(), this.blacklist);
 		this.blacklist.entrySet().removeIf(e -> now > e.getValue());
+		log.info("autoCleanup after {}", this.blacklist);
 	}
 
 	/**

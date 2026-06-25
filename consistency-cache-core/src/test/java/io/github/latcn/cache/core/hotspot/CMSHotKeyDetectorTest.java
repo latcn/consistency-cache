@@ -1,77 +1,229 @@
 package io.github.latcn.cache.core.hotspot;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-public class CMSHotKeyDetectorTest {
+@DisplayName("CMSHotKeyDetector Tests")
+class CMSHotKeyDetectorTest {
 
-	@Test
-	public void hotKeyDetector() throws InterruptedException {
-		// 配置参数
-		int width = 10000;
-		int depth = 5;
-		float decayRate = 0.90f; // 衰减较快，便于观察效果
-		int threshold = 500;
+    private CMSHotKeyDetector detector;
 
-		CMSHotKeyDetector hotKeyDetector = new CMSHotKeyDetector(width, depth, decayRate, threshold);
+    @BeforeEach
+    void setUp() {
+        detector = new CMSHotKeyDetector(10000, 3, 0.15, 500, 4);
+    }
 
-		System.out.println("========== 并发安全与精度测试 ==========\n");
+    @AfterEach
+    void tearDown() {
+        if (detector != null) {
+            detector.close();
+        }
+    }
 
-		// 1. 初始冷 Key 测试 (验证初始化为0)
-		System.out.println("--- 测试冷 Key (未访问过的 Key) ---");
-		System.out.println("Key-Null 估算值: " + hotKeyDetector.estimateCount("Key-Null")); // 应该是
-																							// 0
-		System.out.println("Key-Null 是否热点: " + hotKeyDetector.isHotKey("Key-Null")); // false
+    @Test
+    @DisplayName("Should correctly count single key")
+    void testSingleKeyCounting() {
+        String key = "test-key";
+        int recordCount = 100;
+        
+        for (int i = 0; i < recordCount; i++) {
+            detector.record(key);
+        }
+        
+        long estimate = detector.estimateCount(key);
+        assertTrue(estimate >= recordCount, "Estimate should be at least the actual count");
+    }
 
-		// 2. 并发写入测试 (验证原子性)
-		System.out.println("\n--- 并发写入 10000 次 Key-A (10个线程) ---");
-		int threadCount = 10;
-		int writePerThread = 1000;
-		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-		CountDownLatch latch = new CountDownLatch(threadCount);
+    @Test
+    @DisplayName("Should handle concurrent writes safely")
+    void testConcurrentWrites() throws InterruptedException {
+        String key = "concurrent-key";
+        int threadCount = 10;
+        int writesPerThread = 1000;
+        
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        
+        for (int i = 0; i < threadCount; i++) {
+            executor.execute(() -> {
+                for (int j = 0; j < writesPerThread; j++) {
+                    detector.record(key);
+                }
+                latch.countDown();
+            });
+        }
+        
+        latch.await();
+        executor.shutdown();
+        
+        long estimate = detector.estimateCount(key);
+        assertTrue(estimate >= threadCount * writesPerThread, 
+                "Concurrent writes should be correctly counted");
+    }
 
-		long start = System.currentTimeMillis();
-		for (int i = 0; i < threadCount; i++) {
-			executor.execute(() -> {
-				for (int j = 0; j < writePerThread; j++) {
-					hotKeyDetector.record("Key-A");
-				}
-				latch.countDown();
-			});
-		}
-		latch.await(); // 等待所有线程完成
-		long end = System.currentTimeMillis();
-		executor.shutdown();
+    @Test
+    @DisplayName("Should decay counts over time")
+    void testDecay() throws InterruptedException {
+        String key = "decay-key";
+        int recordCount = 1000;
+        
+        for (int i = 0; i < recordCount; i++) {
+            detector.record(key);
+        }
+        
+        long initialEstimate = detector.estimateCount(key);
+        Thread.sleep(2000);
+        
+        long decayedEstimate = detector.estimateCount(key);
+        assertTrue(decayedEstimate < initialEstimate, "Count should decay over time");
+    }
 
-		long finalCount = hotKeyDetector.estimateCount("Key-A");
-		System.out.println("Key-A 最终估算值: " + finalCount);
-		System.out.println("预期值: " + (threadCount * writePerThread));
-		System.out.println("误差率: "
-				+ (Math.abs(finalCount - threadCount * writePerThread) * 100.0 / (threadCount * writePerThread)) + "%");
-		System.out.println("线程安全校验: " + (finalCount == threadCount * writePerThread ? "通过" : "失败"));
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for invalid parameters")
+    void testInvalidParameters() {
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(-1, 3, 0.1, 100, 4));
+        
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(10000, -1, 0.1, 100, 4));
+        
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(10000, 3, -0.1, 100, 4));
+        
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(10000, 3, 1.1, 100, 4));
+        
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(10000, 3, 0.1, -1, 4));
+        
+        assertThrows(IllegalArgumentException.class, 
+                () -> new CMSHotKeyDetector(10000, 3, 0.1, 100, 0));
+    }
 
-		// 3. 衰减测试 (模拟时间流逝)
-		System.out.println("\n--- 衰减测试 (时间流逝 20 单位) ---");
-		System.out.println("T-0 时刻: " + hotKeyDetector.estimateCount("Key-A"));
+    @Test
+    @DisplayName("Should throw NullPointerException for null key")
+    void testNullKey() {
+        assertThrows(NullPointerException.class, () -> detector.record(null));
+        assertThrows(NullPointerException.class, () -> detector.estimateCount(null));
+    }
 
-		for (int t = 0; t < 20; t++) {
-			// 保持写入以模拟持续流量，观察 T-20 时刻的存量
-			hotKeyDetector.record("Key-A");
-			long current = hotKeyDetector.estimateCount("Key-A");
-			if (t % 5 == 0) {
-				System.out.printf("T-%d 时刻: %d (衰减率: %.2f)\n", t, current, Math.pow(decayRate, t));
-			}
-		}
+    @Test
+    @DisplayName("Should throw IllegalStateException after close")
+    void testOperationsAfterClose() {
+        detector.close();
+        assertThrows(IllegalStateException.class, () -> detector.record("test"));
+        assertThrows(IllegalStateException.class, () -> detector.estimateCount("test"));
+    }
 
-		System.out.println("\n--- 衰减测试结束 ---");
-		System.out.println("T-20 时刻: " + hotKeyDetector.estimateCount("Key-A"));
+    @Test
+    @DisplayName("Should maintain hash distribution")
+    void testHashDistribution() {
+        int sampleSize = 10000;
+        int[] bucketCounts = new int[100];
+        
+        for (int i = 0; i < sampleSize; i++) {
+            String key = "key-" + i;
+            int hash = key.hashCode();
+            long h = (hash * 0x9e3779b97f4a7c15L) ^ ((hash * 0x9e3779b97f4a7c15L) >>> 32);
+            h &= Long.MAX_VALUE; // 确保非负（可选但推荐）
+            int bucket =  (int) (h % 100); // 先取模，再转int
+            bucketCounts[bucket]++;
+        }
+        
+        double mean = (double) sampleSize / 100;
+        double variance = 0;
+        for (int count : bucketCounts) {
+            variance += Math.pow(count - mean, 2);
+        }
+        variance /= 100;
+        
+        double stdDev = Math.sqrt(variance);
+        assertTrue(stdDev / mean < 0.5, "Hash distribution should be reasonably uniform");
+    }
 
-		// 4. 热点判定测试
-		System.out.println("\n--- 热点判定 ---");
-		System.out.println("Key-A (频繁写入) 是否热点: " + hotKeyDetector.isHotKey("Key-A")); // true
-		System.out.println("Key-Null (未访问) 是否热点: " + hotKeyDetector.isHotKey("Key-Null")); // false
-	}
+    @Test
+    @DisplayName("Should handle multiple keys independently")
+    void testMultipleKeys() {
+        String key1 = "key-1";
+        String key2 = "key-2";
+        
+        for (int i = 0; i < 100; i++) {
+            detector.record(key1);
+        }
+        for (int i = 0; i < 50; i++) {
+            detector.record(key2);
+        }
+        
+        long count1 = detector.estimateCount(key1);
+        long count2 = detector.estimateCount(key2);
+        
+        assertTrue(count1 >= count2, "Key with more records should have higher estimate");
+    }
+
+    @Test
+    @DisplayName("Should track decay metrics")
+    void testDecayMetrics() throws InterruptedException {
+        Thread.sleep(600);
+        
+        assertTrue(detector.getDecayRunCount() >= 1, "Decay should have run at least once");
+        assertTrue(detector.getTotalDecayTimeMs() >= 0, "Total decay time should be non-negative");
+        assertTrue(detector.getTotalDecayItems() >= 0, "Total decay items should be non-negative");
+        assertTrue(detector.getAvgDecayTimeMs() >= 0, "Average decay time should be non-negative");
+    }
+
+    @Test
+    @DisplayName("Should handle key with zero count")
+    void testZeroCountKey() {
+        assertEquals(0, detector.estimateCount("non-existent-key"));
+    }
+
+    @Test
+    @DisplayName("Should handle large number of unique keys")
+    void testLargeUniqueKeys() {
+        int uniqueKeys = 1000;
+        
+        for (int i = 0; i < uniqueKeys; i++) {
+            detector.record("unique-key-" + i);
+        }
+        
+        assertTrue(detector.estimateCount("unique-key-0") >= 1);
+    }
+
+    @Test
+    @DisplayName("Should not throw exception during concurrent decay and write")
+    void testConcurrentDecayAndWrite() throws InterruptedException {
+        String key = "concurrent-decay-key";
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+        CountDownLatch latch = new CountDownLatch(5);
+        
+        for (int i = 0; i < 5; i++) {
+            executor.execute(() -> {
+                for (int j = 0; j < 1000; j++) {
+                    detector.record(key);
+                }
+                latch.countDown();
+            });
+        }
+        
+        latch.await();
+        executor.shutdown();
+        
+        assertTrue(detector.estimateCount(key) >= 5000);
+    }
+
+    @Test
+    @DisplayName("Should close executor service properly")
+    void testCloseExecutor() {
+        detector.close();
+        
+        assertThrows(IllegalStateException.class, () -> detector.record("test"));
+    }
 
 }

@@ -70,7 +70,6 @@ public class RedissonClusterHealthCheck {
 			.setNodeAddresses(Arrays.asList("redis://127.0.0.1:7001", "redis://127.0.0.1:7002",
 					"redis://127.0.0.1:7003", "redis://127.0.0.1:7005", "redis://127.0.0.1:7006"));
 		RedissonClient redissonClient = Redisson.create(config);
-		// System.out.println(checkClusterHealth(redissonClient));
 	}
 
 }

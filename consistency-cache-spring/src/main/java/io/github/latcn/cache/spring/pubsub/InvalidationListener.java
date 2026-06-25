@@ -4,6 +4,7 @@ import io.github.latcn.cache.core.executor.CacheExecutor;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.pubsub.BroadcasterListener;
 import io.github.latcn.cache.core.pubsub.InvalidationMessage;
+import io.github.latcn.cache.core.util.TimeUtil;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,11 +65,10 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
 	 * @return
 	 */
 	private boolean checkIfDuplicate(String messageId) {
-		long currentTime = System.currentTimeMillis();
+		long currentTime = TimeUtil.currentNanoToMil();
 		Long oldTime = this.pendingKeys.putIfAbsent(messageId, currentTime);
-		// check if duplicate
 		if (oldTime != null) {
-			if (System.currentTimeMillis() - oldTime < DUP_WINDOWS_MS) {
+			if (TimeUtil.currentNanoToMil() - oldTime < DUP_WINDOWS_MS) {
 				return true;
 			}
 			else {

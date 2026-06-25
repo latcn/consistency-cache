@@ -9,9 +9,11 @@ import io.github.latcn.cache.core.model.HccProperties;
 import io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 
+@Slf4j
 @DisplayName("Local Cache Stress Tests")
 class LocalCacheStressTest {
 
@@ -26,7 +28,6 @@ class LocalCacheStressTest {
 		localCacheManager = new LocalCacheManager(properties);
 	}
 
-	// @Test
 	@DisplayName("Local cache write throughput test")
 	void testLocalCacheWriteThroughput() throws InterruptedException {
 		int[] threadCounts = { 10, 50, 100, 200 };
@@ -65,12 +66,11 @@ class LocalCacheStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("Write Test | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("Write Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Local cache read throughput test")
 	void testLocalCacheReadThroughput() throws InterruptedException {
 		int warmupSize = 50000;
@@ -124,13 +124,11 @@ class LocalCacheStressTest {
 			long total = hits.get() + misses.get();
 			double qps = (total * 1000.0) / duration;
 			double hitRate = (hits.get() * 100.0) / total;
-			System.out.printf(
-					"Read Test | Threads: %d | Hits: %d | Misses: %d | HitRate: %.2f%% | Duration: %dms | QPS: %.2f%n",
+			log.info("Read Test | Threads: {} | Hits: {} | Misses: {} | HitRate: {:.}%% | Duration: {}ms | QPS: {:.}",
 					threadCount, hits.get(), misses.get(), hitRate, duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Local cache read-write mix test")
 	void testLocalCacheReadWriteMix() throws InterruptedException {
 		int warmupSize = 20000;
@@ -194,14 +192,12 @@ class LocalCacheStressTest {
 
 				long total = readOps.get() + writeOps.get();
 				double qps = (total * 1000.0) / duration;
-				System.out.printf(
-						"Mix Test | ReadRatio: %d%% | Threads: %d | Reads: %d | Writes: %d | Duration: %dms | QPS: %.2f%n",
+				log.info("Mix Test | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
 						readRatio, threadCount, readOps.get(), writeOps.get(), duration, qps);
 			}
 		}
 	}
 
-	// @Test
 	@DisplayName("Local cache eviction performance test")
 	void testLocalCacheEvictionPerformance() throws InterruptedException {
 		HccProperties.LocalCacheProperties smallProps = new HccProperties.LocalCacheProperties();
@@ -244,8 +240,7 @@ class LocalCacheStressTest {
 			executor.shutdown();
 
 			double qps = (insertCount * 1000.0) / duration;
-			System.out.printf(
-					"Eviction Test | Threads: %d | Inserts: %d | FinalSize: %d | Duration: %dms | QPS: %.2f%n",
+			log.info("Eviction Test | Threads: {} | Inserts: {} | FinalSize: {} | Duration: {}ms | QPS: {:.}",
 					threadCount, insertCount, smallCache.getSize(), duration, qps);
 		}
 	}

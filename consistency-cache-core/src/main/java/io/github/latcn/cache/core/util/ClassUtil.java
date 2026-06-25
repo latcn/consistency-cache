@@ -16,12 +16,10 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class ClassUtil {
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(ClassUtil.class);
 
 	private static final String CLASS_FROM_FILE = "file";
 
@@ -36,7 +34,7 @@ public class ClassUtil {
 					return (T) constructor.newInstance(new Object[] {});
 				}
 				catch (Exception e) {
-					LOGGER.debug("Default constructor not accessible, trying other constructors", e);
+					log.debug("Default constructor not accessible, trying other constructors", e);
 				}
 			}
 			Constructor[] constructorList = clz.getDeclaredConstructors();
@@ -56,7 +54,7 @@ public class ClassUtil {
 			throw e;
 		}
 		catch (Exception e) {
-			LOGGER.error("Failed to instantiate class: {}", clz.getName(), e);
+			log.error("Failed to instantiate class: {}", clz.getName(), e);
 			throw CacheException.wrap(e, CacheError.CLASS_INSTANTIATION_FAILED);
 		}
 	}
@@ -73,7 +71,7 @@ public class ClassUtil {
 				return (T) constructor.newInstance(objects);
 			}
 			catch (Exception e) {
-				LOGGER.error("Failed to instantiate member class: {}", clz.getName(), e);
+				log.error("Failed to instantiate member class: {}", clz.getName(), e);
 				throw CacheException.wrap(e, CacheError.CLASS_INSTANTIATION_FAILED);
 			}
 		}
@@ -89,7 +87,7 @@ public class ClassUtil {
 				throw e;
 			}
 			catch (Exception e) {
-				LOGGER.error("Failed to instantiate class with parameters: {}", clz.getName(), e);
+				log.error("Failed to instantiate class with parameters: {}", clz.getName(), e);
 				throw CacheException.wrap(e, CacheError.REFLECTION_OPERATION_FAILED);
 			}
 		}
@@ -144,12 +142,12 @@ public class ClassUtil {
 					}
 				}
 				catch (Exception e) {
-					LOGGER.error("load class error, url:{}", url);
+					log.error("load class error, url:{}", url);
 				}
 			}
 		}
 		catch (IOException e) {
-			LOGGER.error("loadClassByResource", e);
+			log.error("loadClassByResource", e);
 		}
 		return list;
 	}
@@ -166,7 +164,7 @@ public class ClassUtil {
 			return new String[] { alias, className };
 		}
 		catch (Exception e) {
-			LOGGER.error("parseLineToClassName", e);
+			log.error("parseLineToClassName", e);
 			return null;
 		}
 	}
@@ -186,10 +184,10 @@ public class ClassUtil {
 				}
 			}
 			catch (Exception e) {
-				LOGGER.error("getAllClassByPackageName", e);
+				log.error("getAllClassByPackageName", e);
 			}
 		}
-		LOGGER.info("getAllClassByPackageName costime: {}", System.currentTimeMillis() - t1);
+		log.info("getAllClassByPackageName costime: {}", System.currentTimeMillis() - t1);
 		return classList;
 	}
 
@@ -215,14 +213,14 @@ public class ClassUtil {
 				classNames = getClassNameByJar(jarFile, packagePath);
 			}
 			catch (IOException e) {
-				LOGGER.error("getAllClassNameByPackageName jar: {}", packagePath);
+				log.error("getAllClassNameByPackageName jar: {}", packagePath);
 			}
 		}
 		return classNames;
 	}
 
 	public static List<String> getClassNameByFile(String fileDirName) {
-		LOGGER.debug("getClassNameByFile fileDir:{}", fileDirName);
+		log.debug("getClassNameByFile fileDir:{}", fileDirName);
 		List<String> classNames = new ArrayList<>();
 		File dirFile = new File(fileDirName);
 		File[] files = dirFile.listFiles();
@@ -232,14 +230,14 @@ public class ClassUtil {
 			}
 			else {
 				String filePath = file.getPath();
-				LOGGER.debug("origin filePath: {}", filePath);
+				log.debug("origin filePath: {}", filePath);
 				if (!filePath.endsWith(".class")) {
 					continue;
 				}
 				filePath = filePath.substring(filePath.indexOf("\\classes") + 9, filePath.lastIndexOf("."));
 				filePath = filePath.replace("\\", ".");
 				classNames.add(filePath);
-				LOGGER.debug("covert filePath: {}", filePath);
+				log.debug("covert filePath: {}", filePath);
 			}
 		}
 		return classNames;
@@ -259,7 +257,7 @@ public class ClassUtil {
 			}
 		}
 		catch (Exception e) {
-			LOGGER.error("getClassNameByJar ex", e);
+			log.error("getClassNameByJar ex", e);
 		}
 		return classNames;
 	}
@@ -267,5 +265,4 @@ public class ClassUtil {
 	public static boolean isAbstractClass(Class clz) {
 		return (clz.getModifiers() & Modifier.ABSTRACT) != 0;
 	}
-
 }

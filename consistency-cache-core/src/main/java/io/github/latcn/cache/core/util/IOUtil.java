@@ -16,15 +16,10 @@
  */
 package io.github.latcn.cache.core.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
-/**
- * IO utility class
- */
+@Slf4j
 public class IOUtil {
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(IOUtil.class);
 
 	/**
 	 * Close Closeable resources
@@ -48,7 +43,7 @@ public class IOUtil {
 				closeable.close();
 			}
 			catch (Exception e) {
-				LOGGER.warn("Failed to close resource", e);
+				log.warn("Failed to close resource", e);
 			}
 		}
 	}

@@ -6,8 +6,10 @@ import io.github.latcn.cache.spring.annotation.HccCacheEvict;
 import io.github.latcn.cache.spring.annotation.HccCacheable;
 import java.util.Date;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/hcc")
 public class TestController {
@@ -29,7 +31,7 @@ public class TestController {
 	}
 
 	public static void main(String[] args) {
-		System.out.println(DateUtil.format(new Date(), "YYYY-MM-DD HH:MM:ss"));
+		log.info(DateUtil.format(new Date(), "YYYY-MM-DD HH:MM:ss"));
 	}
 
 }

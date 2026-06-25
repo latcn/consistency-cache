@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,7 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
+@Slf4j
 @DisplayName("Edge Case Stress Tests")
 class EdgeCaseStressTest {
 
@@ -64,9 +66,9 @@ class EdgeCaseStressTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0, 300000,
+		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(1000, 60000, 2.0, 300000,
 				1000);
-		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
+		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0);
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,
 				Set.of(org.redisson.client.RedisConnectionException.class));
@@ -83,7 +85,6 @@ class EdgeCaseStressTest {
 		broadcaster = new InvalidationBroadcaster(publisher, subscriber, Arrays.asList(listener), channelNames, 100,
 				10);
 		cacheExecutor.setBroadcaster(broadcaster);
-		// broadcaster.start();
 	}
 
 	@AfterEach
@@ -96,10 +97,9 @@ class EdgeCaseStressTest {
 		}
 	}
 
-	// @Test
 	@DisplayName("Cache stampede test - thundering herd on expired key")
 	void testCacheStampede() throws InterruptedException {
-		System.out.println("=== Cache Stampede Test ===");
+		log.info("=== Cache Stampede Test ===");
 
 		String hotKey = "stampede-hot-key";
 		CacheKey cacheKey = CacheKey.builder()
@@ -149,15 +149,14 @@ class EdgeCaseStressTest {
 		doneLatch.await(30, TimeUnit.SECONDS);
 		executor.shutdown();
 
-		System.out.printf("Results: Total threads: %d | Actual loads: %d | Reduction: %d (%.1f%%)%n", threadCount,
+		log.info("Results: Total threads: {} | Actual loads: {} | Reduction: {} ({:.1f}%)", threadCount,
 				loadCount.get(), threadCount - loadCount.get(),
 				((threadCount - loadCount.get()) * 100.0) / threadCount);
 	}
 
-	// @Test
 	@DisplayName("SingleFlight thundering herd protection")
 	void testSingleFlightProtection() throws InterruptedException {
-		System.out.println("=== SingleFlight Thundering Herd Protection ===");
+		log.info("=== SingleFlight Thundering Herd Protection ===");
 
 		SingleFlightExecutor singleFlight = new SingleFlightExecutor();
 		String sharedKey = "singleflight-shared-key";
@@ -197,17 +196,16 @@ class EdgeCaseStressTest {
 		doneLatch.await(30, TimeUnit.SECONDS);
 		executor.shutdown();
 
-		System.out.printf("Results: Total requests: %d | Actual executions: %d | Reduction: %d (%.1f%%)%n", threadCount,
+		log.info("Results: Total requests: {} | Actual executions: {} | Reduction: {} ({:.1f}%)", threadCount,
 				actualExecutions.get(), threadCount - actualExecutions.get(),
 				((threadCount - actualExecutions.get()) * 100.0) / threadCount);
 	}
 
-	// @Test
 	@DisplayName("Hotspot detection under extreme data skew")
 	void testHotspotDetectionWithDataSkew() throws InterruptedException {
-		System.out.println("=== Hotspot Detection with Data Skew ===");
+		log.info("=== Hotspot Detection with Data Skew ===");
 
-		DefaultReadHotspotDetector hotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
+		DefaultReadHotspotDetector hotspotDetector = new DefaultReadHotspotDetector(100.0);
 		int totalRequests = 100000;
 		int hotKeyCount = 10;
 		int coldKeyCount = 990;
@@ -256,14 +254,13 @@ class EdgeCaseStressTest {
 			}
 		}
 
-		System.out.printf("Results: Hot keys detected: %d/%d | False positives: %d/%d%n", detectedHotKeys, hotKeyCount,
+		log.info("Results: Hot keys detected: {}/{} | False positives: {}/{}", detectedHotKeys, hotKeyCount,
 				falsePositives, coldKeyCount);
 	}
 
-	// @Test
 	@DisplayName("Memory pressure test with large cache size")
 	void testMemoryPressure() throws InterruptedException {
-		System.out.println("=== Memory Pressure Test ===");
+		log.info("=== Memory Pressure Test ===");
 
 		int entryCount = 200000;
 		int threadCount = 50;
@@ -310,16 +307,14 @@ class EdgeCaseStressTest {
 		long memoryUsed = startMemory - endMemory;
 		long heapSize = Runtime.getRuntime().totalMemory();
 
-		System.out.printf(
-				"Results: Entries inserted: %d | Duration: %dms | Memory used: %.2f MB | Heap size: %.2f MB | Memory per entry: %.1f bytes%n",
+		log.info("Results: Entries inserted: {} | Duration: {}ms | Memory used: {:.2} MB | Heap size: {:.2} MB | Memory per entry: {:.1} bytes",
 				entryCount, duration, memoryUsed / (1024.0 * 1024.0), heapSize / (1024.0 * 1024.0),
 				(double) memoryUsed / entryCount);
 	}
 
-	// @Test
 	@DisplayName("Cache eviction under high write pressure")
 	void testEvictionUnderPressure() throws InterruptedException {
-		System.out.println("=== Cache Eviction Under High Pressure ===");
+		log.info("=== Cache Eviction Under High Pressure ===");
 
 		HccProperties.LocalCacheProperties props = new HccProperties.LocalCacheProperties();
 		props.setMaximumSize(5000);
@@ -364,14 +359,13 @@ class EdgeCaseStressTest {
 		executor.shutdown();
 
 		double qps = (totalInserts * 1000.0) / duration;
-		System.out.printf("Results: Total inserts: %d | Duration: %dms | QPS: %.2f | Final cache size: %d%n",
+		log.info("Results: Total inserts: {} | Duration: {}ms | QPS: {:.} | Final cache size: {}",
 				totalInserts, duration, qps, smallCache.getSize());
 	}
 
-	// @Test
 	@DisplayName("Concurrent cache operations with mixed consistency levels")
 	void testMixedConsistencyLevels() throws InterruptedException {
-		System.out.println("=== Mixed Consistency Levels Test ===");
+		log.info("=== Mixed Consistency Levels Test ===");
 
 		int threadCount = 100;
 		int operationsPerThread = 5000;
@@ -425,8 +419,8 @@ class EdgeCaseStressTest {
 		long totalOps = highOps.get() + lowOps.get();
 		double qps = (totalOps * 1000.0) / duration;
 
-		System.out.printf("Results: Total ops: %d | QPS: %.2f | Duration: %dms%n", totalOps, qps, duration);
-		System.out.printf("Consistency distribution: HIGH=%d (%.1f%%) | LOW=%d (%.1f%%)%n", highOps.get(),
+		log.info("Results: Total ops: {} | QPS: {:.} | Duration: {}ms", totalOps, qps, duration);
+		log.info("Consistency distribution: HIGH={} ({:.1f}%) | LOW={} ({:.1f}%)", highOps.get(),
 				(highOps.get() * 100.0) / totalOps, lowOps.get(), (lowOps.get() * 100.0) / totalOps);
 	}
 

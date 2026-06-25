@@ -3,12 +3,10 @@ package io.github.latcn.cache.core.util;
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.Callable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class TimerTask implements Callable {
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(TimerTask.class);
 
 	private final long execTime;
 
@@ -48,7 +46,7 @@ public class TimerTask implements Callable {
 
 	@Override
 	public Object call() throws Exception {
-		LOGGER.debug("exec time: {}, actual execTime:{}", execTime, System.currentTimeMillis());
+		log.debug("exec time: {}, actual execTime:{}", execTime, System.currentTimeMillis());
 		if (timeout > 0 && execTime + timeout < System.currentTimeMillis()) {
 			return null;
 		}
@@ -61,7 +59,7 @@ public class TimerTask implements Callable {
 			}
 		}
 		catch (Exception e) {
-			LOGGER.error("exec task ex:", e);
+			log.error("exec task ex:", e);
 		}
 		return null;
 	}

@@ -90,15 +90,9 @@ public class HccProperties {
 		 */
 		private double readHotKeyThreshold = 100.0;
 
-		private int readWindowSizeMs = 1000;
-
-		private int readBucketCount = 10;
-
 		/**
 		 * 写热点检测
 		 */
-		private int writeWindowSeconds = 5 * 60;
-
 		private int writeInvalidationThreshold = 10;
 
 		private long writeBaseBlacklistTtl = 10 * 1000;

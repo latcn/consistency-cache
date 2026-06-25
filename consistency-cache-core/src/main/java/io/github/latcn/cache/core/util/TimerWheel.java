@@ -7,12 +7,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class TimerWheel {
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(TimerWheel.class);
 
 	private static final int THREAD_POOL_DIVISOR = 3;
 
@@ -57,7 +55,7 @@ public class TimerWheel {
 			throw new CacheException(CacheError.INVALID_PARAMETER,
 					"TimerWheel: num and interval must be positive, got num=" + num + ", interval=" + interval);
 		}
-		long now = System.currentTimeMillis();
+		long now = TimeUtil.currentNanoToMil();
 		this.num = num;
 		this.interval = interval;
 		this.maxThreadCount = maxThreadCount;
@@ -78,8 +76,14 @@ public class TimerWheel {
 		this.tickThread = new Thread(() -> {
 			while (!isStop.get()) {
 				long deadline = currentTime + interval;
-				while (deadline > System.currentTimeMillis()) {
-					LockSupport.parkUntil(deadline);
+				long now = TimeUtil.currentNanoToMil();
+				while (deadline > now) {
+					long remaining = deadline - now;
+					LockSupport.parkNanos(remaining * TimeUtil.NANO_TO_MIL);
+					now = TimeUtil.currentNanoToMil();
+				}
+				if (isStop.get()) {
+					break;
 				}
 				ticksTimes++;
 				processTask(TimerWheel.this);
@@ -127,7 +131,7 @@ public class TimerWheel {
 			}
 		}
 		catch (InterruptedException e) {
-			LOGGER.error("processOverFlowTimerWheel ex", e);
+			log.error("processOverFlowTimerWheel ex", e);
 		}
 	}
 
@@ -143,7 +147,7 @@ public class TimerWheel {
 			}
 		}
 		catch (InterruptedException e) {
-			LOGGER.error("processOverFlowTimerWheel ex", e);
+			log.error("processOverFlowTimerWheel ex", e);
 		}
 	}
 

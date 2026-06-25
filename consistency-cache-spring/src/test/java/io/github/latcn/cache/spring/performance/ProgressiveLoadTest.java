@@ -22,6 +22,7 @@ import io.github.latcn.cache.spring.pubsub.RTopicSubscriber;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,7 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
+@Slf4j
 @DisplayName("Progressive Load Stress Tests")
 class ProgressiveLoadTest {
 
@@ -66,9 +68,9 @@ class ProgressiveLoadTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0, 300000,
+		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(1000, 60000, 2.0, 300000,
 				1000);
-		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
+		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0);
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,
 				Set.of(org.redisson.client.RedisConnectionException.class));
@@ -116,13 +118,12 @@ class ProgressiveLoadTest {
 		}
 	}
 
-	// @Test
 	@DisplayName("Progressive load test - find breaking point")
 	void testProgressiveLoadFindBreakingPoint() throws InterruptedException {
-		System.out.println("=== Progressive Load Test - Finding Breaking Point ===");
-		System.out.println("Warmup entries: " + WARMUP_SIZE);
-		System.out.println("Stability duration per level: " + STABILITY_DURATION_SECONDS + "s");
-		System.out.println("==================================================");
+		log.info("=== Progressive Load Test - Finding Breaking Point ===");
+		log.info("Warmup entries: {}", WARMUP_SIZE);
+		log.info("Stability duration per level: {}s", STABILITY_DURATION_SECONDS);
+		log.info("==================================================");
 
 		int[] threadLevels = { 10, 50, 100, 200, 300, 500, 800, 1000 };
 		int operationsPerThread = 5000;
@@ -131,11 +132,11 @@ class ProgressiveLoadTest {
 
 		for (int threadCount : threadLevels) {
 			if (breakingPointReached) {
-				System.out.println("Breaking point already reached. Stopping test.");
+				log.info("Breaking point already reached. Stopping test.");
 				break;
 			}
 
-			System.out.printf("%n--- Testing with %d threads ---%n", threadCount);
+			log.info("%n--- Testing with {} threads ---%n", threadCount);
 
 			ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 			CountDownLatch startLatch = new CountDownLatch(1);
@@ -198,12 +199,12 @@ class ProgressiveLoadTest {
 			long p95 = calculatePercentile(latencies, 95);
 			long p99 = calculatePercentile(latencies, 99);
 
-			System.out.printf("Results: QPS=%.2f | Errors=%d (%.2f%%) | P95=%dms | P99=%dms%n", qps, errors.get(),
+			log.info("Results: QPS=%.2f | Errors=%d (%.2f%%) | P95=%dms | P99=%dms%n", qps, errors.get(),
 					errorRate, p95, p99);
 
 			if (errorRate > maxErrorRate) {
-				System.out.printf("ALERT: Error rate (%.2f%%) exceeded threshold (%.2f%%)%n", errorRate, maxErrorRate);
-				System.out.printf("Breaking point reached at %d threads%n", threadCount);
+				log.warn("ALERT: Error rate (%.2f%%) exceeded threshold (%.2f%%)", errorRate, maxErrorRate);
+				log.info("Breaking point reached at {} threads", threadCount);
 				breakingPointReached = true;
 			}
 
@@ -211,18 +212,17 @@ class ProgressiveLoadTest {
 		}
 	}
 
-	// @Test
 	@DisplayName("Progressive load test - read-write mix with increasing load")
 	void testProgressiveReadWriteMix() throws InterruptedException {
-		System.out.println("=== Progressive Read-Write Mix Test ===");
-		System.out.println("Read:Write ratio: 90:10");
-		System.out.println("====================================");
+		log.info("=== Progressive Read-Write Mix Test ===");
+		log.info("Read:Write ratio: 90:10");
+		log.info("====================================");
 
 		int[] threadLevels = { 10, 50, 100, 200, 300 };
 		int readRatio = 90;
 
 		for (int threadCount : threadLevels) {
-			System.out.printf("%n--- Testing with %d threads ---%n", threadCount);
+			log.info("%n--- Testing with {} threads ---%n", threadCount);
 
 			ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 			CountDownLatch startLatch = new CountDownLatch(1);
@@ -289,24 +289,23 @@ class ProgressiveLoadTest {
 			double qps = (totalOps * 1000.0) / testDuration;
 			double errorRate = (errors.get() * 100.0) / (totalOps + errors.get());
 
-			System.out.printf("Results: QPS=%.2f | Reads=%d | Writes=%d | Errors=%d (%.2f%%)%n", qps, readOps.get(),
+			log.info("Results: QPS=%.2f | Reads=%d | Writes=%d | Errors=%d (%.2f%%)", qps, readOps.get(),
 					writeOps.get(), errors.get(), errorRate);
 
 			Thread.sleep(3000);
 		}
 	}
 
-	// @Test
 	@DisplayName("Progressive load test - resource monitoring")
 	void testProgressiveResourceMonitoring() throws InterruptedException {
-		System.out.println("=== Progressive Resource Monitoring ===");
-		System.out.println("Monitoring CPU and Memory usage");
-		System.out.println("=================================");
+		log.info("=== Progressive Resource Monitoring ===");
+		log.info("Monitoring CPU and Memory usage");
+		log.info("=================================");
 
 		int[] threadLevels = { 50, 100, 200 };
 
 		for (int threadCount : threadLevels) {
-			System.out.printf("%n--- Testing with %d threads ---%n", threadCount);
+			log.info("%n--- Testing with {} threads ---%n", threadCount);
 
 			ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 			CountDownLatch startLatch = new CountDownLatch(1);
@@ -366,7 +365,7 @@ class ProgressiveLoadTest {
 
 			double qps = (totalOps.get() * 1000.0) / testDuration;
 
-			System.out.printf("Results: QPS=%.2f | Avg CPU=%.1f%% | Max CPU=%.1f%% | Avg Memory=%.2f MB%n", qps, avgCpu,
+			log.info("Results: QPS=%.2f | Avg CPU=%.1f%% | Max CPU=%.1f%% | Avg Memory=%.2f MB", qps, avgCpu,
 					maxCpu, avgMemory / (1024.0 * 1024.0));
 
 			Thread.sleep(3000);

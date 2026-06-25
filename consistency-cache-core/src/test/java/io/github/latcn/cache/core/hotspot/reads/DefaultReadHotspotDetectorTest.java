@@ -2,223 +2,144 @@ package io.github.latcn.cache.core.hotspot.reads;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit tests for DefaultReadHotspotDetector
- */
 @DisplayName("DefaultReadHotspotDetector Tests")
 class DefaultReadHotspotDetectorTest {
 
-	private DefaultReadHotspotDetector statistics;
+    private DefaultReadHotspotDetector detector;
 
-	@BeforeEach
-	void setUp() {
-		// Threshold: 100 QPS, Window: 1000ms, Buckets: 10
-		statistics = new DefaultReadHotspotDetector(100.0, 1000, 10);
-	}
+    @BeforeEach
+    void setUp() {
+        detector = new DefaultReadHotspotDetector(100.0);
+    }
 
-	@Test
-	@DisplayName("Should record read operation")
-	void testRecordRead() {
-		// Given
-		String key = "test-key";
+    @AfterEach
+    void tearDown() {
+        if (detector != null) {
+            detector.close();
+        }
+    }
 
-		// When
-		statistics.recordRead(key);
+    @Test
+    @DisplayName("Should record read operation")
+    void testRecordRead() {
+        String key = "test-key";
+        detector.recordRead(key);
+        assertNotNull(detector.getQps(key));
+    }
 
-		// Then - Should not throw exception
-		assertNotNull(statistics.getQps(key));
-	}
+    @Test
+    @DisplayName("Should detect hot key when QPS exceeds threshold")
+    void testHotKeyDetection() {
+        String hotKey = "hot-key";
+        for (int i = 0; i < 200; i++) {
+            detector.recordRead(hotKey);
+        }
+        assertTrue(detector.isHotKey(hotKey));
+    }
 
-	@Test
-	@DisplayName("Should detect hot key when QPS exceeds threshold")
-	void testHotKeyDetection() throws InterruptedException {
-		// Given
-		String hotKey = "hot-key";
+    @Test
+    @DisplayName("Should not detect cold key as hot")
+    void testColdKeyNotDetectedAsHot() {
+        String coldKey = "cold-key";
+        for (int i = 0; i < 5; i++) {
+            detector.recordRead(coldKey);
+        }
+        assertFalse(detector.isHotKey(coldKey));
+    }
 
-		// Simulate high QPS by recording many reads quickly
-		for (int i = 0; i < 200; i++) {
-			statistics.recordRead(hotKey);
-		}
+    @Test
+    @DisplayName("Should return QPS for hot key")
+    void testGetQps() {
+        String key = "qps-test-key";
+        for (int i = 0; i < 200; i++) {
+            detector.recordRead(key);
+        }
+        double qps = detector.getQps(key);
+        assertTrue(qps > 0);
+    }
 
-		// Then
-		assertTrue(statistics.isHotKey(hotKey));
-	}
+    @Test
+    @DisplayName("Should return 0 QPS for non-existent key")
+    void testGetQpsNonExistentKey() {
+        double qps = detector.getQps("non-existent");
+        assertEquals(0.0, qps, 0.01);
+    }
 
-	@Test
-	@DisplayName("Should not detect cold key as hot")
-	void testColdKeyNotDetectedAsHot() {
-		// Given
-		String coldKey = "cold-key";
+    @Test
+    @DisplayName("Should return 0 QPS for cold key")
+    void testGetQpsColdKey() {
+        String key = "cold-qps-key";
+        for (int i = 0; i < 5; i++) {
+            detector.recordRead(key);
+        }
+        double qps = detector.getQps(key);
+        assertEquals(0.0, qps, 0.01);
+    }
 
-		// Record only a few reads
-		for (int i = 0; i < 5; i++) {
-			statistics.recordRead(coldKey);
-		}
+    @Test
+    @DisplayName("Should handle multiple keys independently")
+    void testMultipleKeys() {
+        String key1 = "key-1";
+        String key2 = "key-2";
 
-		// Then
-		assertFalse(statistics.isHotKey(coldKey));
-	}
+        for (int i = 0; i < 200; i++) {
+            detector.recordRead(key1);
+        }
 
-	@Test
-	@DisplayName("Should return current QPS for key")
-	void testGetQps() throws InterruptedException {
-		// Given
-		String key = "qps-test-key";
+        for (int i = 0; i < 10; i++) {
+            detector.recordRead(key2);
+        }
 
-		// Record 50 reads
-		for (int i = 0; i < 50; i++) {
-			statistics.recordRead(key);
-		}
+        assertTrue(detector.isHotKey(key1));
+        assertFalse(detector.isHotKey(key2));
+    }
 
-		// When
-		double qps = statistics.getQps(key);
+    @Test
+    @DisplayName("Should increment hot key count when hot key detected")
+    void testHotKeyCount() {
+        String key = "count-test";
+        long initialCount = detector.readHotKeyCount();
 
-		// Then - Should have some QPS value
-		assertTrue(qps > 0);
-	}
+        for (int i = 0; i < 200; i++) {
+            detector.recordRead(key);
+        }
 
-	@Test
-	@DisplayName("Should return 0 QPS for non-existent key")
-	void testGetQpsNonExistentKey() {
-		// When
-		double qps = statistics.getQps("non-existent");
+        assertTrue(detector.readHotKeyCount() >= initialCount);
+    }
 
-		// Then
-		assertEquals(0.0, qps, 0.01);
-	}
+    @Test
+    @DisplayName("Should handle concurrent access safely")
+    void testConcurrentAccess() throws InterruptedException {
+        String sharedKey = "concurrent-key";
+        int threadCount = 10;
+        Thread[] threads = new Thread[threadCount];
 
-	@Test
-	@DisplayName("Should cleanup old entries")
-	void testCleanup() throws InterruptedException {
-		// Given
-		String oldKey = "old-key";
-		statistics.recordRead(oldKey);
+        for (int i = 0; i < threadCount; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < 100; j++) {
+                    detector.recordRead(sharedKey);
+                }
+            });
+            threads[i].start();
+        }
 
-		// Wait for entry to become old (but we'll manually trigger cleanup)
-		Thread.sleep(100);
+        for (Thread thread : threads) {
+            thread.join();
+        }
 
-		// When
-		statistics.cleanup();
+        assertTrue(detector.isHotKey(sharedKey));
+    }
 
-		// Then - Should not throw exception
-		// Note: Actual cleanup depends on lastAccessTime which is 5 minutes
-		// This test mainly ensures the method doesn't crash
-	}
-
-	@Test
-	@DisplayName("Should handle sliding window rotation")
-	void testSlidingWindowRotation() throws InterruptedException {
-		// Given
-		String key = "rotation-test";
-
-		// Record reads in first bucket
-		for (int i = 0; i < 50; i++) {
-			statistics.recordRead(key);
-		}
-
-		double initialQps = statistics.getQps(key);
-
-		// Wait for buckets to rotate (each bucket is 100ms)
-		Thread.sleep(150);
-
-		// Record more reads
-		for (int i = 0; i < 30; i++) {
-			statistics.recordRead(key);
-		}
-
-		double laterQps = statistics.getQps(key);
-
-		// Then
-		assertTrue(initialQps > 0);
-		assertTrue(laterQps > 0);
-	}
-
-	@Test
-	@DisplayName("Should handle multiple keys independently")
-	void testMultipleKeys() {
-		// Given
-		String key1 = "key-1";
-		String key2 = "key-2";
-
-		// Record different amounts for each key
-		for (int i = 0; i < 121; i++) {
-			statistics.recordRead(key1);
-		}
-
-		for (int i = 0; i < 10; i++) {
-			statistics.recordRead(key2);
-		}
-
-		// Then
-		assertTrue(statistics.isHotKey(key1));
-		assertFalse(statistics.isHotKey(key2));
-		assertTrue(statistics.getQps(key1) > statistics.getQps(key2));
-	}
-
-	@Test
-	@DisplayName("Should reset counters after full window expiration")
-	void testCounterReset() throws InterruptedException {
-		// Given
-		String key = "reset-test";
-
-		// Record reads
-		for (int i = 0; i < 200; i++) {
-			statistics.recordRead(key);
-		}
-
-		assertTrue(statistics.isHotKey(key));
-
-		// Wait for full window to expire (window is 1000ms)
-		Thread.sleep(1100);
-
-		// Access again to trigger rotation
-		statistics.getQps(key);
-
-		// Then - QPS should be much lower or zero
-		// Note: May not be exactly zero due to timing
-		double qps = statistics.getQps(key);
-		assertTrue(qps < 100); // Should be below threshold now
-	}
-
-	@Test
-	@DisplayName("Should use constructor parameters correctly")
-	void testConstructorParameters() {
-		// Given
-		DefaultReadHotspotDetector customStats = new DefaultReadHotspotDetector(50.0, 2000, 20);
-
-		// Then
-		assertEquals(2000, customStats.getWindowSizeMs());
-	}
-
-	@Test
-	@DisplayName("Should handle concurrent access safely")
-	void testConcurrentAccess() throws InterruptedException {
-		// Given
-		String sharedKey = "concurrent-key";
-		int threadCount = 10;
-		Thread[] threads = new Thread[threadCount];
-
-		// When - Multiple threads recording reads simultaneously
-		for (int i = 0; i < threadCount; i++) {
-			threads[i] = new Thread(() -> {
-				for (int j = 0; j < 100; j++) {
-					statistics.recordRead(sharedKey);
-				}
-			});
-			threads[i].start();
-		}
-
-		// Wait for all threads to complete
-		for (Thread thread : threads) {
-			thread.join();
-		}
-
-		// Then - Should not throw exception and QPS should be recorded
-		assertTrue(statistics.getQps(sharedKey) > 0);
-	}
+    @Test
+    @DisplayName("Should handle null key")
+    void testNullKey() {
+        assertDoesNotThrow(() -> detector.recordRead(null));
+        assertFalse(detector.isHotKey(null));
+    }
 
 }

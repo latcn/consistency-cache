@@ -3,12 +3,14 @@ package io.github.latcn.cache.spring.performance;
 import io.github.latcn.cache.spring.local.LocalCacheMarkerManagerImpl;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
+@Slf4j
 @DisplayName("Redis Marker Stress Tests")
 class RedisMarkerStressTest {
 
@@ -28,7 +30,6 @@ class RedisMarkerStressTest {
 		markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
 	}
 
-	// @Test
 	@DisplayName("Redis marker concurrent mark test")
 	void testMarkerConcurrentMark() throws InterruptedException {
 		int[] threadCounts = { 20, 50, 100, 200 };
@@ -63,12 +64,11 @@ class RedisMarkerStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("Mark Test | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("Mark Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Redis marker concurrent remove test")
 	void testMarkerConcurrentRemove() throws InterruptedException {
 		int warmupCount = 50000;
@@ -106,12 +106,11 @@ class RedisMarkerStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("Remove Test | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("Remove Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
 
-	// @Test
 	@DisplayName("Redis marker multi-node simulation test")
 	void testMarkerMultiNodeSimulation() throws InterruptedException {
 		int nodeCount = 10;
@@ -154,11 +153,10 @@ class RedisMarkerStressTest {
 		executor.shutdown();
 
 		double qps = (totalOps.get() * 1000.0) / duration;
-		System.out.printf("Multi-Node Test | Nodes: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", nodeCount,
+		log.info("Multi-Node Test | Nodes: {} | Ops: {} | Duration: {}ms | QPS: {:.}", nodeCount,
 				totalOps.get(), duration, qps);
 	}
 
-	// @Test
 	@DisplayName("Redis marker cleanup performance test")
 	void testMarkerCleanupPerformance() throws InterruptedException {
 		int warmupCount = 100000;
@@ -173,11 +171,10 @@ class RedisMarkerStressTest {
 			long startTime = System.currentTimeMillis();
 			markerManager.doCleanUp();
 			long duration = System.currentTimeMillis() - startTime;
-			System.out.printf("Cleanup Test | WarmupEntries: %d | Duration: %dms%n", warmupCount, duration);
+			log.info("Cleanup Test | WarmupEntries: {} | Duration: {}ms", warmupCount, duration);
 		}
 	}
 
-	// @Test
 	@DisplayName("Redis marker get active nodes performance")
 	void testGetActiveNodesPerformance() throws InterruptedException {
 		int keyCount = 1000;
@@ -215,7 +212,7 @@ class RedisMarkerStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			System.out.printf("GetActiveNodes Test | Threads: %d | Ops: %d | Duration: %dms | QPS: %.2f%n", threadCount,
+			log.info("GetActiveNodes Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
 					totalOps.get(), duration, qps);
 		}
 	}
