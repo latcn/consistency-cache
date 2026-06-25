@@ -60,7 +60,7 @@ public class CacheCircuitBreaker {
 		this.failureThreshold = failureThreshold;
 		this.successThreshold = successThreshold;
 		this.timeoutMs = timeoutMs;
-		if (customExceptions != null || !customExceptions.isEmpty()) {
+		if (customExceptions != null && !customExceptions.isEmpty()) {
 			this.RETRYABLE_EXCEPTIONS.addAll(customExceptions);
 		}
 		log.info("Initialized CacheCircuitBreaker: failureThreshold={}, successThreshold={}, timeout={}ms",

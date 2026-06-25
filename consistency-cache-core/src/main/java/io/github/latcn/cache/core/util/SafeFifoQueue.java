@@ -45,13 +45,29 @@ public class SafeFifoQueue<T> {
 			// 2. 处理重复元素：在锁内原子移除旧值（必然成功）
 			if (oldValue != null) {
 				boolean removed = insertionOrder.remove(oldValue);
-				// 断言：在writeLock保护下remove必须成功（避免逻辑错误）
-				assert removed : "Inconsistent state! oldValue should exist in deque";
+				// 在writeLock保护下remove必须成功（避免逻辑错误）
+				if (!removed) {
+					throw new RuntimeException("Inconsistent state! oldValue should exist in deque");
+				}
 			}
 			// 3. 添加新值到队尾
 			insertionOrder.offer(value);
 			addCounter.incrementAndGet();
 			return oldValue;
+		}
+		finally {
+			writeLock.unlock();
+		}
+	}
+
+	public void remove(T value){
+		if (!valueMap.containsKey(value)) {
+			return;
+		}
+		writeLock.lock();
+		try {
+			valueMap.remove(value);
+			insertionOrder.remove(value);
 		}
 		finally {
 			writeLock.unlock();

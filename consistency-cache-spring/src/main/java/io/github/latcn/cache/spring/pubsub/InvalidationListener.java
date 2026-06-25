@@ -72,8 +72,7 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
 				return true;
 			}
 			else {
-				this.pendingKeys.remove(messageId);
-				this.pendingKeys.putIfAbsent(messageId, currentTime);
+				this.pendingKeys.computeIfPresent(messageId, (k, v)->currentTime);
 			}
 		}
 		return false;

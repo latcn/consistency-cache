@@ -1,11 +1,12 @@
 package io.github.latcn.cache.core.hotspot.writes;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Dynamic blacklist for write hotspot keys. Keys with high L1 invalidation frequency are
@@ -15,13 +16,14 @@ import lombok.extern.slf4j.Slf4j;
 public class LocalCacheBlacklist {
 
 	private final ConcurrentHashMap<Object, Long> blacklist = new ConcurrentHashMap<>();
-
+	private final int maxSize;
 	private final ScheduledExecutorService scheduler;
 
 	/**
 	 * Create local cache blacklist.
 	 */
-	public LocalCacheBlacklist() {
+	public LocalCacheBlacklist(int maxSize) {
+		this.maxSize = maxSize;
 		this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r, "blacklist-cleanup");
 			t.setDaemon(true);
@@ -29,7 +31,7 @@ public class LocalCacheBlacklist {
 		});
 
 		// Schedule periodic cleanup
-		this.scheduler.scheduleAtFixedRate(this::autoCleanup, 60, 60, TimeUnit.SECONDS);
+		this.scheduler.scheduleAtFixedRate(this::autoCleanup, 1, 1, TimeUnit.SECONDS);
 
 		log.info("Initialized LocalCacheBlacklist");
 	}
@@ -40,9 +42,11 @@ public class LocalCacheBlacklist {
 	 * @param duration blacklist duration
 	 */
 	public <T> void addToBlacklistWithDuration(T key, Duration duration) {
+		if (this.maxSize>this.blacklist.size()) {
+			return;
+		}
 		long expireTime = System.currentTimeMillis() + duration.toMillis();
 		this.blacklist.put(key, expireTime);
-
 		log.warn("Key {} added to L1 blacklist for {} minutes", key, duration.toMinutes());
 	}
 

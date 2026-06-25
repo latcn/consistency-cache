@@ -107,6 +107,8 @@ public class HccProperties {
 
 		private long writeMaxBlacklistTime = 100 * 1000;
 
+		private int blacklistMaxSize = 10 * 1000;
+
 	}
 
 	@Data

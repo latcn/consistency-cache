@@ -41,13 +41,13 @@ public class DefaultWriteHotspotDetector implements WriteHotspotDetector {
 	 * Create enhanced write hotspot detector.
 	 */
 	public DefaultWriteHotspotDetector(int windowSeconds, int invalidationThreshold, long baseBlacklistTtl,
-			double backoffMultiplier, long maxBlacklistTime) {
+			double backoffMultiplier, long maxBlacklistTime, int maxBlacklistSize) {
 		this.windowSeconds = windowSeconds;
 		this.invalidationThreshold = invalidationThreshold;
 		this.baseBlacklistTtl = Duration.ofMillis(baseBlacklistTtl);
 		this.backoffMultiplier = backoffMultiplier;
 		this.maxBlacklistTime = Duration.ofMillis(maxBlacklistTime);
-		this.blacklist = new LocalCacheBlacklist();
+		this.blacklist = new LocalCacheBlacklist(maxBlacklistSize);
 		// 定时扫描
 		TimeHolder.addTask(new TimerTask(RandomUtil.halfBoundRandom(CLEANUP_INTERVAL_MS), this::cleanup));
 		log.info("Initialized DefaultWriteHotspotDetector: window={}s, threshold={}, baseTtl={}, backoff={}",

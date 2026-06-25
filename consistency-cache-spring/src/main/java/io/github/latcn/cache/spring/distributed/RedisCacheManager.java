@@ -133,10 +133,10 @@ public class RedisCacheManager implements DistributedCacheManager {
 			return;
 		}
 		long startTime = System.currentTimeMillis();
+		final List<CacheOperation> batchOperations = new ArrayList<>();
 		try {
 			batchExecCount.incrementAndGet();
 			BatchOptions options = BatchOptions.defaults();
-			final List<CacheOperation> batchOperations = new ArrayList<>();
 			RBatch batch = redissonClient.createBatch(options);
 
 			while (maxBatchSize > batchOperations.size() && System.currentTimeMillis() - startTime < maxWaitInMs) {
@@ -186,10 +186,20 @@ public class RedisCacheManager implements DistributedCacheManager {
 			}
 		}
 		catch (Exception e) {
+			completeCacheOperationException(batchOperations);
 			log.error("batchExecute ex", e);
 		}
 		finally {
 			batchExecuteIsRunning.compareAndSet(true, false);
+		}
+	}
+
+	private void completeCacheOperationException(List<CacheOperation> cacheOperations) {
+		if (cacheOperations == null || cacheOperations.size() == 0) {
+			return;
+		}
+		for (CacheOperation cacheOperation: cacheOperations) {
+			completeCacheOperation(cacheOperation, null);
 		}
 	}
 
@@ -229,6 +239,9 @@ public class RedisCacheManager implements DistributedCacheManager {
 		try {
 			ConcurrentLinkedQueue<CompletableFuture> concurrentLinkedQueue = cacheOperation.getResults();
 			concurrentLinkedQueue.forEach(cf -> {
+				if (cf.isDone()) {
+					return;
+				}
 				cf.complete(result);
 				handlerSucCount.incrementAndGet();
 			});

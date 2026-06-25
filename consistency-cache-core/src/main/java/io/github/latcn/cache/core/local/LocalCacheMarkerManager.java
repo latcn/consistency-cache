@@ -8,6 +8,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.github.latcn.cache.core.util.SafeFifoQueue;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -19,7 +21,7 @@ public abstract class LocalCacheMarkerManager {
 
 	protected final String nodeId;
 
-	protected final Set<String> useLocalCacheKey = ConcurrentHashMap.newKeySet();
+	protected final SafeFifoQueue<String> useLocalCacheKey = new SafeFifoQueue<>();
 
 	private final ScheduledExecutorService scheduledExecutor;
 

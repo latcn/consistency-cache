@@ -46,11 +46,12 @@ public class TimerWheel {
 		if (num <= 0 || interval <= 0) {
 			throw new RuntimeException("timerWheel param is not valid");
 		}
+		long now = System.currentTimeMillis();
 		this.num = num;
 		this.interval = interval;
 		this.maxThreadCount = maxThreadCount;
 		this.wheels = new Object[num];
-		this.createTime = System.currentTimeMillis() - System.currentTimeMillis() % interval;
+		this.createTime = now - now % interval;
 		this.currentTime = createTime;
 		this.lowerWheel = lowerWheel;
 		init();

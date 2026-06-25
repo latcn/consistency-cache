@@ -140,7 +140,7 @@ public class TestConfig {
 				properties.getHotspot().getWriteWindowSeconds(),
 				properties.getHotspot().getWriteInvalidationThreshold(),
 				properties.getHotspot().getWriteBaseBlacklistTtl(), properties.getHotspot().getWriteBackoffMultiplier(),
-				properties.getHotspot().getWriteMaxBlacklistTime());
+				properties.getHotspot().getWriteMaxBlacklistTime(), properties.getHotspot().getBlacklistMaxSize());
 		DefaultReadHotspotDetector readStatistics = new DefaultReadHotspotDetector(
 				properties.getHotspot().getReadHotKeyThreshold(), properties.getHotspot().getReadWindowSizeMs(),
 				properties.getHotspot().getReadBucketCount());

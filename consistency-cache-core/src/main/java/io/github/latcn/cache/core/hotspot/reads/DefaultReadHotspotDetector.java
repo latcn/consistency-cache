@@ -108,12 +108,13 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector {
 				if (now - lastCleanupTime < CLEANUP_INTERVAL_MS) {
 					return;
 				}
-				// todo
+				int hotKeyCount = 0;
 				for (SlidingWindowCounter counter : this.counters.values()) {
 					if (counter.getQps() > this.hotKeyThreshold) {
-						this.hotKeyCount++;
+						hotKeyCount++;
 					}
 				}
+				this.hotKeyCount = hotKeyCount;
 				lastCleanupTime = now;
 			}
 			// Calculate removed count for logging

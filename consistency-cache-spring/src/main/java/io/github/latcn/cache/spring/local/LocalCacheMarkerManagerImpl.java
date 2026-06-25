@@ -153,7 +153,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 		executeWithCache(SCRIPT_ADD_AND_RENEW_NAME, RScript.ReturnType.VALUE, Collections.singletonList(markerKey),
 				new Object[] { this.nodeId, String.valueOf(System.currentTimeMillis()), String.valueOf(expireTime),
 						String.valueOf(this.bufferTimeMs) });
-		this.useLocalCacheKey.add(markerKey);
+		this.useLocalCacheKey.put(markerKey);
 	}
 
 	/**
@@ -182,8 +182,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 				cachedSha1 = this.redisScriptCache.reloadCachedSha1(SCRIPT_CLEANUP_NAME);
 			}
 			List<RFutureWrapper<Long>> useLocalCount = new ArrayList<>();
-			Set<String> monitorKeys = new HashSet<>();
-			MapUtil.randomSelection(this.useLocalCacheKey, monitorKeys, MAX_EXPECTED_SIZE, true);
+			List<String> monitorKeys = this.useLocalCacheKey.drain(MAX_EXPECTED_SIZE);
 			RBatch batch = redissonClient.createBatch();
 			for (String markerKey : monitorKeys) {
 				long now = System.currentTimeMillis();
@@ -198,7 +197,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 					long count = rFuture.get(1);
 					// 说明仍有节点使用本地缓存
 					if (count > 0) {
-						this.useLocalCacheKey.add(rFuture.getCacheKey());
+						this.useLocalCacheKey.put(rFuture.getCacheKey());
 					}
 				}
 				catch (Exception ex) {
@@ -258,7 +257,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 				result = this.rScript.evalSha(RScript.Mode.READ_WRITE, cachedSha1, returnType, keys, args);
 			}
 			catch (Exception ex) {
-				log.error("SHA1 执行失败", e);
+				log.error("SHA1 执行失败", ex);
 				throw ex;
 			}
 		}

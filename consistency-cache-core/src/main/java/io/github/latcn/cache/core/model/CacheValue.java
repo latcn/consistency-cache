@@ -64,7 +64,7 @@ public class CacheValue<V> {
 			return (V) value;
 		}
 		CacheValue cacheValue = (CacheValue) value;
-		if (cacheValue == null || cacheValue.isExpired() || cacheValue.notExist()) {
+		if (cacheValue.isExpired() || cacheValue.notExist()) {
 			return null;
 		}
 		return (V) cacheValue.getValue();
