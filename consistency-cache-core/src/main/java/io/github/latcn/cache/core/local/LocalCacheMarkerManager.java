@@ -1,15 +1,12 @@
 package io.github.latcn.cache.core.local;
 
 import io.github.latcn.cache.core.model.NodeInstanceHolder;
+import io.github.latcn.cache.core.util.SafeFifoQueue;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import io.github.latcn.cache.core.util.SafeFifoQueue;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

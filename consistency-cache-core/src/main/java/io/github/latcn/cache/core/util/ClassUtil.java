@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.util;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -34,11 +36,12 @@ public class ClassUtil {
 					return (T) constructor.newInstance(new Object[] {});
 				}
 				catch (Exception e) {
+					LOGGER.debug("Default constructor not accessible, trying other constructors", e);
 				}
 			}
 			Constructor[] constructorList = clz.getDeclaredConstructors();
 			if (constructorList == null || constructorList.length == 0) {
-				throw new RuntimeException("no constructor");
+				throw new CacheException(CacheError.CONSTRUCTOR_NOT_FOUND, clz.getName());
 			}
 			Constructor constructor = constructorList[0];
 			for (int i = 1; i < constructorList.length; i++) {
@@ -49,9 +52,12 @@ public class ClassUtil {
 			constructor.setAccessible(true);
 			return (T) constructor.newInstance(new Object[constructor.getParameterCount()]);
 		}
+		catch (CacheException e) {
+			throw e;
+		}
 		catch (Exception e) {
-			LOGGER.error("ex", e);
-			throw new RuntimeException("newInstance error");
+			LOGGER.error("Failed to instantiate class: {}", clz.getName(), e);
+			throw CacheException.wrap(e, CacheError.CLASS_INSTANTIATION_FAILED);
 		}
 	}
 
@@ -67,20 +73,24 @@ public class ClassUtil {
 				return (T) constructor.newInstance(objects);
 			}
 			catch (Exception e) {
-				throw new RuntimeException("newInstance error");
+				LOGGER.error("Failed to instantiate member class: {}", clz.getName(), e);
+				throw CacheException.wrap(e, CacheError.CLASS_INSTANTIATION_FAILED);
 			}
 		}
 		else {
 			try {
 				Constructor constructor = clz.getConstructor(parameterTypes);
 				if (constructor == null) {
-					throw new RuntimeException("can't find constructor");
+					throw new CacheException(CacheError.CONSTRUCTOR_NOT_FOUND, clz.getName());
 				}
 				return (T) constructor.newInstance(parameters);
 			}
+			catch (CacheException e) {
+				throw e;
+			}
 			catch (Exception e) {
-				LOGGER.error("ex", e);
-				throw new RuntimeException(e.getMessage());
+				LOGGER.error("Failed to instantiate class with parameters: {}", clz.getName(), e);
+				throw CacheException.wrap(e, CacheError.REFLECTION_OPERATION_FAILED);
 			}
 		}
 	}
@@ -104,7 +114,7 @@ public class ClassUtil {
 			}
 		}
 		if (constructor == null) {
-			throw new RuntimeException("can't find constructor");
+			throw new CacheException(CacheError.CONSTRUCTOR_NOT_FOUND, clz.getName());
 		}
 		return constructor;
 	}

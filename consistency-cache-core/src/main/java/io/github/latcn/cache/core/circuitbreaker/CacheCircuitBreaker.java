@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.circuitbreaker;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -67,7 +69,7 @@ public class CacheCircuitBreaker {
 				failureThreshold, successThreshold, timeoutMs);
 	}
 
-	public <T> T execute(Supplier<T> supplier) throws CircuitBreakerOpenException {
+	public <T> T execute(Supplier<T> supplier) throws CacheException {
 		totalCalls.incrementAndGet();
 
 		State currentState = state.get();
@@ -79,7 +81,7 @@ public class CacheCircuitBreaker {
 			}
 			if (state.get() == State.OPEN) {
 				rejectedCalls.incrementAndGet();
-				throw new CircuitBreakerOpenException("Cache circuit breaker is OPEN");
+				throw new CacheException(CacheError.CIRCUIT_BREAKER_OPEN);
 			}
 		}
 
@@ -88,11 +90,14 @@ public class CacheCircuitBreaker {
 			recordSuccess();
 			return result;
 		}
+		catch (CacheException e) {
+			throw e;
+		}
 		catch (Exception e) {
 			if (isRetryable(e)) {
 				recordFailure();
 			}
-			throw e;
+			throw CacheException.wrap(e, CacheError.CIRCUIT_BREAKER_ERROR);
 		}
 	}
 

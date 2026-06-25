@@ -64,8 +64,8 @@ class EdgeCaseStressTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0,
-				300000);
+		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0, 300000,
+				1000);
 		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,

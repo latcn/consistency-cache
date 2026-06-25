@@ -19,6 +19,10 @@ import org.redisson.api.*;
 @Slf4j
 public class RedisCacheManager implements DistributedCacheManager {
 
+	private static final int SCHEDULED_THREAD_POOL_SIZE = 1;
+
+	private static final int EMPTY_POLL_SLEEP_MILLISECONDS = 1;
+
 	private final RedissonClient redissonClient;
 
 	private final int maxBatchSize;
@@ -37,7 +41,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	public RedisCacheManager(RedissonClient redissonClient, int maxBatchSize, int maxWaitInMs) {
 		this.redissonClient = redissonClient;
-		this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, r -> {
+		this.scheduledExecutorService = new ScheduledThreadPoolExecutor(SCHEDULED_THREAD_POOL_SIZE, r -> {
 			Thread thread = new Thread(r);
 			thread.setName("RedisCacheManager Bulk Operation Thread");
 			thread.setDaemon(true);
@@ -142,7 +146,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 			while (maxBatchSize > batchOperations.size() && System.currentTimeMillis() - startTime < maxWaitInMs) {
 				List<CacheOperation> operations = cacheOperations.drain(maxBatchSize - batchOperations.size());
 				if (operations == null || operations.size() == 0) {
-					Thread.sleep(1);
+					Thread.sleep(EMPTY_POLL_SLEEP_MILLISECONDS);
 				}
 				for (CacheOperation cacheOperation : operations) {
 					if (cacheOperation.getOperationType() == CacheOperationType.GET) {
@@ -198,7 +202,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 		if (cacheOperations == null || cacheOperations.size() == 0) {
 			return;
 		}
-		for (CacheOperation cacheOperation: cacheOperations) {
+		for (CacheOperation cacheOperation : cacheOperations) {
 			completeCacheOperation(cacheOperation, null);
 		}
 	}

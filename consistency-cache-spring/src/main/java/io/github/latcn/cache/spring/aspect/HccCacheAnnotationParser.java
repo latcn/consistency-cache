@@ -24,7 +24,16 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
  */
 public class HccCacheAnnotationParser implements CacheAnnotationParser {
 
-	private static final Set<Class<? extends Annotation>> CACHE_OPERATION_ANNOTATIONS = new LinkedHashSet<>(8);
+	private static final int ANNOTATION_SET_INITIAL_CAPACITY = 8;
+
+	private static final int CACHE_OPERATION_LIST_INITIAL_CAPACITY = 1;
+
+	private static final long EXPIRE_TIME_ZERO_VALUE = 0;
+
+	private static final int SECONDS_TO_MILLISECONDS_MULTIPLIER = 1000;
+
+	private static final Set<Class<? extends Annotation>> CACHE_OPERATION_ANNOTATIONS = new LinkedHashSet<>(
+			ANNOTATION_SET_INITIAL_CAPACITY);
 
 	static {
 		CACHE_OPERATION_ANNOTATIONS.add(HccCacheable.class);
@@ -52,7 +61,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 		if (anns.isEmpty()) {
 			return null;
 		}
-		final Collection<CacheOperation> ops = new ArrayList<>(1);
+		final Collection<CacheOperation> ops = new ArrayList<>(CACHE_OPERATION_LIST_INITIAL_CAPACITY);
 		anns.stream()
 			.filter(ann -> ann instanceof HccCacheable)
 			.forEach(ann -> ops.add(parseCacheableAnnotation(ae, (HccCacheable) ann)));
@@ -73,11 +82,11 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 			.bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
 			.bloomFilterName(hccCacheable.bloomFilterName())
 			.build();
-		if (hccCacheable.expireTime() == 0) {
+		if (hccCacheable.expireTime() == EXPIRE_TIME_ZERO_VALUE) {
 			op.setExpireTime(CacheValue.MAX_EXPIRE_TIME);
 		}
 		else {
-			op.setExpireTime(hccCacheable.expireTime() * 1000);
+			op.setExpireTime(hccCacheable.expireTime() * SECONDS_TO_MILLISECONDS_MULTIPLIER);
 		}
 		return op;
 	}

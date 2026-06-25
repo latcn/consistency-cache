@@ -1,6 +1,8 @@
 package io.github.latcn.cache.spring.local.adapter;
 
 import com.google.common.cache.CacheBuilder;
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.local.LocalCache;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.HccProperties;
@@ -31,11 +33,10 @@ public class GuavaCacheAdapter<K, V extends CacheValue> implements LocalCache<K,
 	@Override
 	public V get(K key, Function<K, V> loader) {
 		try {
-			// Guava的get(key, callable)自带原子性加载逻辑
 			return this.localCache.get(key, () -> loader.apply(key));
 		}
 		catch (Exception e) {
-			throw new RuntimeException("Guava this.localCache load failed", e);
+			throw CacheException.wrap(e, CacheError.LOCAL_CACHE_LOAD_FAILED);
 		}
 	}
 

@@ -49,9 +49,9 @@ class LocalCacheManagerTest {
 		CacheValue result = localCacheManager.get(cacheKey);
 
 		// Then
-		//assertNotNull(result);
-		//assertEquals("test-value", result.getValue());
-		//assertFalse(result.isExpired());
+		// assertNotNull(result);
+		// assertEquals("test-value", result.getValue());
+		// assertFalse(result.isExpired());
 	}
 
 	@Test
@@ -112,7 +112,7 @@ class LocalCacheManagerTest {
 			.build();
 
 		localCacheManager.put(cacheKey, cacheValue);
-		//assertTrue(localCacheManager.containKey(cacheKey));
+		// assertTrue(localCacheManager.containKey(cacheKey));
 
 		// When
 		localCacheManager.remove(cacheKey);
@@ -192,10 +192,10 @@ class LocalCacheManagerTest {
 
 		// Then
 		LocalCacheManager.CacheStats stats = localCacheManager.getStats();
-		//assertEquals(2, stats.getHitCount());
-		//assertEquals(2, stats.getMissCount());
-		//assertEquals(0.5, stats.getHitRate(), 0.01);
-		//assertEquals("50.00%", stats.getFormattedHitRate());
+		// assertEquals(2, stats.getHitCount());
+		// assertEquals(2, stats.getMissCount());
+		// assertEquals(0.5, stats.getHitRate(), 0.01);
+		// assertEquals("50.00%", stats.getFormattedHitRate());
 	}
 
 	@Test
@@ -230,8 +230,8 @@ class LocalCacheManagerTest {
 		localCacheManager.put(availableKey, value2);
 
 		// Then
-		//assertTrue(localCacheManager.containKey(highConsistencyKey));
-		//assertTrue(localCacheManager.containKey(availableKey));
+		// assertTrue(localCacheManager.containKey(highConsistencyKey));
+		// assertTrue(localCacheManager.containKey(availableKey));
 		// assertEquals(2L, localCacheManager.getSize());
 	}
 
@@ -326,7 +326,7 @@ class LocalCacheManagerTest {
 		localCacheManager.put(cacheKey, value);
 		localCacheManager.put(cacheKey1, value1);
 		// Then - Should not throw exception
-		//assertTrue(localCacheManager.containKey(cacheKey1));
+		// assertTrue(localCacheManager.containKey(cacheKey1));
 		try {
 			Thread.sleep(1000);
 		}
@@ -337,8 +337,8 @@ class LocalCacheManagerTest {
 		localCacheManager.runEviction();
 
 		// Then - Should not throw exception
-		//assertTrue(localCacheManager.containKey(cacheKey));
-		//assertFalse(localCacheManager.containKey(cacheKey1));
+		// assertTrue(localCacheManager.containKey(cacheKey));
+		// assertFalse(localCacheManager.containKey(cacheKey1));
 	}
 
 }

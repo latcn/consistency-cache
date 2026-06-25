@@ -1,5 +1,6 @@
 package io.github.latcn.cache.core.handler;
 
+import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
 import io.github.latcn.cache.core.manager.SingleFlightExecutor;
@@ -41,12 +42,12 @@ public class DbHandler extends BaseCacheHandler {
 
 	@Override
 	public void evict(CacheContext cacheContext) {
-		throw new CacheException("evict should not execute: " + DbHandler.class.getName());
+		throw new CacheException(CacheError.UNSUPPORTED_OPERATION, "evict should not execute on DbHandler");
 	}
 
 	@Override
 	public CompletableFuture<Boolean> evictAsync(CacheContext cacheContext) {
-		throw new CacheException("evict should not execute: " + DbHandler.class.getName());
+		throw new CacheException(CacheError.UNSUPPORTED_OPERATION, "evict should not execute on DbHandler");
 	}
 
 	private CacheValue loadFromDb(CacheKey cacheKey, Function doSingleFlightFun) {

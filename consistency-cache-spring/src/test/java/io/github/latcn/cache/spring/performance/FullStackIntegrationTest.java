@@ -63,8 +63,8 @@ class FullStackIntegrationTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 200, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0,
-				300000);
+		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(60, 1000, 60000, 2.0, 300000,
+				1000);
 		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0, 1000, 10);
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,
@@ -222,8 +222,8 @@ class FullStackIntegrationTest {
 							String key = "fullstack-write-" + threadId + "-" + j;
 							CacheKey cacheKey = CacheKey.builder()
 								.key(key)
-									.consistencyLevel(ConsistencyLevel.AVAILABLE)
-									.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+								.consistencyLevel(ConsistencyLevel.AVAILABLE)
+								.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 								.build();
 							CacheValue<String> value = CacheValue.<String>builder()
 								.value("value-" + key)
@@ -259,8 +259,8 @@ class FullStackIntegrationTest {
 			String key = "fullstack-evict-" + i;
 			CacheKey cacheKey = CacheKey.builder()
 				.key(key)
-					.consistencyLevel(ConsistencyLevel.AVAILABLE)
-					.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+				.consistencyLevel(ConsistencyLevel.AVAILABLE)
+				.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 				.build();
 			CacheValue<String> value = CacheValue.<String>builder()
 				.value("value-" + i)
@@ -287,8 +287,8 @@ class FullStackIntegrationTest {
 							String key = "fullstack-evict-" + keyIdx;
 							CacheKey cacheKey = CacheKey.builder()
 								.key(key)
-									.consistencyLevel(ConsistencyLevel.AVAILABLE)
-									.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+								.consistencyLevel(ConsistencyLevel.AVAILABLE)
+								.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 								.build();
 
 							cacheExecutor.evict(cacheKey);
@@ -319,8 +319,8 @@ class FullStackIntegrationTest {
 			String key = "mix-warmup-" + i;
 			CacheKey cacheKey = CacheKey.builder()
 				.key(key)
-					.consistencyLevel(ConsistencyLevel.AVAILABLE)
-					.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+				.consistencyLevel(ConsistencyLevel.AVAILABLE)
+				.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 				.build();
 			CacheValue<String> value = CacheValue.<String>builder()
 				.value("value-" + i)
@@ -351,8 +351,8 @@ class FullStackIntegrationTest {
 									String key = "mix-warmup-" + keyIdx;
 									CacheKey cacheKey = CacheKey.builder()
 										.key(key)
-											.consistencyLevel(ConsistencyLevel.AVAILABLE)
-											.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+										.consistencyLevel(ConsistencyLevel.AVAILABLE)
+										.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 										.build();
 									cacheExecutor.get(cacheKey, (k) -> "fallback");
 									readOps.incrementAndGet();
@@ -361,8 +361,8 @@ class FullStackIntegrationTest {
 									String newKey = "mix-write-" + ThreadLocalRandom.current().nextInt(100000);
 									CacheKey cacheKey = CacheKey.builder()
 										.key(newKey)
-											.consistencyLevel(ConsistencyLevel.AVAILABLE)
-											.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
+										.consistencyLevel(ConsistencyLevel.AVAILABLE)
+										.cacheLevel(CacheLevel.ADAPTIVE_CACHE)
 										.build();
 									CacheValue<String> value = CacheValue.<String>builder()
 										.value("value-" + newKey)

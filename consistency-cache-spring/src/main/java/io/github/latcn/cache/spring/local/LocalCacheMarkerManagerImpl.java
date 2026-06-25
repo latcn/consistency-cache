@@ -1,7 +1,6 @@
 package io.github.latcn.cache.spring.local;
 
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
-import io.github.latcn.cache.core.util.MapUtil;
 import io.github.latcn.cache.core.util.StringUtil;
 import io.github.latcn.cache.spring.model.RedisScriptCache;
 import java.util.*;
@@ -22,6 +21,10 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 
 	private static final int MAX_EXPECTED_SIZE = 1000;
 
+	private static final int INITIAL_CAPACITY = 0;
+
+	private static final int MAX_ACTIVE_NODES_TO_QUERY = 1;
+
 	private final RedissonClient redissonClient;
 
 	private final RScript rScript;
@@ -31,7 +34,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 	private final long bufferTimeMs;
 
 	public LocalCacheMarkerManagerImpl(RedissonClient redissonClient, long bufferTimeMs) {
-		super(0);
+		super(INITIAL_CAPACITY);
 		this.redissonClient = redissonClient;
 		this.rScript = this.redissonClient.getScript(StringCodec.INSTANCE);
 		this.redisScriptCache = new RedisScriptCache(this.rScript);
@@ -136,7 +139,7 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 			// " local res = redis.call('ZREVRANGE', key, 0, 0, 'WITHSCORES'); " +
 			"    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" + "    if res and #res > 0 then "
 			+ "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " + "    end; " + "end; "
-			+ "return redis.call('ZRANGE', key, 0, 1, 'REV');";
+			+ "return redis.call('ZRANGE', key, 0, " + MAX_ACTIVE_NODES_TO_QUERY + ", 'REV');";
 
 	/**
 	 * 标记当前节点正在使用本地缓存

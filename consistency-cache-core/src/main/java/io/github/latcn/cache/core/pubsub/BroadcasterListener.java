@@ -13,6 +13,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class BroadcasterListener<T> implements EventListener {
 
+	private static final int DEFAULT_CORE_POOL_SIZE = 4;
+
+	private static final int DEFAULT_MAX_POOL_SIZE = 4;
+
+	private static final int DEFAULT_KEEP_ALIVE_SECONDS = 30;
+
+	private static final int DEFAULT_QUEUE_CAPACITY = 1024;
+
 	protected final List<String> topics;
 
 	private final ExecutorService businessExecutor;
@@ -23,7 +31,8 @@ public abstract class BroadcasterListener<T> implements EventListener {
 		}
 		this.topics = topics;
 		if (businessExecutor == null) {
-			this.businessExecutor = new ThreadPoolExecutor(4, 4, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024),
+			this.businessExecutor = new ThreadPoolExecutor(DEFAULT_CORE_POOL_SIZE, DEFAULT_MAX_POOL_SIZE,
+					DEFAULT_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS, new LinkedBlockingQueue<>(DEFAULT_QUEUE_CAPACITY),
 					new ThreadPoolExecutor.CallerRunsPolicy());
 		}
 		else {
@@ -41,7 +50,7 @@ public abstract class BroadcasterListener<T> implements EventListener {
 		}
 		catch (Exception e) {
 			log.error("onMessage", e);
-			throw new CacheException(e.getMessage());
+			throw CacheException.wrap(e, CacheError.SUBSCRIBE_FAILED);
 		}
 	}
 

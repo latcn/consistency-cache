@@ -72,7 +72,7 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
 				return true;
 			}
 			else {
-				this.pendingKeys.computeIfPresent(messageId, (k, v)->currentTime);
+				this.pendingKeys.computeIfPresent(messageId, (k, v) -> currentTime);
 			}
 		}
 		return false;

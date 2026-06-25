@@ -107,11 +107,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
 					return invocation.proceed();
 				}
 				catch (Throwable e) {
-					// Unwrap and rethrow original exception
-					if (e instanceof RuntimeException) {
-						throw (RuntimeException) e;
-					}
-					throw new RuntimeException(e);
+					throw CacheException.wrapExecution(e);
 				}
 			}));
 		}
@@ -145,7 +141,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
 			cacheEvictHandler.addToSuccess(invalidationRecord);
 		}
 		catch (Exception e) {
-			throw new RuntimeException(e);
+			throw CacheException.wrapExecution(e);
 		}
 		return result;
 	}

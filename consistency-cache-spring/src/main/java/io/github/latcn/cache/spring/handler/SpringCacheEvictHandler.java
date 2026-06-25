@@ -1,6 +1,7 @@
 package io.github.latcn.cache.spring.handler;
 
 import cn.hutool.core.util.EnumUtil;
+import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheEvictHandler;
 import io.github.latcn.cache.core.executor.CacheExecutor;
@@ -23,6 +24,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class SpringCacheEvictHandler implements CacheEvictHandler {
 
+	private static final int INVALIDATION_RECORD_QUEUE_CAPACITY = 1000;
+
+	private static final int CLEAN_CACHE_INITIAL_DELAY_SECONDS = 5;
+
+	private static final int CLEAN_CACHE_PERIOD_SECONDS = 5;
+
 	private final boolean enableTransaction;
 
 	private final CacheExecutor cacheExecutor;
@@ -37,7 +44,8 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	private final ScheduledExecutorService scheduledExecutorService;
 
-	private final LinkedBlockingQueue<InvalidationRecord> invalidationRecords = new LinkedBlockingQueue<>(1000);
+	private final LinkedBlockingQueue<InvalidationRecord> invalidationRecords = new LinkedBlockingQueue<>(
+			INVALIDATION_RECORD_QUEUE_CAPACITY);
 
 	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, boolean enableTransaction) {
 		this.cacheExecutor = cacheExecutor;
@@ -47,7 +55,8 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 			thread.setDaemon(true);
 			return thread;
 		});
-		this.scheduledExecutorService.scheduleWithFixedDelay(this::cleanCache, 5, 5, TimeUnit.SECONDS);
+		this.scheduledExecutorService.scheduleWithFixedDelay(this::cleanCache, CLEAN_CACHE_INITIAL_DELAY_SECONDS,
+				CLEAN_CACHE_PERIOD_SECONDS, TimeUnit.SECONDS);
 	}
 
 	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, DataSource dataSource,
@@ -74,7 +83,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 				catch (Throwable t) {
 					status.setRollbackOnly();
 					log.error("startInvalidate uid:{}, cacheKey:{}", uid, cacheKey, t);
-					throw new CacheException(t.getMessage());
+					throw CacheException.wrap(t, CacheError.CACHE_EVICT_FAILED);
 				}
 			});
 		}
@@ -84,7 +93,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 			}
 			catch (Throwable e) {
 				log.error("startInvalidate uid:{}, cacheKey:{}", uid, cacheKey, e);
-				throw new CacheException(e.getMessage());
+				throw CacheException.wrap(e, CacheError.CACHE_EVICT_FAILED);
 			}
 		}
 	}
@@ -92,7 +101,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 	@Override
 	public void addToSuccess(InvalidationRecord invalidationRecord) {
 		if (invalidationRecord != null) {
-			if (this.invalidationRecords.size() < 1000) {
+			if (this.invalidationRecords.size() < INVALIDATION_RECORD_QUEUE_CAPACITY) {
 				this.invalidationRecords.add(invalidationRecord);
 			}
 			else {

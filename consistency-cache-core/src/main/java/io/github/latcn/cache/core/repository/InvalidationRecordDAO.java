@@ -1,5 +1,6 @@
 package io.github.latcn.cache.core.repository;
 
+import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.model.InvalidationRecord;
 import io.github.latcn.cache.core.repository.sql.InvalidationRecordSqls;
@@ -47,13 +48,13 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLIntegrityConstraintViolationException e) {
-			throw new CacheException(
+			throw new CacheException(CacheError.DB_DUPLICATE_KEY,
 					String.format("Insert invalidation record duplicate key exception. cacheKey= %s, nodeId= %s",
 							record.getCacheKey(), record.getNodeId()));
 		}
 		catch (SQLException e) {
 			log.error("insert error", e);
-			throw new CacheException(e.getErrorCode(), "insert error:" + e.getMessage());
+			throw CacheException.wrap(e, CacheError.DB_INSERT_FAILED);
 		}
 		finally {
 			IOUtil.close(ps);
@@ -80,7 +81,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		}
 		catch (SQLException e) {
 			log.error("findPendingRecordsOlderThan error", e);
-			throw new CacheException(e.getErrorCode(), "findPendingRecordsOlderThan error:" + e.getMessage());
+			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
 		}
 		finally {
 			IOUtil.close(rs, ps);
@@ -114,7 +115,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		}
 		catch (SQLException e) {
 			log.error("findByUidAndCacheKey error", e);
-			throw new CacheException(e.getErrorCode(), "findByUidAndCacheKey error:" + e.getMessage());
+			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
 		}
 		finally {
 			IOUtil.close(rs, ps);
@@ -135,8 +136,8 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLException e) {
-			log.error("findPendingRecordsOlderThan error", e);
-			throw new CacheException(e.getErrorCode(), "findPendingRecordsOlderThan error:" + e.getMessage());
+			log.error("markCompleted error", e);
+			throw CacheException.wrap(e, CacheError.DB_UPDATE_FAILED);
 		}
 		finally {
 			IOUtil.close(ps);
@@ -157,8 +158,8 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLException e) {
-			log.error("findPendingRecordsOlderThan error", e);
-			throw new CacheException(e.getErrorCode(), "findPendingRecordsOlderThan error:" + e.getMessage());
+			log.error("markFailed error", e);
+			throw CacheException.wrap(e, CacheError.DB_UPDATE_FAILED);
 		}
 		finally {
 			IOUtil.close(ps);
@@ -177,7 +178,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		}
 		catch (SQLException e) {
 			log.error("deleteOldCompletedRecords error", e);
-			throw new CacheException(e.getErrorCode(), "deleteOldCompletedRecords error:" + e.getMessage());
+			throw CacheException.wrap(e, CacheError.DB_DELETE_FAILED);
 		}
 		finally {
 			IOUtil.close(ps);
@@ -203,7 +204,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		}
 		catch (SQLException e) {
 			log.error("{} error", methodName, e);
-			throw new CacheException(e.getErrorCode(), methodName + " error:" + e.getMessage());
+			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
 		}
 		finally {
 			IOUtil.close(ps);

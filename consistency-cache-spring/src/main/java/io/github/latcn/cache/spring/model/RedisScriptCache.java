@@ -1,5 +1,6 @@
 package io.github.latcn.cache.spring.model;
 
+import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.util.StringUtil;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,7 +29,7 @@ public class RedisScriptCache {
 	public String reloadCachedSha1(String scriptName) {
 		ScriptInfo scriptInfo = this.scriptMap.get(scriptName);
 		if (scriptInfo == null) {
-			throw new CacheException("can't find " + scriptName);
+			throw new CacheException(CacheError.REDIS_SCRIPT_NOT_FOUND, scriptName);
 		}
 		scriptLoad(scriptInfo);
 		return scriptInfo.getCachedSha1();
@@ -37,7 +38,7 @@ public class RedisScriptCache {
 	public String getScript(String scriptName) {
 		ScriptInfo scriptInfo = this.scriptMap.get(scriptName);
 		if (scriptInfo == null) {
-			throw new CacheException("can't find " + scriptName);
+			throw new CacheException(CacheError.REDIS_SCRIPT_NOT_FOUND, scriptName);
 		}
 		return scriptInfo.getScript();
 	}
@@ -79,7 +80,7 @@ public class RedisScriptCache {
 
 		public ScriptInfo(String scriptName, String script) {
 			if (StringUtil.isNullOrEmpty(scriptName) || StringUtil.isNullOrEmpty((script))) {
-				throw new CacheException("redis script can't be null");
+				throw new CacheException(CacheError.INVALID_PARAMETER, "redis script can't be null");
 			}
 			this.scriptName = scriptName;
 			this.script = script;

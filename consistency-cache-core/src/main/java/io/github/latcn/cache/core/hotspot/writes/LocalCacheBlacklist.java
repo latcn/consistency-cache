@@ -1,12 +1,11 @@
 package io.github.latcn.cache.core.hotspot.writes;
 
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Dynamic blacklist for write hotspot keys. Keys with high L1 invalidation frequency are
@@ -16,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 public class LocalCacheBlacklist {
 
 	private final ConcurrentHashMap<Object, Long> blacklist = new ConcurrentHashMap<>();
+
 	private final int maxSize;
+
 	private final ScheduledExecutorService scheduler;
 
 	/**
@@ -42,7 +43,7 @@ public class LocalCacheBlacklist {
 	 * @param duration blacklist duration
 	 */
 	public <T> void addToBlacklistWithDuration(T key, Duration duration) {
-		if (this.maxSize>this.blacklist.size()) {
+		if (this.maxSize > this.blacklist.size()) {
 			return;
 		}
 		long expireTime = System.currentTimeMillis() + duration.toMillis();

@@ -1,6 +1,7 @@
 package io.github.latcn.cache.core.handler;
 
-import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
 import io.github.latcn.cache.core.manager.SingleFlightExecutor;
 import io.github.latcn.cache.core.model.CacheKey;
@@ -137,9 +138,14 @@ public class DistributedCacheHandler extends BaseCacheHandler {
 				.execute(() -> this.distributedCacheSingleFlightExecutor.execute(cacheKey,
 						(k) -> cacheExecutorConfig.getDistributedCacheManager().get(k)));
 		}
-		catch (CacheCircuitBreaker.CircuitBreakerOpenException e) {
-			log.warn("Circuit breaker OPEN, bypassing distributed cache for key: {}", cacheKey.getKey());
-			cacheValue = null;
+		catch (CacheException e) {
+			if (e.getErrorCode() == CacheError.CIRCUIT_BREAKER_OPEN.getErrorCode()) {
+				log.warn("Circuit breaker OPEN, bypassing distributed cache for key: {}", cacheKey.getKey());
+				cacheValue = null;
+			}
+			else {
+				throw e;
+			}
 		}
 		return cacheValue;
 	}

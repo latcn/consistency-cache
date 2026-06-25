@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.util;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,9 +47,9 @@ public class SafeFifoQueue<T> {
 			// 2. 处理重复元素：在锁内原子移除旧值（必然成功）
 			if (oldValue != null) {
 				boolean removed = insertionOrder.remove(oldValue);
-				// 在writeLock保护下remove必须成功（避免逻辑错误）
 				if (!removed) {
-					throw new RuntimeException("Inconsistent state! oldValue should exist in deque");
+					throw new CacheException(CacheError.EXECUTION_FAILED,
+							"Inconsistent state! oldValue should exist in deque");
 				}
 			}
 			// 3. 添加新值到队尾
@@ -60,7 +62,7 @@ public class SafeFifoQueue<T> {
 		}
 	}
 
-	public void remove(T value){
+	public void remove(T value) {
 		if (!valueMap.containsKey(value)) {
 			return;
 		}

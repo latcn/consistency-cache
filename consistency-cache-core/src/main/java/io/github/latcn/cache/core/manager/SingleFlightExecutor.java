@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.manager;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -52,7 +54,7 @@ public class SingleFlightExecutor {
 		}
 		catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new RuntimeException("SingleFlight interrupted while waiting for result", e);
+			throw CacheException.wrap(e, CacheError.SINGLE_FLIGHT_INTERRUPTED);
 		}
 		catch (ExecutionException e) {
 			Throwable cause = e.getCause();
@@ -63,7 +65,7 @@ public class SingleFlightExecutor {
 				throw (Error) cause;
 			}
 			else {
-				throw new RuntimeException("SingleFlight execution failed", cause);
+				throw CacheException.wrap(cause, CacheError.EXECUTION_FAILED);
 			}
 		}
 	}

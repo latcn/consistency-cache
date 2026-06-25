@@ -2,6 +2,8 @@ package io.github.latcn.cache.core.repository.sql;
 
 import static java.util.Map.entry;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.util.StringUtil;
 import java.util.Map;
 
@@ -47,7 +49,7 @@ public class InvalidationRecordSqls {
 	public static String getSQL(String methodName, String recordTable) {
 		String sql = sqlMap.get(methodName);
 		if (StringUtil.isNullOrEmpty(sql)) {
-			throw new RuntimeException("can't find " + methodName + " sql");
+			throw new CacheException(CacheError.DB_QUERY_FAILED, "can't find " + methodName + " sql");
 		}
 		return sql.replace(INVALIDATION_RECORD_REPLACE, recordTable);
 	}

@@ -18,8 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DefaultWriteHotspotDetector implements WriteHotspotDetector {
 
-	// 1 minute
 	private static final int CLEANUP_INTERVAL_MS = 60000;
+
+	private static final int WINDOW_EXPIRE_MULTIPLIER = 2;
 
 	private final int windowSeconds;
 
@@ -172,7 +173,8 @@ public class DefaultWriteHotspotDetector implements WriteHotspotDetector {
 
 				// Remove stale entries (no activity in last 2 windows)
 				this.hotSpotInfo.entrySet()
-					.removeIf(entry -> now - entry.getValue().windowStartTime > windowMillis * 2);
+					.removeIf(
+							entry -> now - entry.getValue().windowStartTime > windowMillis * WINDOW_EXPIRE_MULTIPLIER);
 
 				lastCleanupTime = now;
 			}

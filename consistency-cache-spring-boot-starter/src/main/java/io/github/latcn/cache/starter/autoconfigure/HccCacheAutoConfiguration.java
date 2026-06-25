@@ -118,7 +118,7 @@ public class HccCacheAutoConfiguration {
 				properties.getHotspot().getWriteWindowSeconds(),
 				properties.getHotspot().getWriteInvalidationThreshold(),
 				properties.getHotspot().getWriteBaseBlacklistTtl(), properties.getHotspot().getWriteBackoffMultiplier(),
-				properties.getHotspot().getWriteMaxBlacklistTime());
+				properties.getHotspot().getWriteMaxBlacklistTime(), properties.getHotspot().getBlacklistMaxSize());
 		return writeHotspotDetector;
 	}
 

@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.pubsub;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -11,6 +13,8 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 	private static final int MAX_RETRY_TIMES = 3;
 
 	private static final long INITIAL_RETRY_DELAY_MS = 1000;
+
+	private static final int SHUTDOWN_AWAIT_SECONDS = 5;
 
 	private final Set<String> channelNames;
 
@@ -60,7 +64,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 			}
 		}
 		catch (Exception e) {
-			throw new RuntimeException(e);
+			throw CacheException.wrap(e, CacheError.BROADCAST_FAILED);
 		}
 		finally {
 			isSending.compareAndSet(true, false);
@@ -87,7 +91,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 	public void preDestroy() {
 		retryExecutor.shutdown();
 		try {
-			if (!retryExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+			if (!retryExecutor.awaitTermination(SHUTDOWN_AWAIT_SECONDS, TimeUnit.SECONDS)) {
 				retryExecutor.shutdownNow();
 			}
 		}

@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.util;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +28,8 @@ public class TimerTask implements Callable {
 
 	public TimerTask(long execTime, long timeout, Runnable task) {
 		if (task == null || execTime < 0) {
-			throw new RuntimeException("timerTask param is not valid");
+			throw new CacheException(CacheError.INVALID_PARAMETER,
+					"timerTask param is not valid: task=" + task + ", execTime=" + execTime);
 		}
 		this.execTime = System.currentTimeMillis() + execTime;
 		this.timeout = timeout;
@@ -35,7 +38,8 @@ public class TimerTask implements Callable {
 
 	public TimerTask(long execTime, long timeout, Callable task) {
 		if (task == null || execTime < 0) {
-			throw new RuntimeException("timerTask param is not valid");
+			throw new CacheException(CacheError.INVALID_PARAMETER,
+					"timerTask param is not valid: task=" + task + ", execTime=" + execTime);
 		}
 		this.execTime = System.currentTimeMillis() + execTime;
 		this.timeout = timeout;

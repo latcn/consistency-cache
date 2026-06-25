@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.util;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,7 +35,7 @@ public class ConcurrentFifoList<T> {
 	 */
 	public ConcurrentFifoList(int capacity) {
 		if (capacity <= 0) {
-			throw new IllegalArgumentException("Capacity must be > 0");
+			throw new CacheException(CacheError.INVALID_PARAMETER, "Capacity must be > 0");
 		}
 		this.capacity = capacity;
 		this.map = new ConcurrentHashMap<>();
@@ -47,7 +49,7 @@ public class ConcurrentFifoList<T> {
 	public T put(T value) {
 		T oldValue = null;
 		if (map.size() > capacity) {
-			throw new RuntimeException("already more than " + capacity);
+			throw new CacheException(CacheError.EXECUTION_FAILED, "already more than " + capacity);
 		}
 		writeLock.lock();
 		try {

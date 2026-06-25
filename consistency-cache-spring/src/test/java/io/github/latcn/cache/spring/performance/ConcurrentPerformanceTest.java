@@ -101,8 +101,9 @@ class ConcurrentPerformanceTest {
 		System.out.println("Ops/sec: " + (totalOperations * 1000 / duration));
 		System.out.println("Success rate: " + (successCount.get() * 100.0 / totalOperations) + "%");
 
-		//assertTrue(successCount.get() > 0, "Should have successful operations");
-		//assertTrue(failCount.get() < totalOperations * 0.01, "Failure rate should be less than 1%");
+		// assertTrue(successCount.get() > 0, "Should have successful operations");
+		// assertTrue(failCount.get() < totalOperations * 0.01, "Failure rate should be
+		// less than 1%");
 	}
 
 	@Test
@@ -220,7 +221,8 @@ class ConcurrentPerformanceTest {
 		System.out.println("Heap size: " + (heapSize / 1024 / 1024) + " MB");
 		System.out.println("Memory per entry: " + (memoryUsed / entryCount) + " bytes");
 		long actualSize = localCacheManager.getSize();
-		//assertEquals(entryCount, actualSize, "Should store all entries" + entryCount + "!=" + actualSize);
+		// assertEquals(entryCount, actualSize, "Should store all entries" + entryCount +
+		// "!=" + actualSize);
 		// assertTrue(memoryUsed < heapSize * 0.8, "Should not exceed 80% of heap");
 	}
 

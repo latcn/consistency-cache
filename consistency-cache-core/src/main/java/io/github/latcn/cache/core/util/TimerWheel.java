@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.util;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -11,6 +13,14 @@ import org.slf4j.LoggerFactory;
 public class TimerWheel {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimerWheel.class);
+
+	private static final int THREAD_POOL_DIVISOR = 3;
+
+	private static final int KEEP_ALIVE_SECONDS = 60;
+
+	private static final int QUEUE_CAPACITY = 1024;
+
+	private static final long NO_WAIT_MILLISECONDS = 0;
 
 	private final Object[] wheels;
 
@@ -44,7 +54,8 @@ public class TimerWheel {
 
 	private TimerWheel(int num, int interval, int maxThreadCount, TimerWheel lowerWheel) {
 		if (num <= 0 || interval <= 0) {
-			throw new RuntimeException("timerWheel param is not valid");
+			throw new CacheException(CacheError.INVALID_PARAMETER,
+					"TimerWheel: num and interval must be positive, got num=" + num + ", interval=" + interval);
 		}
 		long now = System.currentTimeMillis();
 		this.num = num;
@@ -78,9 +89,9 @@ public class TimerWheel {
 				}
 			}
 		}, "TimerWheel-Timer-TickThread");
-		int corePoolSize = maxThreadCount > 2 ? maxThreadCount / 3 : maxThreadCount;
-		this.executor = new ThreadPoolExecutor(corePoolSize, maxThreadCount, 60, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<>(1024), r -> {
+		int corePoolSize = maxThreadCount > 2 ? maxThreadCount / THREAD_POOL_DIVISOR : maxThreadCount;
+		this.executor = new ThreadPoolExecutor(corePoolSize, maxThreadCount, KEEP_ALIVE_SECONDS, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<>(QUEUE_CAPACITY), r -> {
 					Thread thread = new Thread(r);
 					thread.setName("TimerWheel-Timer-Executor-" + threadIdx.incrementAndGet());
 					thread.setDaemon(true);
@@ -111,7 +122,7 @@ public class TimerWheel {
 				% num];
 		TimerTask timerTask = null;
 		try {
-			while ((timerTask = tasks.poll(0, TimeUnit.MILLISECONDS)) != null) {
+			while ((timerTask = tasks.poll(NO_WAIT_MILLISECONDS, TimeUnit.MILLISECONDS)) != null) {
 				overFlowTimerWheel.lowerWheel.addTask(timerTask);
 			}
 		}
@@ -127,7 +138,7 @@ public class TimerWheel {
 		LinkedBlockingQueue<TimerTask> tasks = (LinkedBlockingQueue<TimerTask>) this.wheels[nextIndex];
 		TimerTask timerTask = null;
 		try {
-			while ((timerTask = tasks.poll(0, TimeUnit.MILLISECONDS)) != null) {
+			while ((timerTask = tasks.poll(NO_WAIT_MILLISECONDS, TimeUnit.MILLISECONDS)) != null) {
 				timerWheel.executor.submit(timerTask);
 			}
 		}
@@ -138,7 +149,7 @@ public class TimerWheel {
 
 	public void addTask(TimerTask timerTask) {
 		if (timerTask == null) {
-			throw new RuntimeException("task can't be null");
+			throw new CacheException(CacheError.INVALID_PARAMETER, "timerTask can't be null");
 		}
 		long calCurrentTime = currentTime;
 		long execTime = timerTask.getExecTime() - timerTask.getExecTime() % interval;

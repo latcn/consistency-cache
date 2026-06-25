@@ -5,9 +5,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ThreadPoolUtils {
 
+	private static final int DEFAULT_CORE_POOL_SIZE = 1;
+
+	private static final int DEFAULT_KEEP_ALIVE_SECONDS = 30;
+
 	public static ExecutorService getThreadPool(String threadPoolName, int cacheQueueSize) {
-		return new ThreadPoolExecutor(1, Runtime.getRuntime().availableProcessors(), 30, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<>(cacheQueueSize), new ThreadFactory() {
+		return new ThreadPoolExecutor(DEFAULT_CORE_POOL_SIZE, Runtime.getRuntime().availableProcessors(),
+				DEFAULT_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS, new LinkedBlockingQueue<>(cacheQueueSize),
+				new ThreadFactory() {
 					private static final AtomicInteger index = new AtomicInteger(0);
 
 					@Override
