@@ -20,4 +20,9 @@ public class CacheContext {
 
 	private Map<String, Object> params;
 
+	@Builder.Default
+	private CacheMetricsRecorder metricsRecorder = CacheMetricsRecorder.noOp();
+
+	private boolean l1Hit;
+
 }

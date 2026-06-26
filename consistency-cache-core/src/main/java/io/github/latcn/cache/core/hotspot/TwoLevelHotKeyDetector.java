@@ -1,5 +1,7 @@
 package io.github.latcn.cache.core.hotspot;
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,6 +51,12 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class TwoLevelHotKeyDetector implements AutoCloseable {
+
+	private static final int SAMPLING_THRESHOLD = 5000;
+	private static final int SAMPLE_SIZE = 2000;
+	private static final int FORCE_CLEANUP_BUFFER = 100;
+	private static final long LARGE_INTERVAL_SECONDS = 1000L;
+	private static final double SMALL_INTERVAL_SECONDS = 1.0;
 
     // 第一级：CMS 粗筛层
     private final CMSHotKeyDetector cmsFilter;
@@ -164,10 +172,10 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 
         public TwoLevelHotKeyDetector build() {
             if (promotionThreshold == null || hotKeyThreshold == null) {
-                throw new IllegalStateException("promotionThreshold and hotKeyThreshold must be set");
+                throw new CacheException(CacheError.INVALID_PARAMETER, "promotionThreshold and hotKeyThreshold must be set");
             }
             if (promotionThreshold <= 0 || hotKeyThreshold <= 0 || promotionThreshold >= hotKeyThreshold) {
-                throw new IllegalArgumentException("Invalid thresholds");
+                throw new CacheException(CacheError.INVALID_PARAMETER, "Invalid thresholds: promotionThreshold must be positive and less than hotKeyThreshold");
             }
             return new TwoLevelHotKeyDetector(this);
         }
@@ -203,7 +211,7 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
     /** 动态调整晋升阈值（必须小于 hotKeyThreshold 且大于 0） */
     public void setPromotionThreshold(long threshold) {
         if (threshold <= 0 || threshold >= hotKeyThreshold) {
-            throw new IllegalArgumentException("Invalid promotionThreshold");
+            throw new CacheException(CacheError.INVALID_PARAMETER, "Invalid promotionThreshold");
         }
         this.promotionThreshold = threshold;
     }
@@ -211,14 +219,14 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
     /** 动态调整热点阈值（必须大于 promotionThreshold 且大于 0） */
     public void setHotKeyThreshold(long threshold) {
         if (threshold <= 0 || promotionThreshold >= threshold) {
-            throw new IllegalArgumentException("Invalid hotKeyThreshold");
+            throw new CacheException(CacheError.INVALID_PARAMETER, "Invalid hotKeyThreshold");
         }
         this.hotKeyThreshold = threshold;
     }
 
     /** 动态调整强制清理冷却时间（毫秒） */
     public void setForceCleanupCooldownMs(long cooldownMs) {
-        if (cooldownMs <= 0) throw new IllegalArgumentException("cooldown must be positive");
+        if (cooldownMs <= 0) throw new CacheException(CacheError.INVALID_PARAMETER, "cooldown must be positive");
         this.forceCleanupCooldownMs = cooldownMs;
     }
 
@@ -231,8 +239,10 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
      * 若精确层已满，尝试强制清理释放空间。
      */
     public void record(String key) {
-        if (closed) throw new IllegalStateException("Closed");
-        Objects.requireNonNull(key, "key cannot be null");
+        if (closed) throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "TwoLevelHotKeyDetector already closed");
+        if (key==null) {
+            throw new CacheException(CacheError.HOT_KEY_NULL_VALUE, "key cannot be null");
+        }
         long nowNano = System.nanoTime();
 
         KeyStats stats = exactCounter.get(key);
@@ -268,8 +278,10 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
      * 查询时先对计数进行惰性衰减（但不增加），再与 hotKeyThreshold 比较。
      */
     public boolean isHotKey(String key) {
-        if (closed) throw new IllegalStateException("Closed");
-        Objects.requireNonNull(key, "key cannot be null");
+        if (closed) throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "TwoLevelHotKeyDetector already closed");
+        if (key==null) {
+            throw new CacheException(CacheError.HOT_KEY_NULL_VALUE, "key cannot be null");
+        }
         KeyStats stats = exactCounter.get(key);
         if (stats == null) {
             hotMissCount.incrementAndGet();
@@ -321,14 +333,14 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
         if (exactCounter.size() < maxExactSize) return;
 
         // 计算需要删除的数量：超出部分 + 额外 100 或 10% 缓冲
-        int toRemove = exactCounter.size() - maxExactSize + Math.min(100, maxExactSize / 10);
+        int toRemove = exactCounter.size() - maxExactSize + Math.min(FORCE_CLEANUP_BUFFER, maxExactSize / 10);
         if (toRemove <= 0) return;
 
         // 采样：若条目 > 5000，随机采样 2000 个；否则全量
         List<Map.Entry<String, KeyStats>> entries = new ArrayList<>(exactCounter.entrySet());
-        if (entries.size() > 5000) {
+        if (entries.size() > SAMPLING_THRESHOLD) {
             Collections.shuffle(entries);
-            entries = entries.subList(0, Math.min(entries.size(), 2000));
+            entries = entries.subList(0, Math.min(entries.size(), SAMPLE_SIZE));
         }
 
         // 构建可排序的 Pair 列表（预计算计数，避免重复计算）
@@ -441,9 +453,9 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
                 if (elapsedNano < 0) elapsedNano = 0;
                 double seconds = elapsedNano / 1_000_000_000.0;
                 double factor;
-                if (seconds > 1000) {
+                if (seconds > LARGE_INTERVAL_SECONDS) {
                     factor = 0;
-                } else if (seconds < 1.0) {
+                } else if (seconds < SMALL_INTERVAL_SECONDS) {
                     factor = 1 - decayRate * seconds;
                     if (factor < 0) factor = 0;
                 } else {
@@ -465,9 +477,9 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
             if (elapsedNano < 0) elapsedNano = 0;
             double seconds = elapsedNano / 1_000_000_000.0;
             double factor;
-            if (seconds > 1000) {
+            if (seconds > LARGE_INTERVAL_SECONDS) {
                 factor = 0;
-            } else if (seconds < 1.0) {
+            } else if (seconds < SMALL_INTERVAL_SECONDS) {
                 factor = 1 - decayRate * seconds;
                 if (factor < 0) factor = 0;
             } else {

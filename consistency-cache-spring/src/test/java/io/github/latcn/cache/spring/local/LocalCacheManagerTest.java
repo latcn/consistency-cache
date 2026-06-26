@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
+import io.github.latcn.cache.core.local.LocalCacheStats;
 import io.github.latcn.cache.core.model.*;
 import io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter;
 import org.junit.jupiter.api.BeforeEach;
@@ -191,11 +192,11 @@ class LocalCacheManagerTest {
 			.build()); // Miss
 
 		// Then
-		LocalCacheManager.CacheStats stats = localCacheManager.getStats();
-		// assertEquals(2, stats.getHitCount());
-		// assertEquals(2, stats.getMissCount());
-		// assertEquals(0.5, stats.getHitRate(), 0.01);
-		// assertEquals("50.00%", stats.getFormattedHitRate());
+		LocalCacheStats localCacheStats = localCacheManager.getStats();
+		// assertEquals(2, localCacheStats.getHitCount());
+		// assertEquals(2, localCacheStats.getMissCount());
+		// assertEquals(0.5, localCacheStats.getHitRate(), 0.01);
+		// assertEquals("50.00%", localCacheStats.getFormattedHitRate());
 	}
 
 	@Test

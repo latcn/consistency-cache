@@ -9,7 +9,7 @@ public class ThreadPoolUtils {
 
 	private static final int DEFAULT_KEEP_ALIVE_SECONDS = 30;
 
-	public static ExecutorService getThreadPool(String threadPoolName, int cacheQueueSize) {
+	public static ExecutorService getThreadPool(String threadPoolName, boolean isDaemon, int cacheQueueSize) {
 		return new ThreadPoolExecutor(DEFAULT_CORE_POOL_SIZE, Runtime.getRuntime().availableProcessors(),
 				DEFAULT_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS, new LinkedBlockingQueue<>(cacheQueueSize),
 				new ThreadFactory() {
@@ -19,6 +19,7 @@ public class ThreadPoolUtils {
 					public Thread newThread(Runnable r) {
 						Thread thread = new Thread(r);
 						thread.setName(threadPoolName + ":" + index.incrementAndGet());
+						thread.setDaemon(isDaemon);
 						return thread;
 					}
 				}, new ThreadPoolExecutor.CallerRunsPolicy());

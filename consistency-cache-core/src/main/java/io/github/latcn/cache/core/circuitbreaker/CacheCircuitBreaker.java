@@ -27,19 +27,13 @@ public class CacheCircuitBreaker {
 	private static final Set<Class<? extends Exception>> NON_RETRYABLE_EXCEPTIONS = Set
 		.of(IllegalArgumentException.class, NullPointerException.class, IllegalStateException.class);
 
-	private enum State {
-
-		CLOSED, OPEN, HALF_OPEN
-
-	}
-
 	private final int failureThreshold;
 
 	private final int successThreshold;
 
 	private final long timeoutMs;
 
-	private final AtomicReference<State> state = new AtomicReference<>(State.CLOSED);
+	private final AtomicReference<CircuitBreakerState> state = new AtomicReference<>(CircuitBreakerState.CLOSED);
 
 	private final AtomicBoolean halfOpenProbeLock = new AtomicBoolean(false);
 
@@ -72,14 +66,14 @@ public class CacheCircuitBreaker {
 	public <T> T execute(Supplier<T> supplier) throws CacheException {
 		totalCalls.incrementAndGet();
 
-		State currentState = state.get();
-		if (currentState == State.OPEN) {
+		CircuitBreakerState currentState = state.get();
+		if (currentState == CircuitBreakerState.OPEN) {
 			if (shouldTryHalfOpen()) {
 				if (halfOpenProbeLock.compareAndSet(false, true)) {
-					state.compareAndSet(State.OPEN, State.HALF_OPEN);
+					state.compareAndSet(CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN);
 				}
 			}
-			if (state.get() == State.OPEN) {
+			if (state.get() == CircuitBreakerState.OPEN) {
 				rejectedCalls.incrementAndGet();
 				throw new CacheException(CacheError.CIRCUIT_BREAKER_OPEN);
 			}
@@ -109,13 +103,13 @@ public class CacheCircuitBreaker {
 	}
 
 	private void recordSuccess() {
-		if (state.get() == State.HALF_OPEN) {
+		if (state.get() == CircuitBreakerState.HALF_OPEN) {
 			int count = successCount.incrementAndGet();
 			if (count >= successThreshold) {
 				transitionToClosed();
 			}
 		}
-		else if (state.get() == State.CLOSED) {
+		else if (state.get() == CircuitBreakerState.CLOSED) {
 			failureCount.set(0);
 		}
 	}
@@ -123,14 +117,14 @@ public class CacheCircuitBreaker {
 	private void recordFailure() {
 		lastFailureTime.set(System.currentTimeMillis());
 
-		if (state.compareAndSet(State.HALF_OPEN, State.OPEN)) {
+		if (state.compareAndSet(CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN)) {
 			return;
 		}
 
-		if (state.get() == State.CLOSED) {
+		if (state.get() == CircuitBreakerState.CLOSED) {
 			int count = failureCount.incrementAndGet();
 			if (count >= failureThreshold) {
-				state.compareAndSet(State.CLOSED, State.OPEN);
+				state.compareAndSet(CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN);
 			}
 		}
 	}
@@ -141,7 +135,7 @@ public class CacheCircuitBreaker {
 	}
 
 	private void transitionToClosed() {
-		state.set(State.CLOSED);
+		state.set(CircuitBreakerState.CLOSED);
 		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
@@ -149,18 +143,20 @@ public class CacheCircuitBreaker {
 		log.info("Circuit breaker recovered to CLOSED state");
 	}
 
-	public CircuitStats getStats() {
-		return CircuitStats.builder()
-			.state(state.get().name())
+	public CircuitBreakerStats getStats() {
+		int total = totalCalls.get();
+		return CircuitBreakerStats.builder()
+			.state(state.get())
 			.failureCount(failureCount.get())
 			.successCount(successCount.get())
-			.totalCalls(totalCalls.get())
+			.totalCalls(total)
 			.rejectedCalls(rejectedCalls.get())
+			.rejectionRate(total > 0 ? (double) rejectedCalls.get() / total : 0.0)
 			.build();
 	}
 
 	public void reset() {
-		state.set(State.CLOSED);
+		state.set(CircuitBreakerState.CLOSED);
 		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
@@ -170,7 +166,7 @@ public class CacheCircuitBreaker {
 	}
 
 	public void forceOpen() {
-		state.set(State.OPEN);
+		state.set(CircuitBreakerState.OPEN);
 		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
@@ -182,26 +178,6 @@ public class CacheCircuitBreaker {
 
 		public CircuitBreakerOpenException(String message) {
 			super(message);
-		}
-
-	}
-
-	@lombok.Data
-	@lombok.Builder
-	public static class CircuitStats {
-
-		private String state;
-
-		private int failureCount;
-
-		private int successCount;
-
-		private int totalCalls;
-
-		private int rejectedCalls;
-
-		public double getRejectionRate() {
-			return totalCalls > 0 ? (double) rejectedCalls / totalCalls : 0.0;
 		}
 
 	}

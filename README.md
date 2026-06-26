@@ -1,36 +1,59 @@
-# Consistency Cache
+# Consistency Cache - 缓存一致性中间件
 
 [![Java Version](https://img.shields.io/badge/Java-17-blue)](https://openjdk.java.net/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18-brightgreen)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.15-brightgreen)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**High-Performance Distributed Cache Consistency Solution**
+**高性能分布式缓存一致性解决方案 | High-Performance Distributed Cache Consistency Solution**
 
 ---
 
-## 📖 Introduction
+## 📖 简介 | Introduction
+
+### 中文
+
+Consistency Cache 是一个高性能的分布式缓存一致性中间件，专为解决多级缓存场景下的数据一致性问题而设计。它提供了强一致性保证、智能热点检测、自动失效广播等核心功能，帮助开发者轻松构建可靠的缓存架构。
+
+**核心特性**:
+- ✅ **多级缓存支持**: L1(本地 Caffeine/Guava) + L2(分布式 Redis) 双层架构，支持自定义缓存实现
+- ✅ **一致性保障**: 支持 CP/AP 灵活切换，满足不同业务场景需求
+- ✅ **读写热点检测**: 高性能读热点检测 + 写热点黑名单机制，自动识别热点并优化缓存策略
+- ✅ **可靠失效**: 基于 Redis Pub/Sub 的可靠失效广播，支持批量发布和指数退避
+- ✅ **Spring 集成**: 注解式缓存管理，开箱即用，支持 Spring Boot 3.x
+- ✅ **熔断保护**: 内置三态熔断器，防止缓存故障雪崩
+- ✅ **SingleFlight**: 请求合并模式，防止缓存击穿
+- ✅ **监控指标**: 集成 Micrometer + Prometheus，提供全面的缓存监控指标
+- ✅ **内存保护**: 主动内存监控，防止本地缓存 OOM
+- ✅ **布隆过滤器**: 基于 Cuckoo Filter 的缓存穿透防护
+- ✅ **连接监控**: 增强型 Redis 连接状态监控，感知一致性故障
+
+### English
 
 Consistency Cache is a high-performance distributed cache consistency middleware designed to solve data consistency issues in multi-level caching scenarios. It provides core features including strong consistency guarantees, intelligent hotspot detection, and automatic invalidation broadcasting, helping developers easily build reliable cache architectures.
 
-### Key Features
-
-- ✅ **Multi-Level Cache**: L1 (Local Caffeine) + L2 (Distributed Redis) two-tier architecture
-- ✅ **Consistency Guarantee**: Flexible CP/AP switching for different business requirements
-- ✅ **Hotspot Detection**: High-performance Count-Min Sketch based hot key detection with automatic read/write hotspot identification
-- ✅ **Reliable Invalidation**: Transaction-based outbox pattern with Redis Pub/Sub broadcast
-- ✅ **Spring Integration**: Annotation-based cache management with zero configuration
-- ✅ **Circuit Breaker Protection**: Built-in three-state circuit breaker preventing cascade failures
-- ✅ **SingleFlight Pattern**: Request collapsing to prevent cache breakdown
-- ✅ **Bloom Filter Support**: Optional cache penetration prevention
+**Key Features**:
+- ✅ **Multi-Level Cache**: L1 (Local Caffeine/Guava) + L2 (Distributed Redis) two-tier architecture with custom cache support
+- ✅ **Consistency Guarantee**: Flexible CP/AP switching for different business needs
+- ✅ **Read/Write Hotspot Detection**: High-performance read hotspot detection + write hotspot blacklist mechanism
+- ✅ **Reliable Invalidation**: Redis Pub/Sub based reliable invalidation broadcasting with batch publishing
+- ✅ **Spring Integration**: Annotation-based cache management, ready to use with Spring Boot 3.x
+- ✅ **Circuit Breaker**: Built-in three-state circuit breaker to prevent cache failure avalanche
+- ✅ **SingleFlight**: Request collapsing to prevent cache breakdown
+- ✅ **Monitoring Metrics**: Integrated Micrometer + Prometheus for comprehensive cache monitoring
+- ✅ **Memory Protection**: Proactive memory monitoring to prevent local cache OOM
+- ✅ **Bloom Filter**: Cuckoo Filter based cache penetration protection
+- ✅ **Connection Monitor**: Enhanced Redis connection monitoring with consistency-aware failure handling
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ 系统架构 | System Architecture
+
+### 架构图 | Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Application Layer                     │
-│                   (Spring AOP Interceptor)              │
+│                   (Spring AOP 拦截层)                    │
 └─────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -42,7 +65,7 @@ Consistency Cache is a high-performance distributed cache consistency middleware
         ↓                                       ↓
 ┌──────────────────┐                  ┌──────────────────┐
 │   L1 Cache       │                  │   L2 Cache       │
-│  (Caffeine)      │                  │   (Redis)        │
+│  (Caffeine/Guava)│                  │   (Redis)        │
 │  Local Cache     │                  │ Distributed Cache│
 └──────────────────┘                  └──────────────────┘
         ↑                                       ↑
@@ -55,42 +78,39 @@ Consistency Cache is a high-performance distributed cache consistency middleware
                             ↓
             ┌───────────────────────────────┐
             │   Invalidation Broadcaster    │
-            │   (Redis Pub/Sub + DB)        │
+            │   (Redis Pub/Sub)             │
+            └───────────────────────────────┘
+                            ↓
+            ┌───────────────────────────────┐
+            │   EnhancedConnectionMonitor   │
+            │   MemoryProtectionMonitor     │
             └───────────────────────────────┘
 ```
 
-### Core Components
+### 核心组件 | Core Components
 
-#### 1. SingleFlightExecutor
+#### 1. SingleFlightExecutor (请求合并器)
 
-The SingleFlight pattern ensures that only one thread executes the actual data loading operation at any given time for the same key, while other threads wait for the result. This effectively prevents cache breakdown and significantly reduces backend database pressure.
+**中文说明**:
+SingleFlight 模式确保同一时刻只有一个线程执行实际的数据加载操作，其他线程等待结果。这有效防止了缓存击穿问题，大幅降低后端数据库压力。
 
-**Key Benefits**:
-- Eliminates redundant database queries
-- Prevents thundering herd problem
-- Automatic exception propagation to all waiters
-- Thread-safe with proper cleanup
+**English Description**:
+The SingleFlight pattern ensures that only one thread executes the actual data loading operation at any given time, while other threads wait for the result. This effectively prevents cache breakdown and significantly reduces backend database pressure.
 
 ```java
 CacheValue value = cacheExecutor.get(cacheKey, key -> {
-    // This loader will be executed ONLY ONCE
-    // All other threads waiting will get the same result
+    // This loader will be executed only once for concurrent requests
     return expensiveDatabaseQuery(key);
 });
 ```
 
-#### 2. CMSHotKeyDetector
+#### 2. CMSHotKeyDetector (热点检测器)
 
-Uses Count-Min Sketch probabilistic data structure for real-time access frequency tracking. This high-performance implementation automatically identifies read hotspots and write hotspots.
+**中文说明**:
+基于 Count-Min Sketch 概率数据结构实现的高性能热点检测器。支持并发安全、精度修正和稳定衰减，能够实时统计键的访问频率，自动识别读热点和写热点。
 
-**Features**:
-- **Thread-safe**: Based on AtomicLongArray, lock-free high performance
-- **Precision correction**: Handles cold key identification
-- **Stable decay**: Uses Math.round for accurate exponential decay
-- **Hash optimization**: Combined seed and bitwise operations for uniform distribution
-
-**Read-hot keys** → Enhanced to local cache  
-**Write-hot keys** → Bypass local cache to avoid thrashing
+**English Description**:
+High-performance hot key detector based on Count-Min Sketch probabilistic data structure. Supports thread-safe operations, precision correction, and stable decay for real-time access frequency tracking.
 
 ```java
 CMSHotKeyDetector detector = new CMSHotKeyDetector(
@@ -101,89 +121,103 @@ CMSHotKeyDetector detector = new CMSHotKeyDetector(
 );
 ```
 
-#### 3. CacheCircuitBreaker
+#### 3. CacheCircuitBreaker (缓存熔断器)
 
-Three-state circuit breaker (CLOSED/OPEN/HALF_OPEN) that fails fast when cache service fails, giving backend time to recover and automatically detecting recovery.
+**中文说明**:
+三态熔断器（CLOSED/OPEN/HALF_OPEN）在缓存服务故障时快速失败，给后端恢复时间，并自动检测恢复情况。防止缓存故障导致的雪崩效应。
 
-**State Transitions**:
-- CLOSED → OPEN: After N consecutive failures
-- OPEN → HALF_OPEN: After timeout period
-- HALF_OPEN → CLOSED: After M successful operations
-- HALF_OPEN → OPEN: On any failure
+**English Description**:
+Three-state circuit breaker (CLOSED/OPEN/HALF_OPEN) fails fast when cache service fails, giving backend time to recover and automatically detecting recovery. Prevents avalanche effects caused by cache failures.
 
 ```java
 try {
     value = circuitBreaker.execute(() -> distributedCache.get(key));
 } catch (CircuitBreakerOpenException e) {
-    // Fallback strategy: load directly from database
+    // Fallback: load directly from database
     value = loadFromDB(key);
 }
 ```
 
-#### 4. InvalidationBroadcaster
+#### 4. InvalidationBroadcaster (失效广播器)
 
-Implements distributed invalidation notifications based on Redis Pub/Sub, combined with database transactional outbox pattern to guarantee message reliability.
+**中文说明**:
+基于 Redis Pub/Sub 实现分布式失效通知，支持批量发布和指数退避重试，确保缓存一致性。
 
-**Capabilities**:
-- Batch publishing (reduces network overhead)
-- Exponential backoff retry (1s, 2s, 4s...)
-- Maximum 3 retries to prevent infinite loops
-- Message deduplication via unique ID
+**English Description**:
+Implements distributed invalidation notifications based on Redis Pub/Sub, supporting batch publishing and exponential backoff retry for cache consistency.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始 | Quick Start
 
-### Installation
+### 安装依赖 | Installation
 
 **Maven**:
 ```xml
 <dependency>
     <groupId>io.github.latcn</groupId>
     <artifactId>consistency-cache-spring-boot-starter</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
 **Gradle**:
 ```gradle
-implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.0'
+implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.4'
 ```
 
-### Configuration
-
-Add to your `application.yml`:
+### 基础配置 | Basic Configuration
 
 ```yaml
-hcc:
-  cache:
-    enabled: true
-    
-    # Local cache configuration
-    local:
+# application.yml
+spring:
+  hcc:
+    cache:
       enabled: true
-      maximum-size: 10000
-      expire-after-write: 300s
-    
-    # Distributed cache configuration
-    distributed:
-      redisson-config: classpath:redisson-config.yml
-    
-    # Hotspot detection configuration
-    hotspot:
-      read-qps-threshold: 100
-      write-invalidations-threshold: 10
-    
-    # Circuit breaker settings
-    circuit-breaker:
-      failure-threshold: 5      # failures before opening
-      success-threshold: 3      # successes before closing
-      timeout-ms: 30000         # timeout before half-open
+      
+      # Local cache configuration
+      local:
+        cache-type: CAFFEINE
+        initial-capacity: 100
+        maximum-size: 10000
+        expire-after-write: 600
+        expire-after-access: 600
+        buffer-time-ms: 1000
+        channel-names: hcc_cache_evict
+        batch-size: 100
+        max-wait-seconds: 5
+      
+      # Distributed cache configuration
+      distributed:
+        max-batch-size: 100
+        max-wait-in-ms: 10
+      
+      # Hotspot detection
+      hotspot:
+        read-hot-key-threshold: 100.0
+        write-invalidation-threshold: 10
+        write-base-blacklist-ttl: 10000
+        write-backoff-multiplier: 2.0
+        write-max-blacklist-time: 100000
+        blacklist-max-size: 10000
+      
+      # Circuit breaker
+      circuit-breaker:
+        failure-threshold: 5
+        success-threshold: 3
+        timeout-ms: 30000
+      
+      # Monitor configuration
+      monitor:
+        enabled: true
+        connection-check-interval-seconds: 3
+        memory-check-interval-seconds: 30
+        memory-warning-threshold: 0.8
 ```
 
-### Basic Usage
+### 使用示例 | Usage Examples
 
-#### 1. Cacheable Annotation
+#### 1. 基本缓存注解 | Basic Cache Annotation
 
 ```java
 import io.github.latcn.cache.spring.annotation.HccCacheable;
@@ -192,23 +226,29 @@ import io.github.latcn.cache.core.model.ConsistencyLevel;
 @Service
 public class ProductService {
     
-    // Basic caching with default settings
     @HccCacheable(key = "#productId", expireTime = 300)
     public Product getProductById(Long productId) {
         return productRepository.findById(productId);
     }
     
-    // With high consistency level
     @HccCacheable(key = "'product:' + #id", 
                   expireTime = 600,
                   consistencyLevel = ConsistencyLevel.HIGH)
     public Product getProductWithHighConsistency(Long id) {
         return productRepository.findById(id);
     }
+    
+    @HccCacheable(key = "#userId", 
+                  expireTime = 600,
+                  bloomFilterEnabled = true,
+                  transactionEnabled = false)
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId);
+    }
 }
 ```
 
-#### 2. Cache Eviction Annotation
+#### 2. 缓存失效注解 | Cache Eviction Annotation
 
 ```java
 import io.github.latcn.cache.spring.annotation.HccCacheEvict;
@@ -216,11 +256,9 @@ import io.github.latcn.cache.spring.annotation.HccCacheEvict;
 @Service
 public class OrderService {
     
-    // Invalidate cache after operation
     @HccCacheEvict(key = "#orderId")
     public void cancelOrder(Long orderId) {
         orderRepository.cancel(orderId);
-        // Cache automatically invalidated across all nodes
     }
     
     @Transactional
@@ -231,99 +269,155 @@ public class OrderService {
 }
 ```
 
-#### 3. Programmatic API
+#### 3. 编程式调用 | Programmatic Usage
 
 ```java
 @Autowired
 private CacheExecutor cacheExecutor;
 
 public User getUserWithFallback(Long userId) {
-    // Build cache key with full control
     CacheKey<String> cacheKey = CacheKey.<String>builder()
         .key("user:" + userId)
         .expireTimeMs(300000)
         .consistencyLevel(ConsistencyLevel.AVAILABLE)
         .cacheLevel(CacheLevel.ADAPTIVE_CACHE)
-        .bloomFilterEnabled(true)
-        .cacheNullValues(true)
         .build();
     
-    // Execute with automatic SingleFlight and circuit breaker
     return CacheValue.extractValue(
         cacheExecutor.get(cacheKey, k -> {
-            // Load from database if cache miss
             return userRepository.findById(userId);
         })
     );
 }
 ```
 
----
+#### 4. 注解属性说明 | Annotation Attributes
 
-## 📊 Performance Benchmarks
-
-### Concurrent Access Test
-
-**Scenario**: 100 concurrent threads accessing the same cache key
-
-| Metric | Result | Description |
-|--------|--------|-------------|
-| Throughput | 95,000 ops/s | Operations per second |
-| Average Latency | 1.05ms | Mean response time |
-| P99 Latency | 2.8ms | 99th percentile latency |
-| SingleFlight Efficiency | 99% reduction | Redundant requests eliminated |
-| Hotspot Detection Accuracy | >95% | Correct hot key identification |
-
-### Memory Footprint
-
-| Component | Per Entry | Description |
-|-----------|-----------|-------------|
-| Local Cache (Caffeine) | ~200 bytes | Including metadata |
-| Hotspot Counter (CMS) | ~40 bytes | Count-Min Sketch statistics |
-| Circuit Breaker State | ~100 bytes | State machine info |
+| 属性 Attribute | 类型 Type | 默认值 Default | 说明 Description |
+|---------------|-----------|---------------|----------------|
+| key | String | - | SpEL 表达式定义缓存键 |
+| expireTime | int | 300 | 缓存过期时间（秒） |
+| consistencyLevel | ConsistencyLevel | AVAILABLE | 一致性级别：HIGH/AVAILABLE |
+| cacheLevel | CacheLevel | ADAPTIVE_CACHE | 缓存级别：LOCAL_CACHE/L2_CACHE/ADAPTIVE_CACHE |
+| bloomFilterEnabled | boolean | false | 是否启用布隆过滤器防穿透 |
+| transactionEnabled | boolean | false | 是否启用事务支持 |
 
 ---
 
-## 🔧 Advanced Features
+## 📊 性能指标 | Performance Metrics
 
-### 1. Consistency Level Selection
+### 基准测试结果 | Benchmark Results
 
-**CP Mode (High Consistency)** - Use for critical data:
+**测试场景**: 100 并发线程访问相同缓存 key
+
+| 指标 Metric | 结果 Result | 说明 Description |
+|------------|-----------|----------------|
+| 吞吐量 Throughput | 95,000 ops/s | 每秒操作数 |
+| 平均延迟 Avg Latency | 1.05ms | 平均响应时间 |
+| P99 延迟 P99 Latency | 2.8ms | 99% 请求响应时间 |
+| SingleFlight 效率 | 99% 减少 | 冗余请求消除率 |
+| 热点检测准确率 | >95% | Hot key detection accuracy |
+
+### 内存占用 | Memory Footprint
+
+| 组件 Component | 每 entry | 说明 Description |
+|---------------|---------|----------------|
+| Local Cache | ~200 bytes | Caffeine 实现 |
+| Hotspot Counter | ~40 bytes | Count-Min Sketch 计数器 |
+| Circuit Breaker | ~100 bytes | 状态信息 |
+
+---
+
+## 🔧 高级特性 | Advanced Features
+
+### 1. 一致性级别选择 | Consistency Level Selection
+
+**CP 模式 (高一致性)**:
 ```java
 @HccCacheable(key = "#id", consistencyLevel = ConsistencyLevel.HIGH)
-// Best for: Inventory, pricing, account balance
+// 适用场景：库存、价格、账户余额
+// Use cases: Inventory, pricing, account balance
 ```
 
-**AP Mode (High Availability)** - Use for eventually consistent data:
+**AP 模式 (高可用性)**:
 ```java
 @HccCacheable(key = "#id", consistencyLevel = ConsistencyLevel.AVAILABLE)
-// Best for: Product details, user profiles, configurations
+// 适用场景：商品详情、用户信息、配置信息
+// Use cases: Product details, user profiles, configurations
 ```
 
-### 2. Cache Level Strategies
+### 2. 缓存级别策略 | Cache Level Strategy
 
-**LOCAL_CACHE**: Only use local cache (fastest, but not distributed)  
-**L2_CACHE**: Only use distributed cache (consistent across nodes)  
-**ADAPTIVE_CACHE**: Intelligent adaptive (recommended, auto-optimizes)
+**LOCAL_CACHE**: 仅使用本地缓存  
+**L2_CACHE**: 仅使用分布式缓存  
+**ADAPTIVE_CACHE**: 智能自适应（推荐）
 
 ```java
 @HccCacheable(key = "#id", cacheLevel = CacheLevel.ADAPTIVE_CACHE)
-// Automatically adjusts strategy based on access patterns
+// 自动根据热点检测调整缓存策略
+// Automatically adjusts cache strategy based on hotspot detection
 ```
 
-### 3. Bloom Filter Configuration
+### 3. Micrometer + Prometheus 监控集成 | Micrometer + Prometheus Monitoring
 
-Enable Bloom filter to prevent cache penetration:
-```java
-@HccCacheable(key = "#id", bloomFilterEnabled = true)
-public Data getData(Long id) {
-    return repository.findById(id);
-}
+Consistency Cache 集成了 Micrometer，可自动暴露以下缓存监控指标到 Prometheus：
+
+**缓存指标 Cache Metrics**:
+
+| 指标名称 Metric Name | 类型 Type | 说明 Description |
+|---------------------|-----------|----------------|
+| hcc_cache_get_total | Counter | 缓存获取总次数 |
+| hcc_cache_hit_total | Counter | 缓存命中总次数 |
+| hcc_cache_miss_total | Counter | 缓存未命中总次数 |
+| hcc_cache_hit_ratio | Gauge | 缓存命中率 |
+| hcc_cache_l1_hit_ratio | Gauge | L1 本地缓存命中率 |
+| hcc_cache_l2_hit_ratio | Gauge | L2 分布式缓存命中率 |
+| hcc_cache_evict_total | Counter | 缓存失效总次数 |
+| hcc_cache_single_flight_total | Counter | SingleFlight 请求合并次数 |
+| hcc_cache_hot_key_total | Counter | 热点键检测次数 |
+
+**熔断器指标 Circuit Breaker Metrics**:
+
+| 指标名称 Metric Name | 类型 Type | 说明 Description |
+|---------------------|-----------|----------------|
+| hcc_cache_circuit_breaker_state | Gauge | 熔断器状态 (0=CLOSED, 1=OPEN, 2=HALF_OPEN) |
+| hcc_cache_circuit_breaker_failure_total | Counter | 熔断器失败次数 |
+| hcc_cache_circuit_breaker_success_total | Counter | 熔断器成功次数 |
+
+**连接监控指标 Connection Metrics**:
+
+| 指标名称 Metric Name | 类型 Type | 说明 Description |
+|---------------------|-----------|----------------|
+| hcc_cache_connection_healthy | Gauge | Redis 连接健康状态 |
+| hcc_cache_memory_usage_ratio | Gauge | JVM 内存使用率 |
+
+**配置方式 Configuration**:
+```yaml
+spring:
+  application:
+    name: consistency-cache-demo
+  hcc:
+    cache:
+      monitor:
+        enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: metrics, prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 ```
 
-### 4. Monitoring & Metrics
+**查看指标 Access Metrics**:
+```bash
+curl http://localhost:8080/actuator/prometheus | grep hcc_cache
+```
 
-Expose cache statistics via actuator endpoints:
+### 4. 自定义监控端点 | Custom Monitoring Endpoints
 
 ```java
 @RestController
@@ -336,13 +430,13 @@ public class CacheMonitorController {
     @Autowired
     private CacheCircuitBreaker circuitBreaker;
     
-    @GetMapping("/stats")
+    @GetMapping("/localCacheStats")
     public CacheStats getCacheStats() {
         return cacheManager.getStats();
     }
     
     @GetMapping("/circuit-breaker")
-    public CacheCircuitBreaker.CircuitStats getCircuitBreakerStats() {
+    public CircuitStats getCircuitBreakerStats() {
         return circuitBreaker.getStats();
     }
 }
@@ -350,220 +444,167 @@ public class CacheMonitorController {
 
 ---
 
-## 🛠️ Production Deployment
+## 🛠️ 生产部署指南 | Production Deployment Guide
 
-### Database Setup
+### 数据库初始化 | Database Initialization
 
-Execute the initialization script:
-
-```bash
-mysql -u root -p < script/db/hcc_cache_message.sql
+```sql
+CREATE TABLE `hcc_cache_message` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `uid` varchar(64) NOT NULL COMMENT 'Unique identifier (Snowflake ID)',
+  `cache_key` varchar(255) NOT NULL COMMENT 'Cache key to invalidate',
+  `cache_level` varchar(32) DEFAULT NULL COMMENT 'Cache level (L1/L2/ALL)',
+  `consistency_level` varchar(32) DEFAULT NULL COMMENT 'Consistency level',
+  `operation_type` varchar(32) NOT NULL COMMENT 'Operation type (DELETE/UPDATE)',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Status: 0=PENDING, 1=COMPLETED, 2=FAILED',
+  `retry_count` int(11) DEFAULT '0' COMMENT 'Retry count',
+  `error_message` text COMMENT 'Error message on failure',
+  `node_id` varchar(128) DEFAULT NULL COMMENT 'Node ID that created this record',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_uid` (`uid`),
+  KEY `idx_status_create_time` (`status`, `create_time`),
+  KEY `idx_node_id` (`node_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-This creates the `hcc_cache_message` table for reliable invalidation tracking.
+### 灰度发布策略 | Gray Release Strategy
 
-### Gray Release Strategy
+**阶段 1: 10% 流量** (24 小时)
+- 监控 SingleFlight 执行情况
+- 观察热点检测准确性
+- 检查熔断器状态变化
 
-**Phase 1: 10% Traffic** (24 hours)
-- Monitor SingleFlight execution counts
-- Verify hotspot detection accuracy
-- Check circuit breaker state transitions
+**阶段 2: 50% 流量** (24-48 小时)
+- 验证缓存命中率
+- 监控数据库负载变化
+- 收集业务异常日志
 
-**Phase 2: 50% Traffic** (24-48 hours)
-- Validate cache hit rates
-- Monitor database load changes
-- Collect application error logs
-
-**Phase 3: 100% Traffic**
-- Full rollout
-- Continuous monitoring of key metrics
-- Establish alerting rules
-
-### Recommended Alerts
-
-Configure alerts for these critical metrics:
-
-```yaml
-alerts:
-  - name: "Cache Hit Rate Low"
-    condition: "hit_rate < 0.8"
-    duration: "5m"
-    severity: "warning"
-    
-  - name: "Circuit Breaker Open"
-    condition: "circuit_state == OPEN"
-    duration: "1m"
-    severity: "critical"
-    
-  - name: "Hotspot Cleanup Surge"
-    condition: "cleanup_count > 1000/min"
-    duration: "2m"
-    severity: "warning"
-```
+**阶段 3: 100% 流量**
+- 全量上线
+- 持续监控关键指标
+- 建立告警机制
 
 ---
 
-## 🐛 Troubleshooting
+## 🐛 常见问题 | Troubleshooting
 
-### Problem: Cache Penetration
+### Q1: 缓存穿透怎么办？| How to handle cache penetration?
 
-**Symptoms**:
-- Sudden drop in cache hit rate
-- Surge in database requests
+**现象 Symptoms**:
+- 缓存命中率突然下降
+- 数据库请求量激增
 
-**Solutions**:
-
-1. Enable Bloom filter:
+**解决方案 Solution**:
 ```java
 @HccCacheable(key = "#id", bloomFilterEnabled = true)
+
+@HccCacheable(key = "#id", cacheNullValues = true)
 ```
 
-2. Cache null values temporarily:
-```java
-@HccCacheable(key = "#id", cacheNullValues = true, expireTime = 60)
-```
+### Q2: 如何调优热点检测参数？| How to tune hotspot detection parameters?
 
-3. Add pre-validation:
-```java
-if (!existsInDatabase(id)) {
-    return null; // Fast fail
-}
-```
-
-### Problem: Frequent Circuit Breaker Trips
-
-**Diagnosis Steps**:
-
-1. Check Redis connection health
-2. Review network latency metrics
-3. Analyze failure logs for patterns
-4. Verify Redis cluster status
-
-**Parameter Tuning**:
+**默认配置 Default**:
 ```yaml
-circuit-breaker:
-  failure-threshold: 10        # Increase from 5 to 10
-  timeout-ms: 60000           # Extend from 30s to 60s
-  success-threshold: 5        # Require more successes
+spring:
+  hcc:
+    cache:
+      hotspot:
+        read-hot-key-threshold: 100.0
+        write-invalidation-threshold: 10
+        write-base-blacklist-ttl: 10000
+        write-backoff-multiplier: 2.0
+        write-max-blacklist-time: 100000
+        blacklist-max-size: 10000
 ```
 
-### Problem: Hotspot Detection Not Working
+**调优建议 Tuning Recommendations**:
+- 高并发场景：提高 `read-hot-key-threshold` 至 200-500
+- 写多读少场景：降低 `write-invalidation-threshold`，启用写热点黑名单
+- 内存受限场景：减小 `blacklist-max-size`
 
-**Check These**:
+### Q3: 熔断器频繁跳闸如何处理？| How to handle frequent circuit breaker trips?
 
-1. Verify QPS threshold is appropriate for your traffic
-2. Ensure sliding window size matches access patterns
-3. Check if cleanup is removing counters too aggressively
-4. Monitor debug logs for detection events
+**排查步骤 Diagnosis Steps**:
+1. 检查 Redis 连接状态
+2. 查看网络延迟
+3. 分析失败日志
+4. 调整熔断器参数
 
-**Tuning Guide**:
-- High concurrency: Increase threshold to 200-500
-- Low latency requirements: Reduce window to 500ms
-- Write-heavy workloads: Increase write invalidation threshold
-
----
-
-## 📈 Version History
-
-### v1.0.0 (Current Release)
-
-**Core Features**:
-- ✅ Multi-level cache architecture (L1 + L2)
-- ✅ SingleFlight request collapsing
-- ✅ CMS-based read/write hotspot detection
-- ✅ Three-state circuit breaker
-- ✅ Reliable invalidation broadcasting
-- ✅ Spring annotation integration
-- ✅ Bloom filter support
-
-**Known Limitations**:
-- No Micrometer metrics export (planned for v1.1.0)
-- No dynamic configuration support (planned for v1.2.0)
-- No reactive programming support (planned for v2.0.0)
-
-### Roadmap
-
-**v1.1.0** (Q2 2026)
-- [ ] Micrometer integration for Prometheus/Grafana
-- [ ] JMX metrics exposure
-- [ ] Enhanced monitoring dashboards
-
-**v1.2.0** (Q3 2026)
-- [ ] Dynamic configuration via config center
-- [ ] Runtime parameter adjustment
-- [ ] Configuration change auditing
-
-**v2.0.0** (Q4 2026)
-- [ ] Reactive Streams API (WebFlux support)
-- [ ] Non-blocking cache operations
-- [ ] Project Reactor integration
+**参数调整 Parameter Adjustment**:
+```yaml
+spring:
+  hcc:
+    cache:
+      circuit-breaker:
+        failure-threshold: 10
+        timeout-ms: 60000
+```
 
 ---
 
-## 🤝 Contributing
+## 📈 版本演进 | Version History
 
-We welcome contributions of all kinds!
+### v1.0.4 (当前版本 | Current)
+- ✅ Spring Boot 3.x 版本升级
+- ✅ Micrometer + Prometheus 监控集成
+- ✅ 读热点检测优化 (DefaultReadHotspotDetector)
+- ✅ 写热点黑名单机制 (DefaultWriteHotspotDetector)
+- ✅ 增强型连接监控 (EnhancedConnectionMonitor)
+- ✅ 内存保护监控 (MemoryProtectionMonitor)
+- ✅ Cuckoo Filter 缓存穿透防护
+- ✅ 注解属性增强 (bloomFilterEnabled, transactionEnabled)
+- ✅ 本地缓存多实现支持 (Caffeine/Guava)
 
-### Ways to Contribute
+### v1.0.0 - v1.0.3
+- ✅ 基础多级缓存架构 (L1 + L2)
+- ✅ SingleFlight 请求合并
+- ✅ CMS 热点检测与自动优化
+- ✅ 三态熔断器保护
+- ✅ Spring 注解集成
+- ✅ Redis Pub/Sub 失效广播
 
-1. **Report Bugs**: Create an issue with reproduction steps
-2. **Suggest Features**: Submit feature requests with use cases
-3. **Submit Code**: Fix bugs or implement enhancements
-4. **Improve Docs**: Enhance documentation or add examples
+### Roadmap (未来规划)
+- [ ] v1.1.0: 配置中心动态配置
+- [ ] v1.2.0: 响应式编程支持 (WebFlux)
+- [ ] v2.0.0: 多数据源支持与跨数据中心部署
 
-### Development Workflow
+---
 
+## 🤝 贡献指南 | Contributing
+
+我们欢迎各种形式的贡献！
+
+**贡献方式 Ways to Contribute**:
+1. 报告 Bug (Report bugs)
+2. 提出新功能建议 (Suggest new features)
+3. 提交代码修复 (Submit code fixes)
+4. 完善文档 (Improve documentation)
+
+**开发流程 Development Workflow**:
 ```bash
-# 1. Fork the repository
 git fork https://github.com/latcn/consistency-cache
-
-# 2. Create a feature branch
 git checkout -b feature/amazing-feature
-
-# 3. Make your changes and commit
-git commit -m "feat: add amazing feature"
-
-# 4. Push to your branch
+git commit -m "Add amazing feature"
 git push origin feature/amazing-feature
-
-# 5. Open a Pull Request
 ```
-
-### Code Style Guidelines
-
-- Follow Google Java Style Guide
-- Write unit tests for new features (min 80% coverage)
-- Add JavaDoc for public APIs
-- Include changelog entries
 
 ---
 
-## 📄 License
+## 📄 许可证 | License
 
 Apache License 2.0
 
 Copyright © 2026 Consistency Cache Team
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 ---
 
-## 📧 Contact Us
+## 📧 联系方式 | Contact Us
 
-- **Project Homepage**: https://github.com/latcn/consistency-cache
-- **Issue Tracker**: https://github.com/latcn/consistency-cache/issues
-- **Mailing List**: dev@consistency-cache.org
-- **Twitter**: @ConsistencyCache
+- **项目主页**: https://github.com/latcn/consistency-cache
+- **问题反馈**: https://github.com/latcn/consistency-cache/issues
+- **邮件列表**: dev@consistency-cache.org
 
 ---
 
@@ -571,8 +612,8 @@ limitations under the License.
 
 **Made with ❤️ by Consistency Cache Team**
 
-If this project helps you, please give us a ⭐ Star!
+如果这个项目对你有帮助，请给一个 ⭐ Star!
 
-Your support motivates us to keep improving!
+If this project helps you, please give us a ⭐ Star!
 
 </div>

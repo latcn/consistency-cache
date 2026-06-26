@@ -15,6 +15,10 @@ public @interface HccCacheEvict {
 
 	ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
 
+	boolean transactionEnabled() default false;
+
+	boolean fallbackExecActual() default false;
+
 	boolean broadcastEnabled() default true;
 
 	boolean bloomFilterEnabled() default false;

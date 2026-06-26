@@ -6,6 +6,7 @@ import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Builder;
 import lombok.Data;
 
@@ -29,5 +30,7 @@ public class CacheExecutorConfig {
 	private final CacheCircuitBreaker cacheCircuitBreaker;
 
 	private final CacheBloomFilter cacheBloomFilter;
+
+	private final MeterRegistry meterRegistry;
 
 }

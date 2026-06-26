@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LocalCacheBlacklist {
 
+	private static final long CLEANUP_INTERVAL_SECONDS = 1L;
+	private static final long SHUTDOWN_TIMEOUT_SECONDS = 5L;
+
 	private final ConcurrentHashMap<Object, Long> blacklist = new ConcurrentHashMap<>();
 
 	private final int maxSize;
@@ -32,7 +35,7 @@ public class LocalCacheBlacklist {
 		});
 
 		// Schedule periodic cleanup
-		this.scheduler.scheduleAtFixedRate(this::autoCleanup, 1, 1, TimeUnit.SECONDS);
+		this.scheduler.scheduleAtFixedRate(this::autoCleanup, CLEANUP_INTERVAL_SECONDS, CLEANUP_INTERVAL_SECONDS, TimeUnit.SECONDS);
 
 		log.info("Initialized LocalCacheBlacklist");
 	}
@@ -43,7 +46,7 @@ public class LocalCacheBlacklist {
 	 * @param duration blacklist duration
 	 */
 	public <T> void addToBlacklistWithDuration(T key, Duration duration) {
-		if (this.maxSize > this.blacklist.size()) {
+		if (this.blacklist.size()>=this.maxSize) {
 			return;
 		}
 		long expireTime = System.currentTimeMillis() + duration.toMillis();
@@ -108,7 +111,7 @@ public class LocalCacheBlacklist {
 	public void shutdown() {
 		this.scheduler.shutdown();
 		try {
-			if (!this.scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+			if (!this.scheduler.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
 				this.scheduler.shutdownNow();
 			}
 		}

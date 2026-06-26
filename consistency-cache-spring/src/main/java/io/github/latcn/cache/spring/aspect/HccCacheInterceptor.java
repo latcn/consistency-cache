@@ -112,9 +112,13 @@ public class HccCacheInterceptor extends CacheInterceptor {
 			}));
 		}
 		catch (Exception e) {
-			// 降级保护：缓存出错不影响业务
-			log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);
-			return invocation.proceed();
+			if (cacheableOperationExt.isFallbackExecActual()) {
+				// 降级保护：缓存出错不影响业务
+				log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);
+				return invocation.proceed();
+			} else {
+				throw e;
+			}
 		}
 	}
 
@@ -133,6 +137,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
 		invalidationRecord.setUid(SnowflakeGeneratorHolder.getSnowflakeGenerator().next().toString());
 		invalidationRecord.setCacheLevel(cacheKey.getCacheLevel().toString());
 		invalidationRecord.setConsistencyLevel(cacheKey.getConsistencyLevel().toString());
+		invalidationRecord.setTransactionEnabled(cacheableOperationExt.isTransactionEnabled());
 		invalidationRecord.setNodeId(NodeInstanceHolder.getNodeId());
 		invalidationRecord.setOperationType(InvalidationRecord.OperationType.DELETE.toString());
 		Object result = null;

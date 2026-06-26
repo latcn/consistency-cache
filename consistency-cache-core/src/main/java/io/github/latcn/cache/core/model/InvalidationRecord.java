@@ -40,6 +40,8 @@ public class InvalidationRecord implements Serializable {
 
 	private String consistencyLevel;
 
+	private boolean transactionEnabled;
+
 	/**
 	 * Operation type: DELETE, UPDATE
 	 */

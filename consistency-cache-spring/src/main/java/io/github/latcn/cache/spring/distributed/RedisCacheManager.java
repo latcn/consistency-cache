@@ -148,6 +148,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 				List<CacheOperation> operations = cacheOperations.drain(maxBatchSize - batchOperations.size());
 				if (operations == null || operations.size() == 0) {
 					Thread.sleep(EMPTY_POLL_SLEEP_MILLISECONDS);
+					continue;
 				}
 				for (CacheOperation cacheOperation : operations) {
 					if (cacheOperation.getOperationType() == CacheOperationType.GET) {

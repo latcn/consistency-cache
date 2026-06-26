@@ -156,7 +156,7 @@ public class TestConfig {
 	 */
 	@Bean
 	public HccCacheInterceptor hccCacheInterceptor(CacheExecutor cacheExecutor) {
-		CacheEvictHandler cacheEvictHandler = new SpringCacheEvictHandler(cacheExecutor, false);
+		CacheEvictHandler cacheEvictHandler = new SpringCacheEvictHandler(cacheExecutor);
 		HccCacheInterceptor interceptor = new HccCacheInterceptor(cacheExecutor, cacheEvictHandler);
 		// 可以使用默认的，或者自定义一个解析
 		CacheOperationSource cacheOperationSource = new AnnotationCacheOperationSource(new HccCacheAnnotationParser()

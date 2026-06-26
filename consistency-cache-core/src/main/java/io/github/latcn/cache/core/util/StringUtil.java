@@ -6,4 +6,8 @@ public class StringUtil {
 		return s == null || s.isEmpty();
 	}
 
+	public static <T> String toStringKey(T key) {
+		return key == null ? "null" : key.getClass().getName()+":"+ key;
+	}
+
 }

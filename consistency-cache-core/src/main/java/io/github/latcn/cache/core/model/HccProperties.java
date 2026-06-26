@@ -14,11 +14,14 @@ public class HccProperties {
 
 	private CircuitBreakerProperties circuitBreaker;
 
+	private MonitorProperties monitor;
+
 	public HccProperties() {
 		this.local = new LocalCacheProperties();
 		this.distributed = new DistributedProperties();
 		this.hotspot = new HotspotProperties();
 		this.circuitBreaker = new CircuitBreakerProperties();
+		this.monitor = new MonitorProperties();
 	}
 
 	@Data
@@ -117,6 +120,20 @@ public class HccProperties {
 
 		// timeout before half-open
 		private int timeoutMs = 30000;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	public static class MonitorProperties {
+
+		private boolean enabled = true;
+
+		private int connectionCheckIntervalSeconds = 3;
+
+		private int memoryCheckIntervalSeconds = 30;
+
+		private double memoryWarningThreshold = 0.8;
 
 	}
 

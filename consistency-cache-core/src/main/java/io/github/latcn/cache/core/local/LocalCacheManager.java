@@ -84,9 +84,8 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 
 	@Override
 	public void remove(CacheKey cacheKey) {
-		if (containKey(cacheKey)) {
-			getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
-		}
+		checkCacheKey(cacheKey);
+		getOrCreateCache(cacheKey.getConsistencyLevel()).invalidate(cacheKey.getKey());
 	}
 
 	public void clear() {
@@ -145,29 +144,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 		}
 	}
 
-	@lombok.Data
-	@lombok.Builder
-	public static class CacheStats {
-
-		private long hitCount;
-
-		private long missCount;
-
-		private double hitRate;
-
-		private long size;
-
-		private long maxSize;
-
-		private long evictionCount;
-
-		public String getFormattedHitRate() {
-			return String.format("%.2f", this.hitRate * 100) + "%";
-		}
-
-	}
-
-	public CacheStats getStats() {
+	public LocalCacheStats getStats() {
 		long totalRequests = this.hitCount.get() + this.missCount.get();
 		double hitRate = totalRequests > 0 ? (double) this.hitCount.get() / totalRequests : 0.0;
 		int[] totalSize = { 0 };
@@ -176,7 +153,7 @@ public class LocalCacheManager implements CacheManager<CacheKey, CacheValue> {
 			totalSize[0] += cache.getSize();
 			totalMaxSize[0] += cache.getMaxSize();
 		});
-		return CacheStats.builder()
+		return LocalCacheStats.builder()
 			.hitCount(this.hitCount.get())
 			.missCount(this.missCount.get())
 			.hitRate(hitRate)

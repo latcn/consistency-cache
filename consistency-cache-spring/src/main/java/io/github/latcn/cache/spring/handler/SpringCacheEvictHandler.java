@@ -30,8 +30,6 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	private static final int CLEAN_CACHE_PERIOD_SECONDS = 5;
 
-	private final boolean enableTransaction;
-
 	private final CacheExecutor cacheExecutor;
 
 	private DataSource dataSource;
@@ -47,9 +45,8 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 	private final LinkedBlockingQueue<InvalidationRecord> invalidationRecords = new LinkedBlockingQueue<>(
 			INVALIDATION_RECORD_QUEUE_CAPACITY);
 
-	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, boolean enableTransaction) {
+	public SpringCacheEvictHandler(CacheExecutor cacheExecutor) {
 		this.cacheExecutor = cacheExecutor;
-		this.enableTransaction = enableTransaction;
 		this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread thread = new Thread(r, "Invalidate-Cleaner-Scheduled-Thread");
 			thread.setDaemon(true);
@@ -61,7 +58,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, DataSource dataSource,
 			PlatformTransactionManager platformTransactionManager) {
-		this(cacheExecutor, true);
+		this(cacheExecutor);
 		this.dataSource = dataSource;
 		this.platformTransactionManager = platformTransactionManager;
 		this.transactionTemplate = new TransactionTemplate(this.platformTransactionManager);
@@ -72,7 +69,7 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 	public Object startInvalidate(InvalidationRecord invalidationRecord, CallableWithThrowable<Object> targetCallback) {
 		String uid = invalidationRecord.getUid();
 		String cacheKey = invalidationRecord.getCacheKey();
-		if (this.enableTransaction) {
+		if (invalidationRecord.isTransactionEnabled()) {
 			return this.transactionTemplate.execute(status -> {
 				try {
 					Connection conn = DataSourceUtils.getConnection(dataSource);
@@ -140,13 +137,13 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 						ConsistencyLevel.HIGH))
 				.build();
 			this.cacheExecutor.evict(cacheKey);
-			if (this.enableTransaction) {
+			if (invalidationRecord.isTransactionEnabled()) {
 				// 标记成功
 				markCompleted(invalidationRecord.getUid(), invalidationRecord.getCacheKey());
 			}
 		}
 		catch (Exception e) {
-			if (this.enableTransaction) {
+			if (invalidationRecord.isTransactionEnabled()) {
 				// 标记失败
 				markFailed(invalidationRecord.getUid(), invalidationRecord.getCacheKey(), e.getMessage());
 			}

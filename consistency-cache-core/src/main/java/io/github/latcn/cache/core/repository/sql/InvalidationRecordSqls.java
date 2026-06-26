@@ -9,23 +9,23 @@ import java.util.Map;
 
 public class InvalidationRecordSqls {
 
-	public static final String INVALIDATION_RECORD_REPLACE = " #recordTable# ";
+	private static final String INVALIDATION_RECORD_REPLACE = " #recordTable# ";
 
 	/**
 	 * used for oracle. eg: and ROWNUM <= 10
 	 */
-	protected static final String ORACLE_QUERY_LIMIT = " and ROWNUM <= ? ";
+	private static final String ORACLE_QUERY_LIMIT = " and ROWNUM <= ? ";
 
 	/**
 	 * used for mysql, pgsql and mariadb. eg: limit 10
 	 */
-	protected static final String NONE_ORACLE_QUERY_LIMIT = " limit ? ";
+	private static final String NONE_ORACLE_QUERY_LIMIT = " limit ? ";
 
 	/**
 	 * The constant invalidation_record
 	 */
 
-	protected static final Map<String, String> sqlMap = Map.ofEntries(
+	private static final Map<String, String> sqlMap = Map.ofEntries(
 			entry("save",
 					"insert into " + INVALIDATION_RECORD_REPLACE
 							+ " (uid, cache_key, operation_type, node_id, status, create_time, update_time) "

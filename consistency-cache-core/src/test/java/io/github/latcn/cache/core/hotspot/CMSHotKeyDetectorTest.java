@@ -2,6 +2,7 @@ package io.github.latcn.cache.core.hotspot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -88,38 +89,38 @@ class CMSHotKeyDetectorTest {
     @Test
     @DisplayName("Should throw IllegalArgumentException for invalid parameters")
     void testInvalidParameters() {
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(-1, 3, 0.1, 100, 4));
         
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(10000, -1, 0.1, 100, 4));
         
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(10000, 3, -0.1, 100, 4));
         
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(10000, 3, 1.1, 100, 4));
         
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(10000, 3, 0.1, -1, 4));
         
-        assertThrows(IllegalArgumentException.class, 
+        assertThrows(CacheException.class,
                 () -> new CMSHotKeyDetector(10000, 3, 0.1, 100, 0));
     }
 
     @Test
     @DisplayName("Should throw NullPointerException for null key")
     void testNullKey() {
-        assertThrows(NullPointerException.class, () -> detector.record(null));
-        assertThrows(NullPointerException.class, () -> detector.estimateCount(null));
+        assertThrows(CacheException.class, () -> detector.record(null));
+        assertThrows(CacheException.class, () -> detector.estimateCount(null));
     }
 
     @Test
     @DisplayName("Should throw IllegalStateException after close")
     void testOperationsAfterClose() {
         detector.close();
-        assertThrows(IllegalStateException.class, () -> detector.record("test"));
-        assertThrows(IllegalStateException.class, () -> detector.estimateCount("test"));
+        assertThrows(CacheException.class, () -> detector.record("test"));
+        assertThrows(CacheException.class, () -> detector.estimateCount("test"));
     }
 
     @Test
@@ -223,7 +224,7 @@ class CMSHotKeyDetectorTest {
     void testCloseExecutor() {
         detector.close();
         
-        assertThrows(IllegalStateException.class, () -> detector.record("test"));
+        assertThrows(CacheException.class, () -> detector.record("test"));
     }
 
 }

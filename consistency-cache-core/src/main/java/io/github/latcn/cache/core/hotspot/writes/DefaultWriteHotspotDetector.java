@@ -1,6 +1,7 @@
 package io.github.latcn.cache.core.hotspot.writes;
 
 import io.github.latcn.cache.core.hotspot.TwoLevelHotKeyDetector;
+import io.github.latcn.cache.core.util.StringUtil;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.Data;
@@ -38,9 +39,9 @@ public class DefaultWriteHotspotDetector implements WriteHotspotDetector, AutoCl
 
     @Override
     public <T> void recordInvalidation(T key) {
-        hotKeyDetector.record(toStringKey(key));
-
-        if (hotKeyDetector.isHotKey(toStringKey(key)) && !blacklist.isBlacklisted(key)) {
+        String keyOfStr = StringUtil.toStringKey(key);
+        hotKeyDetector.record(keyOfStr);
+        if (hotKeyDetector.isHotKey(keyOfStr) && !blacklist.isBlacklisted(key)) {
             WriteHotSpotInfo info = hotSpotInfo.computeIfAbsent(key, k -> new WriteHotSpotInfo());
             Duration blacklistDuration = calculateBackoffDuration(info);
             blacklist.addToBlacklistWithDuration(key, blacklistDuration);
@@ -71,17 +72,13 @@ public class DefaultWriteHotspotDetector implements WriteHotspotDetector, AutoCl
     }
 
     public <T> int getInvalidationCount(T key) {
-        return hotKeyDetector.isHotKey(toStringKey(key)) ? 1 : 0;
+        return hotKeyDetector.isHotKey(StringUtil.toStringKey(key)) ? 1 : 0;
     }
 
     @Override
     public void close() {
         hotKeyDetector.close();
         blacklist.shutdown();
-    }
-
-    private <T> String toStringKey(T key) {
-        return key == null ? "null" : key.toString();
     }
 
     @Data

@@ -45,6 +45,7 @@ public abstract class Broadcaster<T, S extends BroadcasterListener> {
 		// 定时扫描
 		scheduledExecutor.scheduleWithFixedDelay(this::publish, this.maxWaitSeconds, this.maxWaitSeconds,
 				TimeUnit.SECONDS);
+		init();
 	}
 
 	/**

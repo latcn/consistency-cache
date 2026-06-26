@@ -42,7 +42,7 @@ class DefaultWriteHotspotDetectorTest {
             detector.recordInvalidation(hotKey);
         }
 
-        //assertTrue(detector.shouldBypassL1(hotKey));
+        assertTrue(detector.shouldBypassL1(hotKey));
     }
 
     @Test
@@ -108,8 +108,8 @@ class DefaultWriteHotspotDetectorTest {
             detector.recordInvalidation(key2);
         }
 
-        //assertTrue(detector.shouldBypassL1(key1));
-        //assertFalse(detector.shouldBypassL1(key2));
+        assertTrue(detector.shouldBypassL1(key1));
+        assertFalse(detector.shouldBypassL1(key2));
     }
 
     @Test
@@ -121,7 +121,7 @@ class DefaultWriteHotspotDetectorTest {
             detector.recordInvalidation(key);
         }
 
-        //assertTrue(detector.shouldBypassL1(key));
+        assertTrue(detector.shouldBypassL1(key));
     }
 
     @Test
@@ -144,7 +144,7 @@ class DefaultWriteHotspotDetectorTest {
             thread.join();
         }
 
-        //assertTrue(detector.shouldBypassL1(sharedKey));
+        assertTrue(detector.shouldBypassL1(sharedKey));
     }
 
     @Test

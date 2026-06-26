@@ -1,6 +1,7 @@
 package io.github.latcn.cache.core.hotspot.reads;
 
 import io.github.latcn.cache.core.hotspot.TwoLevelHotKeyDetector;
+import io.github.latcn.cache.core.util.StringUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -21,12 +22,12 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector, AutoClos
 
     @Override
     public <T> void recordRead(T key) {
-        hotKeyDetector.record(toStringKey(key));
+        hotKeyDetector.record(StringUtil.toStringKey(key));
     }
 
     @Override
     public <T> boolean isHotKey(T key) {
-        return hotKeyDetector.isHotKey(toStringKey(key));
+        return hotKeyDetector.isHotKey(StringUtil.toStringKey(key));
     }
 
     @Override
@@ -35,7 +36,7 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector, AutoClos
     }
 
     public <T> double getQps(T key) {
-        if (hotKeyDetector.isHotKey(toStringKey(key))) {
+        if (hotKeyDetector.isHotKey(StringUtil.toStringKey(key))) {
             return hotKeyThreshold;
         }
         return 0.0;
@@ -44,10 +45,6 @@ public class DefaultReadHotspotDetector implements ReadHotspotDetector, AutoClos
     @Override
     public void close() {
         hotKeyDetector.close();
-    }
-
-    private <T> String toStringKey(T key) {
-        return key == null ? "null" : key.toString();
     }
 
 }

@@ -1,6 +1,7 @@
 package io.github.latcn.cache.spring.pubsub;
 
 import io.github.latcn.cache.core.executor.CacheExecutor;
+import io.github.latcn.cache.core.handler.CacheMetricsRecorder;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.pubsub.BroadcasterListener;
 import io.github.latcn.cache.core.pubsub.InvalidationMessage;
@@ -21,12 +22,20 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
 
 	private final CacheExecutor cacheExecutor;
 
+	private final CacheMetricsRecorder metricsRecorder;
+
 	private static final long DUP_WINDOWS_MS = 5000;
 
 	public InvalidationListener(String selfNodeId, List<String> topics, CacheExecutor cacheExecutor) {
+		this(selfNodeId, topics, cacheExecutor, CacheMetricsRecorder.noOp());
+	}
+
+	public InvalidationListener(String selfNodeId, List<String> topics, CacheExecutor cacheExecutor,
+			CacheMetricsRecorder metricsRecorder) {
 		super(topics, null);
 		this.selfNodeId = selfNodeId;
 		this.cacheExecutor = cacheExecutor;
+		this.metricsRecorder = metricsRecorder != null ? metricsRecorder : CacheMetricsRecorder.noOp();
 	}
 
 	@Override
@@ -36,23 +45,20 @@ public class InvalidationListener extends BroadcasterListener<InvalidationMessag
 			if (checkIfDuplicate(msg.getMessageId())) {
 				return;
 			}
-			// check if self node listener
 			if (Objects.equals(this.selfNodeId, msg.getNodeId())) {
 				return;
 			}
-			// delete localCache
 			for (Object key : msg.getKeys()) {
 				log.info("{}", key);
 				if (key instanceof CacheKey) {
 					this.cacheExecutor.evict((CacheKey) key);
 				}
-				else {
-					// this.localCacheManager.removeByActualKey(key);
-				}
 			}
+			metricsRecorder.recordInvalidationReceive(true);
 		}
 		catch (Exception e) {
 			log.error("doProcess ex", e);
+			metricsRecorder.recordInvalidationReceive(false);
 		}
 		finally {
 			cleanDuplicateKeys(msg.getMessageId());

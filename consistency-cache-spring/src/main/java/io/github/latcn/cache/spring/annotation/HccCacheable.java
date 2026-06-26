@@ -21,6 +21,8 @@ public @interface HccCacheable {
 
 	ConsistencyLevel consistencyLevel() default ConsistencyLevel.HIGH;
 
+	boolean fallbackExecActual() default false;
+
 	boolean bloomFilterEnabled() default false;
 
 	boolean cacheNullValues() default true;

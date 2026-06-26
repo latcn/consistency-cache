@@ -2,6 +2,7 @@ package io.github.latcn.cache.core.pubsub;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
+import io.github.latcn.cache.core.handler.CacheMetricsRecorder;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,10 +30,19 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 		return thread;
 	});
 
+	private final CacheMetricsRecorder metricsRecorder;
+
 	public InvalidationBroadcaster(BroadcastPublisher publisher, BroadcastSubscriber<T, S> subscriber,
 			List<BroadcasterListener> listeners, Set<String> channelNames, int batchSize, int maxWaitSeconds) {
+		this(publisher, subscriber, listeners, channelNames, batchSize, maxWaitSeconds, CacheMetricsRecorder.noOp());
+	}
+
+	public InvalidationBroadcaster(BroadcastPublisher publisher, BroadcastSubscriber<T, S> subscriber,
+			List<BroadcasterListener> listeners, Set<String> channelNames, int batchSize, int maxWaitSeconds,
+			CacheMetricsRecorder metricsRecorder) {
 		super(publisher, subscriber, listeners, batchSize, maxWaitSeconds);
 		this.channelNames = channelNames;
+		this.metricsRecorder = metricsRecorder != null ? metricsRecorder : CacheMetricsRecorder.noOp();
 	}
 
 	@Override
@@ -74,6 +84,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 	private void executeBroadcastWithRetry(InvalidationMessage message, int retryTimes) {
 		try {
 			this.publisher.broadcastMessage(channelNames, message);
+			metricsRecorder.recordInvalidationPublish(true);
 		}
 		catch (Exception e) {
 			if (retryTimes < MAX_RETRY_TIMES) {
@@ -83,6 +94,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 			}
 			else {
 				log.error("Failed to broadcast after {} retries: {}", MAX_RETRY_TIMES, message, e);
+				metricsRecorder.recordInvalidationPublish(false);
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Expiry;
 import io.github.latcn.cache.core.local.LocalCache;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.HccProperties;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.checkerframework.checker.index.qual.NonNegative;
 
@@ -69,7 +70,11 @@ public class CaffeineCacheAdapter<K, V extends CacheValue> implements LocalCache
 		@Override
 		public long expireAfterCreate(K key, V value, long currentTime) {
 			CacheValue cacheValue = (CacheValue) value;
-			return cacheValue.getExpireTime() - currentTime;
+			// 假设 getExpireTime() 是毫秒级时间戳
+			long expireTimeNanos = TimeUnit.MILLISECONDS.toNanos(cacheValue.getExpireTime());
+			long remainingNanos = expireTimeNanos - currentTime;
+			// 防止返回负数，如果已过期则立即返回0
+			return Math.max(0, remainingNanos);
 		}
 
 		@Override

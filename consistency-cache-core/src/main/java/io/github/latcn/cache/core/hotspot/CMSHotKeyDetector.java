@@ -1,6 +1,8 @@
 package io.github.latcn.cache.core.hotspot;
 
 
+import io.github.latcn.cache.core.exception.CacheError;
+import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.util.NumberUtil;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,6 +52,9 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class CMSHotKeyDetector implements AutoCloseable {
+
+	private static final String DECAY_THREAD_NAME = "CMS-Decay";
+	private static final int WARN_LOG_INTERVAL = 10;
 
 	// 每行桶的数量（列数），决定相对误差上限 ε = 1/width
 	private final int width;
@@ -105,7 +110,7 @@ public class CMSHotKeyDetector implements AutoCloseable {
 	 */
 	public CMSHotKeyDetector(int widthInput, int depth, double decayRate, long decayIntervalMs, int segmentCount) {
 		if (widthInput <= 0 || depth <= 0 || decayRate < 0 || decayRate > 1 || decayIntervalMs <= 0 || segmentCount <= 0) {
-			throw new IllegalArgumentException("Invalid parameters");
+			throw new CacheException(CacheError.INVALID_PARAMETER, "CMSHotKeyDetector parameters invalid");
 		}
 		this.width = NumberUtil.nextPowerOfTwo(widthInput);
 		this.depth = depth;
@@ -125,7 +130,7 @@ public class CMSHotKeyDetector implements AutoCloseable {
 		this.decayExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r);
 			t.setDaemon(true);
-			t.setName("CMS-Decay");
+			t.setName(DECAY_THREAD_NAME);
 			t.setUncaughtExceptionHandler((thread, ex) ->
 					log.error("CMS decay thread died", ex));
 			return t;
@@ -198,7 +203,7 @@ public class CMSHotKeyDetector implements AutoCloseable {
 
 		if (duration > decayIntervalMs) {
 			long w = warnCount.incrementAndGet();
-			if (w % 10 == 0) {
+			if (w % WARN_LOG_INTERVAL == 0) {
                 log.error("Decay segment {} took {}ms, exceeding interval {}ms", seg, duration, decayIntervalMs);
 			} else {
                 log.error("Decay segment {} took {}ms (exceeded)", seg, duration);
@@ -208,8 +213,8 @@ public class CMSHotKeyDetector implements AutoCloseable {
 
 	/** 记录一次访问（增加计数） */
 	public void record(String key) {
-		if (closed) throw new IllegalStateException("Closed");
-		if (key == null) throw new NullPointerException("key cannot be null");
+		if (closed) throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "CMSHotKeyDetector already closed");
+		if (key == null) throw new CacheException(CacheError.EMPTY_KEY, "key cannot be null");
 		int h = key.hashCode();
 		for (int i = 0; i < depth; i++) {
 			int col = NumberUtil.hash(h, seeds[i], width);
@@ -219,8 +224,8 @@ public class CMSHotKeyDetector implements AutoCloseable {
 
 	/** 估算 key 的访问频率（取所有行对应桶的最小值） */
 	public long estimateCount(String key) {
-		if (closed) throw new IllegalStateException("Closed");
-		if (key == null) throw new NullPointerException("key cannot be null");
+		if (closed) throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "CMSHotKeyDetector already closed");
+		if (key == null) throw new CacheException(CacheError.EMPTY_KEY, "key cannot be null");
 		int h = key.hashCode();
 		long min = Long.MAX_VALUE;
 		for (int i = 0; i < depth; i++) {

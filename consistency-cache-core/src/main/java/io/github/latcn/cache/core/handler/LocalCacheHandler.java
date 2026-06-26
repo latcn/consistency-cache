@@ -74,9 +74,7 @@ public class LocalCacheHandler extends BaseCacheHandler {
 
 	private void evictLocalCache(CacheKey cacheKey) {
 		cacheExecutorConfig.getLocalCacheManager().remove(cacheKey);
-		// Record invalidation for hotspot detection (write operation)
 		cacheExecutorConfig.getWriteHotspotDetector().recordInvalidation(cacheKey.getKey());
-		// 判断是否写热key， 写热key且不要求较强一致性的数据 禁用广播
 		if (cacheKey.isBroadcastEnabled()) {
 			if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
 					|| !cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey())) {
@@ -86,45 +84,51 @@ public class LocalCacheHandler extends BaseCacheHandler {
 	}
 
 	private CacheValue getFromLocalCache(CacheContext cacheContext) {
+		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheValue cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheContext.getCacheKey());
 		if (cacheValue != null) {
+			cacheContext.setL1Hit(true);
+			cacheContext.getMetricsRecorder().recordL1Hit();
 			return cacheValue;
 		}
+		cacheContext.getMetricsRecorder().recordL1Miss();
 		return next.get(cacheContext);
 	}
 
 	private CacheValue getFromAdaptiveCache(CacheContext cacheContext) {
+		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheValue cacheValue = null;
-		// 写热 key 直接从 L2 获取
 		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey());
 		setIsWriteHotKey(cacheContext, isWriteHotKey);
 		if (!isWriteHotKey) {
 			cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheKey);
 		}
 		if (cacheValue != null) {
+			cacheContext.setL1Hit(true);
+			cacheContext.getMetricsRecorder().recordL1Hit();
 			return cacheValue;
 		}
-		else {
-			return next.get(cacheContext);
-		}
+		cacheContext.getMetricsRecorder().recordL1Miss();
+		return next.get(cacheContext);
 	}
 
 	private CompletableFuture<CacheValue> getFromAdaptiveCacheAsync(CacheContext cacheContext) {
+		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheValue cacheValue = null;
-		// 写热 key 直接从 L2 获取
 		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey());
 		setIsWriteHotKey(cacheContext, isWriteHotKey);
 		if (!isWriteHotKey) {
 			cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheKey);
 		}
 		if (cacheValue != null) {
+			cacheContext.setL1Hit(true);
+			cacheContext.getMetricsRecorder().recordL1Hit();
 			return CompletableFuture.completedFuture(cacheValue);
 		}
-		else {
-			return next.getAsync(cacheContext);
-		}
+		cacheContext.getMetricsRecorder().recordL1Miss();
+		return next.getAsync(cacheContext);
 	}
 
 }

@@ -48,11 +48,11 @@ public class ConcurrentFifoList<T> {
 	 */
 	public T put(T value) {
 		T oldValue = null;
-		if (map.size() > capacity) {
-			throw new CacheException(CacheError.EXECUTION_FAILED, "already more than " + capacity);
-		}
 		writeLock.lock();
 		try {
+			if (map.size() > capacity) {
+				throw new CacheException(CacheError.EXECUTION_FAILED, "already more than " + capacity);
+			}
 			oldValue = map.put(value, value);
 			if (oldValue != null) {
 				insertionOrder.remove(value);

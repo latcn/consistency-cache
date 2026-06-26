@@ -211,7 +211,6 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 		catch (Exception e) {
 			log.error("doCleanUp", e);
 			this.redisScriptCache.reloadCachedSha1(SCRIPT_CLEANUP_NAME);
-			throw e;
 		}
 	}
 

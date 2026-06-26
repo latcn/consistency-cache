@@ -14,6 +14,7 @@ public class SnowflakeGeneratorHolder {
 
 	public SnowflakeGeneratorHolder(RedissonClient redissonClient) {
 		long workerId = redissonClient.getAtomicLong(SNOWFLAKE_WORKER_ID).addAndGet(1);
+		workerId = workerId%32;
 		snowflakeGeneratorReference.compareAndSet(null, new SnowflakeGenerator(workerId, DEFAULT_DATACENTER_ID));
 	}
 

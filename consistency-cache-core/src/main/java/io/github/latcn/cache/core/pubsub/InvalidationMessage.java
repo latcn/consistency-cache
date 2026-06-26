@@ -4,6 +4,7 @@ import io.github.latcn.cache.core.model.NodeInstanceHolder;
 import java.util.HashSet;
 import java.util.Set;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * Invalidation message for Pub/Sub broadcast.
@@ -11,10 +12,9 @@ import lombok.Data;
  * Contains: - Unique message ID for deduplication - Source node ID for tracing - Set of
  * keys to invalidate
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class InvalidationMessage extends BroadcastMessage {
-
-	private static final long serialVersionUID = 1L;
 
 	/**
 	 * Cache keys to invalidate.

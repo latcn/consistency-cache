@@ -197,17 +197,23 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 
 	private long commonNoParamQuery(String methodName, Connection conn) {
 		PreparedStatement ps = null;
+		ResultSet rs = null;
 		try {
 			String sql = InvalidationRecordSqls.getSQL(methodName, DEFAULT_LOG_TABLE_NAME);
 			ps = conn.prepareStatement(sql);
-			return ps.executeQuery().getLong(1);
+			rs = ps.executeQuery();
+			long count = 0;
+			while (rs.next()) {
+				count = rs.getLong(1);
+			}
+			return count;
 		}
 		catch (SQLException e) {
 			log.error("{} error", methodName, e);
 			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
 		}
 		finally {
-			IOUtil.close(ps);
+			IOUtil.close(rs, ps);
 		}
 	}
 

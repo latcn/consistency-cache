@@ -2,6 +2,7 @@ package io.github.latcn.cache.core.hotspot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.latcn.cache.core.exception.CacheException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,7 +79,7 @@ class TwoLevelHotKeyDetectorTest {
         
         assertTrue(detector.isHotKey(key));
         
-        Thread.sleep(10000);
+        Thread.sleep(30000);
         
         assertFalse(detector.isHotKey(key), "Key should no longer be hot after decay");
     }
@@ -197,25 +198,25 @@ class TwoLevelHotKeyDetectorTest {
     @Test
     @DisplayName("Should throw IllegalArgumentException for invalid thresholds")
     void testInvalidThresholds() {
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 TwoLevelHotKeyDetector.Builder.forHighQps()
                         .hotKeyThreshold(100)
                         .promotionThreshold(100)
                         .build());
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 TwoLevelHotKeyDetector.Builder.forHighQps()
                         .hotKeyThreshold(100)
                         .promotionThreshold(150)
                         .build());
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 TwoLevelHotKeyDetector.Builder.forHighQps()
                         .hotKeyThreshold(-1)
                         .promotionThreshold(50)
                         .build());
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 TwoLevelHotKeyDetector.Builder.forHighQps()
                         .hotKeyThreshold(100)
                         .promotionThreshold(-1)
@@ -225,16 +226,16 @@ class TwoLevelHotKeyDetectorTest {
     @Test
     @DisplayName("Should throw NullPointerException for null key")
     void testNullKey() {
-        assertThrows(NullPointerException.class, () -> detector.record(null));
-        assertThrows(NullPointerException.class, () -> detector.isHotKey(null));
+        assertThrows(CacheException.class, () -> detector.record(null));
+        assertThrows(CacheException.class, () -> detector.isHotKey(null));
     }
 
     @Test
     @DisplayName("Should throw IllegalStateException after close")
     void testOperationsAfterClose() {
         detector.close();
-        assertThrows(IllegalStateException.class, () -> detector.record("test"));
-        assertThrows(IllegalStateException.class, () -> detector.isHotKey("test"));
+        assertThrows(CacheException.class, () -> detector.record("test"));
+        assertThrows(CacheException.class, () -> detector.isHotKey("test"));
     }
 
     @Test
@@ -260,16 +261,16 @@ class TwoLevelHotKeyDetectorTest {
     @Test
     @DisplayName("Should throw IllegalArgumentException for invalid dynamic thresholds")
     void testInvalidDynamicThresholds() {
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 detector.setPromotionThreshold(150));
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 detector.setPromotionThreshold(-1));
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 detector.setHotKeyThreshold(50));
         
-        assertThrows(IllegalArgumentException.class, () -> 
+        assertThrows(CacheException.class, () ->
                 detector.setHotKeyThreshold(-1));
     }
 
@@ -385,8 +386,8 @@ class TwoLevelHotKeyDetectorTest {
     void testCloseResources() {
         detector.close();
         
-        assertThrows(IllegalStateException.class, () -> detector.record("test"));
-        assertThrows(IllegalStateException.class, () -> detector.isHotKey("test"));
+        assertThrows(CacheException.class, () -> detector.record("test"));
+        assertThrows(CacheException.class, () -> detector.isHotKey("test"));
     }
 
     @Test

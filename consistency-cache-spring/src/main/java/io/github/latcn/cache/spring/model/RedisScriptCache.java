@@ -65,7 +65,7 @@ public class RedisScriptCache {
 				scriptInfo.setCachedSha1(cachedSha1);
 			}
 			catch (Exception e) {
-				log.info("scriptLoad ex", e);
+				log.error("scriptLoad ex", e);
 			}
 		}
 	}

@@ -1,14 +1,14 @@
 package io.github.latcn.cache.core.monitor;
 
 import io.github.latcn.cache.core.local.LocalCacheManager;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Memory protection monitor that proactively manages L1 cache memory usage.
- */
 @Slf4j
 public class MemoryProtectionMonitor {
 
@@ -20,60 +20,145 @@ public class MemoryProtectionMonitor {
 
 	private final ScheduledExecutorService scheduler;
 
-	/**
-	 * Create memory protection monitor.
-	 * @param localCacheManager local cache manager
-	 * @param maxSize maximum cache size
-	 * @param warningThreshold warning threshold (0.0-1.0, default: 0.8)
-	 */
+	private final int checkIntervalSeconds;
+
+	private final MeterRegistry meterRegistry;
+
+	private final boolean enabled;
+
+	private Counter evictionCounter;
+
+	private Counter warningCounter;
+
+	private volatile double currentUsageRatio = 0.0;
+
 	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold) {
+		this(localCacheManager, maxSize, warningThreshold, 30, null, true);
+	}
+
+	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
+			int checkIntervalSeconds) {
+		this(localCacheManager, maxSize, warningThreshold, checkIntervalSeconds, null, true);
+	}
+
+	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
+			int checkIntervalSeconds, MeterRegistry meterRegistry) {
+		this(localCacheManager, maxSize, warningThreshold, checkIntervalSeconds, meterRegistry, true);
+	}
+
+	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
+			int checkIntervalSeconds, MeterRegistry meterRegistry, boolean enabled) {
+		if (localCacheManager == null) {
+			throw new NullPointerException("localCacheManager cannot be null");
+		}
 		this.localCacheManager = localCacheManager;
 		this.maxSize = maxSize;
-		this.warningThreshold = warningThreshold;
+		this.warningThreshold = validateThreshold(warningThreshold);
+		this.checkIntervalSeconds = checkIntervalSeconds;
+		this.meterRegistry = meterRegistry;
+		this.enabled = enabled;
+		this.currentUsageRatio = calculateUsageRatio();
 		this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread t = new Thread(r, "memory-protection-monitor");
 			t.setDaemon(true);
 			return t;
 		});
-
-		// Monitor every 30 seconds
-		this.scheduler.scheduleAtFixedRate(this::checkMemoryUsage, 30, 30, TimeUnit.SECONDS);
-		log.info("Initialized MemoryProtectionMonitor with max={}, warning={}%", maxSize,
-				(int) (warningThreshold * 100));
+		initMetrics();
+		this.scheduler.scheduleAtFixedRate(this::checkMemoryUsage, checkIntervalSeconds, checkIntervalSeconds,
+				TimeUnit.SECONDS);
+		log.info("Initialized MemoryProtectionMonitor with max={}, warning={}%, interval={}s, enabled={}", maxSize,
+				(int) (this.warningThreshold * 100), checkIntervalSeconds, enabled);
 	}
 
-	/**
-	 * Check current memory usage and take action if needed.
-	 */
+	private double validateThreshold(double threshold) {
+		if (threshold < 0 || threshold > 1.0) {
+			log.warn("Invalid threshold {} (must be 0.0-1.0), disabling eviction", threshold);
+			return Double.MAX_VALUE;
+		}
+		return threshold;
+	}
+
+	private void initMetrics() {
+		if (meterRegistry == null) {
+			return;
+		}
+
+		Gauge.builder("hcc_memory_usage_ratio", () -> currentUsageRatio)
+			.description("L1 cache memory usage ratio (0.0-1.0)")
+			.register(meterRegistry);
+
+		Gauge.builder("hcc_memory_max_size_bytes", () -> (double) maxSize)
+			.description("Configured maximum memory capacity")
+			.baseUnit("entries")
+			.register(meterRegistry);
+
+		evictionCounter = Counter.builder("hcc_memory_evictions_total")
+			.description("Total number of evictions triggered by memory protection")
+			.register(meterRegistry);
+
+		warningCounter = Counter.builder("hcc_memory_warnings_total")
+			.description("Total number of memory warning events")
+			.register(meterRegistry);
+	}
+
 	private void checkMemoryUsage() {
+		if (!enabled) {
+			return;
+		}
 		long currentSize = this.localCacheManager.getSize();
 		double usageRatio = (double) currentSize / maxSize;
+		this.currentUsageRatio = usageRatio;
+
 		if (usageRatio >= warningThreshold) {
 			log.warn("WARNING: L1 cache at {}% capacity ({} / {})", (int) (usageRatio * 100), currentSize, maxSize);
-			// Gentle eviction
+			recordWarning();
 			this.localCacheManager.runEviction();
+			recordEviction();
 		}
 	}
 
-	/**
-	 * Get current memory usage ratio.
-	 * @return usage ratio (0.0-1.0)
-	 */
-	public double getUsageRatio() {
-		return (double) this.localCacheManager.getSize() / this.maxSize;
+	private double calculateUsageRatio() {
+		try {
+			long currentSize = this.localCacheManager.getSize();
+			return maxSize > 0 ? (double) currentSize / maxSize : 0.0;
+		}
+		catch (Exception e) {
+			return 0.0;
+		}
 	}
 
-	/**
-	 * Get formatted usage percentage.
-	 * @return usage as percentage string
-	 */
+	private void recordWarning() {
+		if (warningCounter != null) {
+			warningCounter.increment();
+		}
+	}
+
+	private void recordEviction() {
+		if (evictionCounter != null) {
+			evictionCounter.increment();
+		}
+	}
+
+	public double getUsageRatio() {
+		return calculateUsageRatio();
+	}
+
 	public String getFormattedUsage() {
 		return String.format("%.1f%%", getUsageRatio() * 100);
 	}
 
-	/**
-	 * Shutdown monitor.
-	 */
+	public long getMaxSize() {
+		return maxSize;
+	}
+
+	public double getWarningThreshold() {
+		return warningThreshold;
+	}
+
+	public int getCheckIntervalSeconds() {
+		return checkIntervalSeconds;
+	}
+
 	public void shutdown() {
 		this.scheduler.shutdown();
 		try {

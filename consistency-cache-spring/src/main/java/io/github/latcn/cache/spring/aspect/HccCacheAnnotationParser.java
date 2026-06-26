@@ -64,20 +64,21 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 		final Collection<CacheOperation> ops = new ArrayList<>(CACHE_OPERATION_LIST_INITIAL_CAPACITY);
 		anns.stream()
 			.filter(ann -> ann instanceof HccCacheable)
-			.forEach(ann -> ops.add(parseCacheableAnnotation(ae, (HccCacheable) ann)));
+			.forEach(ann -> ops.add(parseCacheableAnnotation((HccCacheable) ann)));
 		anns.stream()
 			.filter(ann -> ann instanceof HccCacheEvict)
-			.forEach(ann -> ops.add(parseCacheableAnnotation(ae, (HccCacheEvict) ann)));
+			.forEach(ann -> ops.add(parseCacheableAnnotation((HccCacheEvict) ann)));
 		return ops;
 	}
 
-	private CacheableOperationExt parseCacheableAnnotation(AnnotatedElement ae, HccCacheable hccCacheable) {
+	private CacheableOperationExt parseCacheableAnnotation(HccCacheable hccCacheable) {
 		CacheableOperationExt op = new CacheableOperationExt.Builder()
 			.name(hccCacheable.annotationType().getSimpleName())
 			.key(hccCacheable.key())
 			.consistencyLevel(hccCacheable.consistencyLevel())
 			.cacheLevel(hccCacheable.cacheLevel())
 			.cacheNullValues(hccCacheable.cacheNullValues())
+			.fallbackExecActual(hccCacheable.fallbackExecActual())
 			.broadcastEnabled(hccCacheable.broadcastEnabled())
 			.bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
 			.bloomFilterName(hccCacheable.bloomFilterName())
@@ -91,12 +92,14 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 		return op;
 	}
 
-	private CacheableOperationExt parseCacheableAnnotation(AnnotatedElement ae, HccCacheEvict hccCacheEvict) {
+	private CacheableOperationExt parseCacheableAnnotation(HccCacheEvict hccCacheEvict) {
 		CacheableOperationExt op = new CacheableOperationExt.Builder()
 			.name(hccCacheEvict.annotationType().getSimpleName())
 			.key(hccCacheEvict.key())
 			.consistencyLevel(hccCacheEvict.consistencyLevel())
 			.cacheLevel(hccCacheEvict.cacheLevel())
+			.transactionEnabled(hccCacheEvict.transactionEnabled())
+			.fallbackExecActual(hccCacheEvict.fallbackExecActual())
 			.broadcastEnabled(hccCacheEvict.broadcastEnabled())
 			.bloomFilterEnabled(hccCacheEvict.bloomFilterEnabled())
 			.bloomFilterName(hccCacheEvict.bloomFilterName())
@@ -117,6 +120,10 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 		private ConsistencyLevel consistencyLevel;
 
 		private CacheLevel cacheLevel;
+
+		private boolean transactionEnabled;
+
+		private boolean fallbackExecActual;
 
 		private boolean bloomFilterEnabled;
 
@@ -141,6 +148,10 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 			private ConsistencyLevel consistencyLevel;
 
 			private CacheLevel cacheLevel;
+
+			private boolean transactionEnabled;
+
+			private boolean fallbackExecActual;
 
 			private boolean bloomFilterEnabled;
 
@@ -183,6 +194,16 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				return this;
 			}
 
+			public Builder transactionEnabled(boolean transactionEnabled) {
+				this.transactionEnabled = transactionEnabled;
+				return this;
+			}
+
+			public Builder fallbackExecActual(boolean fallbackExecActual) {
+				this.fallbackExecActual = fallbackExecActual;
+				return this;
+			}
+
 			public Builder cacheNullValues(boolean cacheNullValues) {
 				this.cacheNullValues = cacheNullValues;
 				return this;
@@ -205,6 +226,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				cacheableOperationExt.setKey(this.key);
 				cacheableOperationExt.setCacheLevel(this.cacheLevel);
 				cacheableOperationExt.setConsistencyLevel(this.consistencyLevel);
+				cacheableOperationExt.setTransactionEnabled(this.transactionEnabled);
+				cacheableOperationExt.setFallbackExecActual(this.fallbackExecActual);
 				cacheableOperationExt.setExpireTime(this.expireTime);
 				cacheableOperationExt.setBloomFilterEnabled(this.bloomFilterEnabled);
 				cacheableOperationExt.setCacheNullValues(this.cacheNullValues);
