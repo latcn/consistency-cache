@@ -87,8 +87,8 @@ class SingleFlightExecutorComprehensiveTest {
 
 		// Then - Should execute twice since first completed
 		assertEquals(2, count.get());
-		assertEquals("value-1", result1);
-		assertEquals("value-2", result2);
+		assertEquals("value-1", result1.getValue());
+		assertEquals("value-2", result2.getValue());
 	}
 
 	@Test
@@ -152,9 +152,10 @@ class SingleFlightExecutorComprehensiveTest {
 		String key = "unwrap-test";
 
 		// When
-		RuntimeException thrown = assertThrows(RuntimeException.class, () -> singleFlightExecutor.executeWithResult(key, k -> {
-			throw new IllegalStateException("wrapped-cause");
-		}));
+		RuntimeException thrown = assertThrows(RuntimeException.class,
+				() -> singleFlightExecutor.executeWithResult(key, k -> {
+					throw new IllegalStateException("wrapped-cause");
+				}));
 
 		// Then - Should get original cause, not wrapped again
 		assertTrue(thrown instanceof IllegalStateException);
@@ -168,9 +169,10 @@ class SingleFlightExecutorComprehensiveTest {
 		String key = "error-test";
 
 		// When/Then - AssertionError should propagate
-		AssertionError thrown = assertThrows(AssertionError.class, () -> singleFlightExecutor.executeWithResult(key, k -> {
-			throw new AssertionError("assertion-failed");
-		}));
+		AssertionError thrown = assertThrows(AssertionError.class,
+				() -> singleFlightExecutor.executeWithResult(key, k -> {
+					throw new AssertionError("assertion-failed");
+				}));
 
 		assertEquals("assertion-failed", thrown.getMessage());
 	}

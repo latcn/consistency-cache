@@ -54,20 +54,20 @@ class CacheMetricsManagerTest {
 	void setUp() {
 		closeable = MockitoAnnotations.openMocks(this);
 		meterRegistry = new SimpleMeterRegistry();
-		
+
 		when(localCacheManager.getStats()).thenReturn(localCacheStats);
 		when(localCacheStats.getHitRate()).thenReturn(0.833);
 		when(localCacheStats.getSize()).thenReturn(500L);
 		when(localCacheStats.getMaxSize()).thenReturn(1000L);
 		when(localCacheStats.getEvictionCount()).thenReturn(50L);
-		
+
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		
+
 		when(circuitBreaker.getStats()).thenReturn(circuitBreakerStats);
 		when(circuitBreakerStats.getState()).thenReturn(CircuitBreakerState.CLOSED);
 		when(circuitBreakerStats.getFailureCount()).thenReturn(0L);
 		when(circuitBreakerStats.getSuccessCount()).thenReturn(10L);
-		
+
 		when(readHotspotDetector.readHotKeyCount()).thenReturn(5L);
 		when(writeHotspotDetector.writeHotKeyCount()).thenReturn(2L);
 	}
@@ -82,7 +82,7 @@ class CacheMetricsManagerTest {
 	void testCreation() {
 		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
 				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
+
 		assertNotNull(metricsManager);
 		assertNotNull(metricsManager.getMeterRegistry());
 		assertNotNull(metricsManager.getMetricsBinder());
@@ -93,9 +93,9 @@ class CacheMetricsManagerTest {
 	void testGetMeterRegistry() {
 		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
 				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
+
 		MeterRegistry registry = metricsManager.getMeterRegistry();
-		
+
 		assertNotNull(registry);
 		assertSame(meterRegistry, registry);
 	}
@@ -105,7 +105,7 @@ class CacheMetricsManagerTest {
 	void testGetMetricsBinder() {
 		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
 				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
+
 		assertNotNull(metricsManager.getMetricsBinder());
 	}
 
@@ -114,7 +114,7 @@ class CacheMetricsManagerTest {
 	void testMetricsBound() {
 		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
 				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
+
 		assertNotNull(meterRegistry.find("hcc_cache_hit_ratio").gauge());
 		assertNotNull(meterRegistry.find("hcc_cache_size").gauge());
 		assertNotNull(meterRegistry.find("hcc_cache_max_size").gauge());
@@ -128,27 +128,27 @@ class CacheMetricsManagerTest {
 	void testGetCacheSize() {
 		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
 				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
+
 		long cacheSize = metricsManager.getCacheSize();
-		
+
 		assertNotNull(cacheSize);
 	}
 
 	@Test
 	@DisplayName("Should handle null LocalCacheManager gracefully")
 	void testNullLocalCacheManager() {
-		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, null, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector));
-		
+		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, null, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector));
+
 		assertNull(meterRegistry.find("hcc_cache_hit_ratio").gauge());
 	}
 
 	@Test
 	@DisplayName("Should handle null DistributedCacheManager gracefully")
 	void testNullDistributedCacheManager() {
-		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, localCacheManager, null,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector));
-		
+		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, localCacheManager, null, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector));
+
 		assertNull(meterRegistry.find("hcc_distributed_cache_connected").gauge());
 	}
 

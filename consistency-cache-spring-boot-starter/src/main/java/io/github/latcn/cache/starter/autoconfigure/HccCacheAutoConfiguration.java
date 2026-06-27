@@ -127,7 +127,8 @@ public class HccCacheAutoConfiguration {
 	@ConditionalOnMissingBean
 	@Bean
 	public ReadHotspotDetector readHotspotDetector(HccProperties properties) {
-		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(properties.getHotspot().getReadHotKeyThreshold());
+		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(
+				properties.getHotspot().getReadHotKeyThreshold());
 		return readHotspotDetector;
 	}
 
@@ -160,8 +161,8 @@ public class HccCacheAutoConfiguration {
 	 */
 	@Bean
 	public SpringCacheEvictHandler cacheEvictHandler(CacheExecutor cacheExecutor,
-													 @Autowired(required = false) DataSource dataSource,
-													 @Autowired(required = false) PlatformTransactionManager platformTransactionManager) {
+			@Autowired(required = false) DataSource dataSource,
+			@Autowired(required = false) PlatformTransactionManager platformTransactionManager) {
 		return new SpringCacheEvictHandler(cacheExecutor, dataSource, platformTransactionManager);
 	}
 
@@ -170,7 +171,8 @@ public class HccCacheAutoConfiguration {
 	 * @return
 	 */
 	@Bean
-	public HccCacheInterceptor hccCacheInterceptor(CacheExecutor cacheExecutor, SpringCacheEvictHandler cacheEvictHandler) {
+	public HccCacheInterceptor hccCacheInterceptor(CacheExecutor cacheExecutor,
+			SpringCacheEvictHandler cacheEvictHandler) {
 		HccCacheInterceptor interceptor = new HccCacheInterceptor(cacheExecutor, cacheEvictHandler);
 		// 可以使用默认的，或者自定义一个解析
 		CacheOperationSource cacheOperationSource = new AnnotationCacheOperationSource(new HccCacheAnnotationParser()

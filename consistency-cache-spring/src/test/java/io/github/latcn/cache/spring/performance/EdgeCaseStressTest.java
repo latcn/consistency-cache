@@ -308,7 +308,8 @@ class EdgeCaseStressTest {
 		long memoryUsed = startMemory - endMemory;
 		long heapSize = Runtime.getRuntime().totalMemory();
 
-		log.info("Results: Entries inserted: {} | Duration: {}ms | Memory used: {:.2} MB | Heap size: {:.2} MB | Memory per entry: {:.1} bytes",
+		log.info(
+				"Results: Entries inserted: {} | Duration: {}ms | Memory used: {:.2} MB | Heap size: {:.2} MB | Memory per entry: {:.1} bytes",
 				entryCount, duration, memoryUsed / (1024.0 * 1024.0), heapSize / (1024.0 * 1024.0),
 				(double) memoryUsed / entryCount);
 	}
@@ -360,8 +361,8 @@ class EdgeCaseStressTest {
 		executor.shutdown();
 
 		double qps = (totalInserts * 1000.0) / duration;
-		log.info("Results: Total inserts: {} | Duration: {}ms | QPS: {:.} | Final cache size: {}",
-				totalInserts, duration, qps, smallCache.getSize());
+		log.info("Results: Total inserts: {} | Duration: {}ms | QPS: {:.} | Final cache size: {}", totalInserts,
+				duration, qps, smallCache.getSize());
 	}
 
 	@DisplayName("Concurrent cache operations with mixed consistency levels")

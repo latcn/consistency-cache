@@ -64,8 +64,8 @@ class RedisMarkerStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			log.info("Mark Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
-					totalOps.get(), duration, qps);
+			log.info("Mark Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount, totalOps.get(),
+					duration, qps);
 		}
 	}
 
@@ -106,8 +106,8 @@ class RedisMarkerStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			log.info("Remove Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
-					totalOps.get(), duration, qps);
+			log.info("Remove Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount, totalOps.get(),
+					duration, qps);
 		}
 	}
 
@@ -153,8 +153,8 @@ class RedisMarkerStressTest {
 		executor.shutdown();
 
 		double qps = (totalOps.get() * 1000.0) / duration;
-		log.info("Multi-Node Test | Nodes: {} | Ops: {} | Duration: {}ms | QPS: {:.}", nodeCount,
-				totalOps.get(), duration, qps);
+		log.info("Multi-Node Test | Nodes: {} | Ops: {} | Duration: {}ms | QPS: {:.}", nodeCount, totalOps.get(),
+				duration, qps);
 	}
 
 	@DisplayName("Redis marker cleanup performance test")

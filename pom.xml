@@ -243,9 +243,9 @@
                     <groupId>io.spring.javaformat</groupId>
                     <artifactId>spring-javaformat-maven-plugin</artifactId>
                     <version>${spring-javaformat-maven-plugin.version}</version>
-                    <configuration>
+                    <!--<configuration>
                         <skip>true</skip>
-                    </configuration>
+                    </configuration>-->
                     <executions>
                         <execution>
                             <goals>

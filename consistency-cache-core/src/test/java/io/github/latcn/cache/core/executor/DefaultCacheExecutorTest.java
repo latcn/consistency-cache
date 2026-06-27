@@ -27,217 +27,217 @@ import org.mockito.MockitoAnnotations;
 @DisplayName("默认缓存执行器测试")
 class DefaultCacheExecutorTest {
 
-    @Mock
-    private LocalCacheManager localCacheManager;
+	@Mock
+	private LocalCacheManager localCacheManager;
 
-    @Mock
-    private DistributedCacheManager distributedCacheManager;
+	@Mock
+	private DistributedCacheManager distributedCacheManager;
 
-    @Mock
-    private LocalCacheMarkerManager localCacheMarkerManager;
+	@Mock
+	private LocalCacheMarkerManager localCacheMarkerManager;
 
-    @Mock
-    private WriteHotspotDetector writeHotspotDetector;
+	@Mock
+	private WriteHotspotDetector writeHotspotDetector;
 
-    @Mock
-    private ReadHotspotDetector readHotspotDetector;
+	@Mock
+	private ReadHotspotDetector readHotspotDetector;
 
-    @Mock
-    private CacheCircuitBreaker circuitBreaker;
+	@Mock
+	private CacheCircuitBreaker circuitBreaker;
 
-    @Mock
-    private CacheBloomFilter bloomFilter;
+	@Mock
+	private CacheBloomFilter bloomFilter;
 
-    @Mock
-    private Broadcaster broadcaster;
+	@Mock
+	private Broadcaster broadcaster;
 
-    private CacheExecutorConfig config;
-    private DefaultCacheExecutor executor;
+	private CacheExecutorConfig config;
 
-    @BeforeEach
-    void setUp(TestInfo testInfo) {
-        MockitoAnnotations.openMocks(this);
+	private DefaultCacheExecutor executor;
 
-        config = CacheExecutorConfig.builder()
-                .localCacheManager(localCacheManager)
-                .distributedCacheManager(distributedCacheManager)
-                .localCacheMarkerManager(localCacheMarkerManager)
-                .writeHotspotDetector(writeHotspotDetector)
-                .readStatistics(readHotspotDetector)
-                .cacheCircuitBreaker(circuitBreaker)
-                .cacheBloomFilter(bloomFilter)
-                .build();
+	@BeforeEach
+	void setUp(TestInfo testInfo) {
+		MockitoAnnotations.openMocks(this);
 
-        executor = new DefaultCacheExecutor(config);
+		config = CacheExecutorConfig.builder()
+			.localCacheManager(localCacheManager)
+			.distributedCacheManager(distributedCacheManager)
+			.localCacheMarkerManager(localCacheMarkerManager)
+			.writeHotspotDetector(writeHotspotDetector)
+			.readStatistics(readHotspotDetector)
+			.cacheCircuitBreaker(circuitBreaker)
+			.cacheBloomFilter(bloomFilter)
+			.build();
 
-        when(circuitBreaker.execute(any())).thenAnswer(invocation -> {
-            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
-            return supplier.get();
-        });
+		executor = new DefaultCacheExecutor(config);
 
-        System.out.println("执行测试: " + testInfo.getDisplayName());
-    }
+		when(circuitBreaker.execute(any())).thenAnswer(invocation -> {
+			java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+			return supplier.get();
+		});
 
-    @Test
-    @DisplayName("EX-001: 检查本地缓存key是否存在")
-    void testExistsLocalCacheKey() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "local-key");
+		System.out.println("执行测试: " + testInfo.getDisplayName());
+	}
 
-        when(localCacheManager.containKey(cacheKey)).thenReturn(true);
+	@Test
+	@DisplayName("EX-001: 检查本地缓存key是否存在")
+	void testExistsLocalCacheKey() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "local-key");
 
-        boolean exists = executor.exists(cacheKey);
+		when(localCacheManager.containKey(cacheKey)).thenReturn(true);
 
-        assertTrue(exists);
-        verify(localCacheManager).containKey(cacheKey);
-        verify(distributedCacheManager, never()).containKey(any());
-    }
+		boolean exists = executor.exists(cacheKey);
 
-    @Test
-    @DisplayName("EX-002: 检查分布式缓存key是否存在")
-    void testExistsDistributedCacheKey() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "distributed-key");
+		assertTrue(exists);
+		verify(localCacheManager).containKey(cacheKey);
+		verify(distributedCacheManager, never()).containKey(any());
+	}
 
-        when(distributedCacheManager.containKey(cacheKey)).thenReturn(true);
+	@Test
+	@DisplayName("EX-002: 检查分布式缓存key是否存在")
+	void testExistsDistributedCacheKey() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "distributed-key");
 
-        boolean exists = executor.exists(cacheKey);
+		when(distributedCacheManager.containKey(cacheKey)).thenReturn(true);
 
-        assertTrue(exists);
-        verify(distributedCacheManager).containKey(cacheKey);
-        verify(localCacheManager, never()).containKey(any());
-    }
+		boolean exists = executor.exists(cacheKey);
 
-    @Test
-    @DisplayName("EX-003: 检查不存在的key")
-    void testExistsNonExistentKey() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "non-existent-key");
+		assertTrue(exists);
+		verify(distributedCacheManager).containKey(cacheKey);
+		verify(localCacheManager, never()).containKey(any());
+	}
 
-        when(distributedCacheManager.containKey(cacheKey)).thenReturn(false);
+	@Test
+	@DisplayName("EX-003: 检查不存在的key")
+	void testExistsNonExistentKey() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "non-existent-key");
 
-        boolean exists = executor.exists(cacheKey);
+		when(distributedCacheManager.containKey(cacheKey)).thenReturn(false);
 
-        assertFalse(exists);
-        verify(distributedCacheManager).containKey(cacheKey);
-    }
+		boolean exists = executor.exists(cacheKey);
 
-    @Test
-    @DisplayName("EX-004: 设置Broadcaster")
-    void testSetBroadcaster() {
-        executor.setBroadcaster(broadcaster);
+		assertFalse(exists);
+		verify(distributedCacheManager).containKey(cacheKey);
+	}
 
-        assertNotNull(executor);
-    }
+	@Test
+	@DisplayName("EX-004: 设置Broadcaster")
+	void testSetBroadcaster() {
+		executor.setBroadcaster(broadcaster);
 
-    @Test
-    @DisplayName("EX-005: 获取缓存值")
-    void testGetCacheValue() {
-        executor.setBroadcaster(broadcaster);
+		assertNotNull(executor);
+	}
 
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        CacheValue cacheValue = createCacheValue("test-value");
+	@Test
+	@DisplayName("EX-005: 获取缓存值")
+	void testGetCacheValue() {
+		executor.setBroadcaster(broadcaster);
 
-        when(localCacheManager.get(cacheKey)).thenReturn(null);
-        when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
-        when(readHotspotDetector.isHotKey(any())).thenReturn(false);
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		CacheValue cacheValue = createCacheValue("test-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CacheValue result = executor.get(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(null);
+		when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
-        assertNotNull(result);
-        assertEquals("test-value", result.getValue());
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CacheValue result = executor.get(cacheKey, loader);
 
-    @Test
-    @DisplayName("EX-006: 失效缓存")
-    void testEvictCache() {
-        executor.setBroadcaster(broadcaster);
+		assertNotNull(result);
+		assertEquals("test-value", result.getValue());
+	}
 
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "evict-key");
+	@Test
+	@DisplayName("EX-006: 失效缓存")
+	void testEvictCache() {
+		executor.setBroadcaster(broadcaster);
 
-        executor.evict(cacheKey);
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "evict-key");
 
-        verify(localCacheManager).remove(cacheKey);
-        verify(distributedCacheManager).remove(cacheKey);
-    }
+		executor.evict(cacheKey);
 
-    @Test
-    @DisplayName("EX-007: 异步获取缓存值")
-    void testGetAsyncCacheValue() {
-        executor.setBroadcaster(broadcaster);
+		verify(localCacheManager).remove(cacheKey);
+		verify(distributedCacheManager).remove(cacheKey);
+	}
 
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-key");
-        CacheValue cacheValue = createCacheValue("async-value");
+	@Test
+	@DisplayName("EX-007: 异步获取缓存值")
+	void testGetAsyncCacheValue() {
+		executor.setBroadcaster(broadcaster);
 
-        when(localCacheManager.get(cacheKey)).thenReturn(null);
-        when(distributedCacheManager.getInBatch(cacheKey))
-                .thenReturn(CompletableFuture.completedFuture(cacheValue));
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
-        when(readHotspotDetector.isHotKey(any())).thenReturn(false);
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-key");
+		CacheValue cacheValue = createCacheValue("async-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CompletableFuture<CacheValue> future = executor.getAsync(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(null);
+		when(distributedCacheManager.getInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(cacheValue));
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CompletableFuture<CacheValue> future = executor.getAsync(cacheKey, loader);
 
-    @Test
-    @DisplayName("EX-008: 异步失效缓存")
-    void testEvictAsyncCache() {
-        executor.setBroadcaster(broadcaster);
+		assertNotNull(future);
+		assertTrue(future.isDone());
+	}
 
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-evict-key");
+	@Test
+	@DisplayName("EX-008: 异步失效缓存")
+	void testEvictAsyncCache() {
+		executor.setBroadcaster(broadcaster);
 
-        when(distributedCacheManager.removeInBatch(cacheKey))
-                .thenReturn(CompletableFuture.completedFuture(true));
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-evict-key");
 
-        CompletableFuture<Boolean> future = executor.evictAsync(cacheKey);
+		when(distributedCacheManager.removeInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(true));
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-    }
+		CompletableFuture<Boolean> future = executor.evictAsync(cacheKey);
 
-    @Test
-    @DisplayName("EX-009: L2_CACHE级别key存在检查")
-    void testExistsL2CacheKey() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "l2-key");
+		assertNotNull(future);
+		assertTrue(future.isDone());
+	}
 
-        when(distributedCacheManager.containKey(cacheKey)).thenReturn(true);
+	@Test
+	@DisplayName("EX-009: L2_CACHE级别key存在检查")
+	void testExistsL2CacheKey() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "l2-key");
 
-        boolean exists = executor.exists(cacheKey);
+		when(distributedCacheManager.containKey(cacheKey)).thenReturn(true);
 
-        assertTrue(exists);
-        verify(distributedCacheManager).containKey(cacheKey);
-        verify(localCacheManager, never()).containKey(any());
-    }
+		boolean exists = executor.exists(cacheKey);
 
-    @Test
-    @DisplayName("EX-010: 空CacheKey检查")
-    void testNullCacheKeyCheck() {
-        assertThrows(Exception.class, () -> {
-            executor.exists(null);
-        });
-    }
+		assertTrue(exists);
+		verify(distributedCacheManager).containKey(cacheKey);
+		verify(localCacheManager, never()).containKey(any());
+	}
 
-    private CacheKey createCacheKey(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(60000)
-                .build();
-    }
+	@Test
+	@DisplayName("EX-010: 空CacheKey检查")
+	void testNullCacheKeyCheck() {
+		assertThrows(Exception.class, () -> {
+			executor.exists(null);
+		});
+	}
 
-    private CacheValue createCacheValue(Object value) {
-        return CacheValue.builder()
-                .value(value)
-                .createdAt(System.currentTimeMillis())
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
-    }
+	private CacheKey createCacheKey(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(60000)
+			.build();
+	}
+
+	private CacheValue createCacheValue(Object value) {
+		return CacheValue.builder()
+			.value(value)
+			.createdAt(System.currentTimeMillis())
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
+	}
+
 }

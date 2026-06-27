@@ -51,7 +51,7 @@ class PrometheusCacheMetricsTest {
 	@BeforeEach
 	void setUp() {
 		closeable = MockitoAnnotations.openMocks(this);
-		
+
 		when(localCacheManager.getStats()).thenReturn(localCacheStats);
 		when(localCacheStats.getHitCount()).thenReturn(100L);
 		when(localCacheStats.getMissCount()).thenReturn(20L);
@@ -59,19 +59,19 @@ class PrometheusCacheMetricsTest {
 		when(localCacheStats.getSize()).thenReturn(500L);
 		when(localCacheStats.getMaxSize()).thenReturn(1000L);
 		when(localCacheStats.getEvictionCount()).thenReturn(50L);
-		
+
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		
+
 		when(circuitBreaker.getStats()).thenReturn(circuitBreakerStats);
 		when(circuitBreakerStats.getState()).thenReturn(CircuitBreakerState.CLOSED);
 		when(circuitBreakerStats.getFailureCount()).thenReturn(0L);
 		when(circuitBreakerStats.getSuccessCount()).thenReturn(10L);
-		
+
 		when(readHotspotDetector.readHotKeyCount()).thenReturn(5L);
 		when(writeHotspotDetector.writeHotKeyCount()).thenReturn(2L);
-		
-		prometheusCacheMetrics = new PrometheusCacheMetrics(localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
+
+		prometheusCacheMetrics = new PrometheusCacheMetrics(localCacheManager, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
 	}
 
 	@AfterEach
@@ -91,7 +91,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should get metrics in text format")
 	void testGetMetrics() {
 		String metrics = prometheusCacheMetrics.getMetrics();
-		
+
 		assertNotNull(metrics);
 		assertTrue(metrics.length() > 0);
 		assertTrue(metrics.contains("hcc_cache_hit_ratio"));
@@ -102,7 +102,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should get CacheMetricsManager")
 	void testGetCacheMetricsManager() {
 		CacheMetricsManager manager = prometheusCacheMetrics.getCacheMetricsManager();
-		
+
 		assertNotNull(manager);
 		assertNotNull(manager.getMeterRegistry());
 	}
@@ -111,7 +111,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should get CollectorRegistry")
 	void testGetCollectorRegistry() {
 		io.prometheus.client.CollectorRegistry registry = prometheusCacheMetrics.getCollectorRegistry();
-		
+
 		assertNotNull(registry);
 	}
 
@@ -119,7 +119,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should expose MeterRegistry through CacheMetricsManager")
 	void testGetMeterRegistry() {
 		MeterRegistry meterRegistry = prometheusCacheMetrics.getCacheMetricsManager().getMeterRegistry();
-		
+
 		assertNotNull(meterRegistry);
 		assertNotNull(meterRegistry.find("hcc_cache_hit_ratio").gauge());
 	}
@@ -128,7 +128,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should include JVM metrics")
 	void testJvmMetricsIncluded() {
 		String metrics = prometheusCacheMetrics.getMetrics();
-		
+
 		assertTrue(metrics.contains("jvm_memory_used_bytes"));
 		assertTrue(metrics.contains("jvm_threads_live"));
 		assertTrue(metrics.contains("process_cpu_usage"));
@@ -138,7 +138,7 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should include circuit breaker metrics")
 	void testCircuitBreakerMetricsIncluded() {
 		String metrics = prometheusCacheMetrics.getMetrics();
-		
+
 		assertTrue(metrics.contains("hcc_circuit_breaker_state"));
 		assertTrue(metrics.contains("hcc_circuit_breaker_failures_total"));
 	}
@@ -147,9 +147,9 @@ class PrometheusCacheMetricsTest {
 	@DisplayName("Should include hotspot metrics")
 	void testHotspotMetricsIncluded() {
 		String metrics = prometheusCacheMetrics.getMetrics();
-		
+
 		assertTrue(metrics.contains("hcc_hotspot_read_hotkeys_count"));
 		assertTrue(metrics.contains("hcc_hotspot_write_hotkeys_count"));
 	}
 
-	}
+}

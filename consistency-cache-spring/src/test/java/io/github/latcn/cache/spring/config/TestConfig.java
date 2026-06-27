@@ -140,7 +140,8 @@ public class TestConfig {
 				properties.getHotspot().getWriteInvalidationThreshold(),
 				properties.getHotspot().getWriteBaseBlacklistTtl(), properties.getHotspot().getWriteBackoffMultiplier(),
 				properties.getHotspot().getWriteMaxBlacklistTime(), properties.getHotspot().getBlacklistMaxSize());
-		DefaultReadHotspotDetector readStatistics = new DefaultReadHotspotDetector(properties.getHotspot().getReadHotKeyThreshold());
+		DefaultReadHotspotDetector readStatistics = new DefaultReadHotspotDetector(
+				properties.getHotspot().getReadHotKeyThreshold());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(
 				properties.getCircuitBreaker().getFailureThreshold(),

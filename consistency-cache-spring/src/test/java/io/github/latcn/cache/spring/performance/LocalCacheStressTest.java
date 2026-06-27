@@ -66,8 +66,8 @@ class LocalCacheStressTest {
 			executor.shutdown();
 
 			double qps = (totalOps.get() * 1000.0) / duration;
-			log.info("Write Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount,
-					totalOps.get(), duration, qps);
+			log.info("Write Test | Threads: {} | Ops: {} | Duration: {}ms | QPS: {:.}", threadCount, totalOps.get(),
+					duration, qps);
 		}
 	}
 
@@ -192,7 +192,8 @@ class LocalCacheStressTest {
 
 				long total = readOps.get() + writeOps.get();
 				double qps = (total * 1000.0) / duration;
-				log.info("Mix Test | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
+				log.info(
+						"Mix Test | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
 						readRatio, threadCount, readOps.get(), writeOps.get(), duration, qps);
 			}
 		}

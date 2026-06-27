@@ -189,7 +189,8 @@ class FullStackIntegrationTest {
 			long total = hits.get() + misses.get();
 			double qps = (total * 1000.0) / duration;
 			double hitRate = (hits.get() * 100.0) / total;
-			log.info("FullStack Read | Threads: {} | Hits: {} | Misses: {} | HitRate: {:.}%% | Duration: {}ms | QPS: {:.}",
+			log.info(
+					"FullStack Read | Threads: {} | Hits: {} | Misses: {} | HitRate: {:.}%% | Duration: {}ms | QPS: {:.}",
 					threadCount, hits.get(), misses.get(), hitRate, duration, qps);
 		}
 	}
@@ -375,7 +376,8 @@ class FullStackIntegrationTest {
 
 				long total = readOps.get() + writeOps.get();
 				double qps = (total * 1000.0) / duration;
-				log.info("FullStack Mix | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
+				log.info(
+						"FullStack Mix | ReadRatio: {}%% | Threads: {} | Reads: {} | Writes: {} | Duration: {}ms | QPS: {:.}",
 						readRatio, threadCount, readOps.get(), writeOps.get(), duration, qps);
 			}
 		}

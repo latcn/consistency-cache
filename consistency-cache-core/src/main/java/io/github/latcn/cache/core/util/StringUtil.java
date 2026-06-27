@@ -7,7 +7,7 @@ public class StringUtil {
 	}
 
 	public static <T> String toStringKey(T key) {
-		return key == null ? "null" : key.getClass().getName()+":"+ key;
+		return key == null ? "null" : key.getClass().getName() + ":" + key;
 	}
 
 }

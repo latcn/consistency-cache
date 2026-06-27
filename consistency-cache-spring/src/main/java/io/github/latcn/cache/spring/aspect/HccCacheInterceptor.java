@@ -118,7 +118,8 @@ public class HccCacheInterceptor extends CacheInterceptor {
 				// 降级保护：缓存出错不影响业务
 				log.warn("HCC Cache error, fallback to method execution. cacheKey: {}", cacheKey, e);
 				return invocation.proceed();
-			} else {
+			}
+			else {
 				throw e;
 			}
 		}

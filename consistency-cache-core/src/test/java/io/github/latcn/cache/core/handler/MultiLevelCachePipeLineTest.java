@@ -29,227 +29,227 @@ import org.mockito.MockitoAnnotations;
 @DisplayName("多级缓存管道测试")
 class MultiLevelCachePipeLineTest {
 
-    @Mock
-    private LocalCacheManager localCacheManager;
+	@Mock
+	private LocalCacheManager localCacheManager;
 
-    @Mock
-    private DistributedCacheManager distributedCacheManager;
+	@Mock
+	private DistributedCacheManager distributedCacheManager;
 
-    @Mock
-    private LocalCacheMarkerManager localCacheMarkerManager;
+	@Mock
+	private LocalCacheMarkerManager localCacheMarkerManager;
 
-    @Mock
-    private WriteHotspotDetector writeHotspotDetector;
+	@Mock
+	private WriteHotspotDetector writeHotspotDetector;
 
-    @Mock
-    private ReadHotspotDetector readHotspotDetector;
+	@Mock
+	private ReadHotspotDetector readHotspotDetector;
 
-    @Mock
-    private CacheCircuitBreaker circuitBreaker;
+	@Mock
+	private CacheCircuitBreaker circuitBreaker;
 
-    @Mock
-    private CacheBloomFilter bloomFilter;
+	@Mock
+	private CacheBloomFilter bloomFilter;
 
-    @Mock
-    private Broadcaster broadcaster;
+	@Mock
+	private Broadcaster broadcaster;
 
-    private CacheExecutorConfig config;
-    private MultiLevelCachePipeLine pipeLine;
+	private CacheExecutorConfig config;
 
-    @BeforeEach
-    void setUp(TestInfo testInfo) {
-        MockitoAnnotations.openMocks(this);
+	private MultiLevelCachePipeLine pipeLine;
 
-        config = CacheExecutorConfig.builder()
-                .localCacheManager(localCacheManager)
-                .distributedCacheManager(distributedCacheManager)
-                .localCacheMarkerManager(localCacheMarkerManager)
-                .writeHotspotDetector(writeHotspotDetector)
-                .readStatistics(readHotspotDetector)
-                .cacheCircuitBreaker(circuitBreaker)
-                .cacheBloomFilter(bloomFilter)
-                .build();
+	@BeforeEach
+	void setUp(TestInfo testInfo) {
+		MockitoAnnotations.openMocks(this);
 
-        pipeLine = new MultiLevelCachePipeLine(config, broadcaster);
+		config = CacheExecutorConfig.builder()
+			.localCacheManager(localCacheManager)
+			.distributedCacheManager(distributedCacheManager)
+			.localCacheMarkerManager(localCacheMarkerManager)
+			.writeHotspotDetector(writeHotspotDetector)
+			.readStatistics(readHotspotDetector)
+			.cacheCircuitBreaker(circuitBreaker)
+			.cacheBloomFilter(bloomFilter)
+			.build();
 
-        when(circuitBreaker.execute(any())).thenAnswer(invocation -> {
-            java.util.function.Supplier<?> supplier = invocation.getArgument(0);
-            return supplier.get();
-        });
+		pipeLine = new MultiLevelCachePipeLine(config, broadcaster);
 
-        System.out.println("执行测试: " + testInfo.getDisplayName());
-    }
+		when(circuitBreaker.execute(any())).thenAnswer(invocation -> {
+			java.util.function.Supplier<?> supplier = invocation.getArgument(0);
+			return supplier.get();
+		});
 
-    @Test
-    @DisplayName("PL-001: 同步获取缓存（本地缓存命中）")
-    void testGetLocalCacheHit() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
-        CacheValue cacheValue = createCacheValue("test-value");
+		System.out.println("执行测试: " + testInfo.getDisplayName());
+	}
 
-        when(localCacheManager.get(cacheKey)).thenReturn(cacheValue);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
+	@Test
+	@DisplayName("PL-001: 同步获取缓存（本地缓存命中）")
+	void testGetLocalCacheHit() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
+		CacheValue cacheValue = createCacheValue("test-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CacheValue result = pipeLine.get(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(cacheValue);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
 
-        assertNotNull(result);
-        assertEquals("test-value", result.getValue());
-        verify(localCacheManager).get(cacheKey);
-        verify(distributedCacheManager, never()).get(any());
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CacheValue result = pipeLine.get(cacheKey, loader);
 
-    @Test
-    @DisplayName("PL-002: 同步获取缓存（本地缓存未命中，分布式缓存命中）")
-    void testGetDistributedCacheHit() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        CacheValue distributedValue = createCacheValue("distributed-value");
+		assertNotNull(result);
+		assertEquals("test-value", result.getValue());
+		verify(localCacheManager).get(cacheKey);
+		verify(distributedCacheManager, never()).get(any());
+	}
 
-        when(localCacheManager.get(cacheKey)).thenReturn(null);
-        when(distributedCacheManager.get(cacheKey)).thenReturn(distributedValue);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
-        when(readHotspotDetector.isHotKey(any())).thenReturn(false);
+	@Test
+	@DisplayName("PL-002: 同步获取缓存（本地缓存未命中，分布式缓存命中）")
+	void testGetDistributedCacheHit() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		CacheValue distributedValue = createCacheValue("distributed-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CacheValue result = pipeLine.get(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(null);
+		when(distributedCacheManager.get(cacheKey)).thenReturn(distributedValue);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
-        assertNotNull(result);
-        assertEquals("distributed-value", result.getValue());
-        verify(localCacheManager).get(cacheKey);
-        verify(distributedCacheManager).get(cacheKey);
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CacheValue result = pipeLine.get(cacheKey, loader);
 
-    @Test
-    @DisplayName("PL-003: 同步获取缓存（两级都未命中，从DB加载）")
-    void testGetFromDb() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		assertNotNull(result);
+		assertEquals("distributed-value", result.getValue());
+		verify(localCacheManager).get(cacheKey);
+		verify(distributedCacheManager).get(cacheKey);
+	}
 
-        when(localCacheManager.get(cacheKey)).thenReturn(null);
-        when(distributedCacheManager.get(cacheKey)).thenReturn(null);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
-        when(readHotspotDetector.isHotKey(any())).thenReturn(false);
+	@Test
+	@DisplayName("PL-003: 同步获取缓存（两级都未命中，从DB加载）")
+	void testGetFromDb() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
 
-        Function<Object, Object> loader = key -> "db-loaded-value";
-        CacheValue result = pipeLine.get(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(null);
+		when(distributedCacheManager.get(cacheKey)).thenReturn(null);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
-        assertNotNull(result);
-        assertEquals("db-loaded-value", result.getValue());
-        verify(localCacheManager).get(cacheKey);
-        verify(distributedCacheManager).get(cacheKey);
-        verify(distributedCacheManager).put(any(), any());
-    }
+		Function<Object, Object> loader = key -> "db-loaded-value";
+		CacheValue result = pipeLine.get(cacheKey, loader);
 
-    @Test
-    @DisplayName("PL-004: 异步获取缓存")
-    void testGetAsync() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        CacheValue cacheValue = createCacheValue("async-value");
+		assertNotNull(result);
+		assertEquals("db-loaded-value", result.getValue());
+		verify(localCacheManager).get(cacheKey);
+		verify(distributedCacheManager).get(cacheKey);
+		verify(distributedCacheManager).put(any(), any());
+	}
 
-        when(localCacheManager.get(cacheKey)).thenReturn(null);
-        when(distributedCacheManager.getInBatch(cacheKey))
-                .thenReturn(CompletableFuture.completedFuture(cacheValue));
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
-        when(readHotspotDetector.isHotKey(any())).thenReturn(false);
+	@Test
+	@DisplayName("PL-004: 异步获取缓存")
+	void testGetAsync() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		CacheValue cacheValue = createCacheValue("async-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CompletableFuture<CacheValue> future = pipeLine.getAsync(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(null);
+		when(distributedCacheManager.getInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(cacheValue));
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CompletableFuture<CacheValue> future = pipeLine.getAsync(cacheKey, loader);
 
-    @Test
-    @DisplayName("PL-005: 同步失效缓存")
-    void testEvict() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		assertNotNull(future);
+		assertTrue(future.isDone());
+	}
 
-        pipeLine.evict(cacheKey);
+	@Test
+	@DisplayName("PL-005: 同步失效缓存")
+	void testEvict() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
 
-        verify(localCacheManager).remove(cacheKey);
-        verify(distributedCacheManager).remove(cacheKey);
-    }
+		pipeLine.evict(cacheKey);
 
-    @Test
-    @DisplayName("PL-006: 异步失效缓存")
-    void testEvictAsync() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		verify(localCacheManager).remove(cacheKey);
+		verify(distributedCacheManager).remove(cacheKey);
+	}
 
-        when(distributedCacheManager.removeInBatch(cacheKey))
-                .thenReturn(CompletableFuture.completedFuture(true));
+	@Test
+	@DisplayName("PL-006: 异步失效缓存")
+	void testEvictAsync() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
 
-        CompletableFuture<Boolean> future = pipeLine.evictAsync(cacheKey);
+		when(distributedCacheManager.removeInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(true));
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-    }
+		CompletableFuture<Boolean> future = pipeLine.evictAsync(cacheKey);
 
-    @Test
-    @DisplayName("PL-007: 空CacheKey处理")
-    void testNullCacheKey() {
-        Function<Object, Object> loader = key -> "value";
+		assertNotNull(future);
+		assertTrue(future.isDone());
+	}
 
-        assertThrows(Exception.class, () -> {
-            pipeLine.get(null, loader);
-        });
-    }
+	@Test
+	@DisplayName("PL-007: 空CacheKey处理")
+	void testNullCacheKey() {
+		Function<Object, Object> loader = key -> "value";
 
-    @Test
-    @DisplayName("PL-008: L2_CACHE级别获取")
-    void testGetL2Cache() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "test-key");
-        CacheValue cacheValue = createCacheValue("l2-value");
+		assertThrows(Exception.class, () -> {
+			pipeLine.get(null, loader);
+		});
+	}
 
-        when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
+	@Test
+	@DisplayName("PL-008: L2_CACHE级别获取")
+	void testGetL2Cache() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "test-key");
+		CacheValue cacheValue = createCacheValue("l2-value");
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CacheValue result = pipeLine.get(cacheKey, loader);
+		when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
 
-        assertNotNull(result);
-        assertEquals("l2-value", result.getValue());
-        verify(localCacheManager, never()).get(any());
-        verify(distributedCacheManager).get(cacheKey);
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CacheValue result = pipeLine.get(cacheKey, loader);
 
-    @Test
-    @DisplayName("PL-009: 本地缓存过期处理")
-    void testExpiredLocalCache() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
-        CacheValue expiredValue = CacheValue.builder()
-                .value("expired-value")
-                .expireTime(System.currentTimeMillis() - 1000)
-                .createdAt(System.currentTimeMillis() - 2000)
-                .build();
+		assertNotNull(result);
+		assertEquals("l2-value", result.getValue());
+		verify(localCacheManager, never()).get(any());
+		verify(distributedCacheManager).get(cacheKey);
+	}
 
-        when(localCacheManager.get(cacheKey)).thenReturn(expiredValue);
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
+	@Test
+	@DisplayName("PL-009: 本地缓存过期处理")
+	void testExpiredLocalCache() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
+		CacheValue expiredValue = CacheValue.builder()
+			.value("expired-value")
+			.expireTime(System.currentTimeMillis() - 1000)
+			.createdAt(System.currentTimeMillis() - 2000)
+			.build();
 
-        Function<Object, Object> loader = key -> "loaded-value";
-        CacheValue result = pipeLine.get(cacheKey, loader);
+		when(localCacheManager.get(cacheKey)).thenReturn(expiredValue);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
 
-        assertNotNull(result);
-        assertEquals("loaded-value", result.getValue());
-    }
+		Function<Object, Object> loader = key -> "loaded-value";
+		CacheValue result = pipeLine.get(cacheKey, loader);
 
-    private CacheKey createCacheKey(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(60000)
-                .build();
-    }
+		assertNotNull(result);
+		assertEquals("loaded-value", result.getValue());
+	}
 
-    private CacheValue createCacheValue(Object value) {
-        return CacheValue.builder()
-                .value(value)
-                .createdAt(System.currentTimeMillis())
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
-    }
+	private CacheKey createCacheKey(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(60000)
+			.build();
+	}
+
+	private CacheValue createCacheValue(Object value) {
+		return CacheValue.builder()
+			.value(value)
+			.createdAt(System.currentTimeMillis())
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
+	}
+
 }

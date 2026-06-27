@@ -71,10 +71,7 @@ public class DbHandler extends BaseCacheHandler {
 					return null;
 				}
 			}
-			CacheValue cacheValue = CacheValue.builder()
-				.value(dbResult)
-				.createdAt(System.currentTimeMillis())
-				.build();
+			CacheValue cacheValue = CacheValue.builder().value(dbResult).createdAt(System.currentTimeMillis()).build();
 			if (cacheKey.getExpireTimeMs() > 0) {
 				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getExpireTimeMs());
 			}
@@ -108,10 +105,7 @@ public class DbHandler extends BaseCacheHandler {
 					return;
 				}
 			}
-			CacheValue cacheValue = CacheValue.builder()
-				.value(r)
-				.createdAt(System.currentTimeMillis())
-				.build();
+			CacheValue cacheValue = CacheValue.builder().value(r).createdAt(System.currentTimeMillis()).build();
 			if (cacheKey.getExpireTimeMs() > 0) {
 				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getExpireTimeMs());
 			}

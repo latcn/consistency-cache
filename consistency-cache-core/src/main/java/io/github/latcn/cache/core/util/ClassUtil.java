@@ -265,4 +265,5 @@ public class ClassUtil {
 	public static boolean isAbstractClass(Class clz) {
 		return (clz.getModifiers() & Modifier.ABSTRACT) != 0;
 	}
+
 }

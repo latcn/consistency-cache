@@ -22,25 +22,33 @@ public class InvalidationRecordSqls {
 	private static final String NONE_ORACLE_QUERY_LIMIT = " limit ? ";
 
 	public static class SqlNames {
+
 		public final static String INSERT = "insert";
+
 		public final static String FIND_BY_UID_AND_CACHE_KEY = "findByUidAndCacheKey";
+
 		public final static String FIND_PENDING_RECORDS_OLDER_THAN = "findPendingRecordsOlderThan";
+
 		public final static String MARK_COMPLETED = "markCompleted";
+
 		public final static String MARK_FAILED = "markFailed";
+
 		public final static String DELETE_OLD_COMPLETED_RECORDS = "deleteOldCompletedRecords";
+
 		public final static String GET_PENDING_COUNT = "getPendingCount";
+
 		public final static String GET_FAILED_COUNT = "getFailedCount";
+
 	}
 
 	/**
 	 * The constant invalidation_record
 	 */
 
-	private static final Map<String, String> sqlMap = Map.ofEntries(
-			entry(SqlNames.INSERT,
-					"insert into " + INVALIDATION_RECORD_REPLACE
-							+ " (uid, cache_key, cache_level, consistency_level, operation_type, node_id, create_time, update_time) "
-							+ " values (?, ?, ?, ?, ?, ?, ?, ?) "),
+	private static final Map<String, String> sqlMap = Map.ofEntries(entry(SqlNames.INSERT, "insert into "
+			+ INVALIDATION_RECORD_REPLACE
+			+ " (uid, cache_key, cache_level, consistency_level, operation_type, node_id, create_time, update_time) "
+			+ " values (?, ?, ?, ?, ?, ?, ?, ?) "),
 			entry(SqlNames.FIND_BY_UID_AND_CACHE_KEY,
 					"SELECT * FROM " + INVALIDATION_RECORD_REPLACE + " WHERE uid = ? and cache_key= ? for update"),
 			entry(SqlNames.FIND_PENDING_RECORDS_OLDER_THAN,
@@ -54,8 +62,10 @@ public class InvalidationRecordSqls {
 							+ " error_message = ?, update_time = ? WHERE uid = ? and cache_key = ?"),
 			entry(SqlNames.DELETE_OLD_COMPLETED_RECORDS,
 					"DELETE FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 1 AND create_time < ?"),
-			entry(SqlNames.GET_PENDING_COUNT, "SELECT COUNT(*) FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 0"),
-			entry(SqlNames.GET_FAILED_COUNT, "SELECT COUNT(*) FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 2"));
+			entry(SqlNames.GET_PENDING_COUNT,
+					"SELECT COUNT(*) FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 0"),
+			entry(SqlNames.GET_FAILED_COUNT,
+					"SELECT COUNT(*) FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 2"));
 
 	public static String getSQL(String methodName, String recordTable) {
 		String sql = sqlMap.get(methodName);

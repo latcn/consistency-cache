@@ -39,7 +39,7 @@ public class TimerTask implements Callable {
 			throw new CacheException(CacheError.INVALID_PARAMETER,
 					"timerTask param is not valid: task=" + task + ", execTime=" + execTime);
 		}
-		this.execTime = System.currentTimeMillis() + execTime;
+		this.execTime = execTime;
 		this.timeout = timeout;
 		this.taskCallable = task;
 	}

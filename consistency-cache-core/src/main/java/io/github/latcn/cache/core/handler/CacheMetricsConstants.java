@@ -2,9 +2,10 @@ package io.github.latcn.cache.core.handler;
 
 /**
  * 缓存监控指标常量定义。
- * 
- * <p>设计意图：统一管理监控指标中使用的字符串常量，避免魔法值，
- * 提高代码的可维护性和一致性。</p>
+ *
+ * <p>
+ * 设计意图：统一管理监控指标中使用的字符串常量，避免魔法值， 提高代码的可维护性和一致性。
+ * </p>
  */
 public final class CacheMetricsConstants {
 
@@ -24,6 +25,7 @@ public final class CacheMetricsConstants {
 
 		/** 数据库查询去重 */
 		public static final String DB = "db";
+
 	}
 
 	/**
@@ -48,6 +50,7 @@ public final class CacheMetricsConstants {
 
 		/** 批量删除操作 */
 		public static final String BATCH_DELETE = "batch_delete";
+
 	}
 
 	/**
@@ -63,6 +66,7 @@ public final class CacheMetricsConstants {
 
 		/** 失败 */
 		public static final boolean FAILURE = false;
+
 	}
 
 	/**
@@ -78,6 +82,7 @@ public final class CacheMetricsConstants {
 
 		/** 分布式缓存 L2 */
 		public static final String L2 = "L2";
+
 	}
 
 	/**
@@ -90,6 +95,7 @@ public final class CacheMetricsConstants {
 
 		/** 熔断器组件 */
 		public static final String CIRCUIT_BREAKER = "circuitbreaker";
+
 	}
 
 }

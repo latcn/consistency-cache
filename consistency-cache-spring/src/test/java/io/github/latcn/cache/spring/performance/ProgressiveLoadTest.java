@@ -199,8 +199,8 @@ class ProgressiveLoadTest {
 			long p95 = calculatePercentile(latencies, 95);
 			long p99 = calculatePercentile(latencies, 99);
 
-			log.info("Results: QPS=%.2f | Errors=%d (%.2f%%) | P95=%dms | P99=%dms%n", qps, errors.get(),
-					errorRate, p95, p99);
+			log.info("Results: QPS=%.2f | Errors=%d (%.2f%%) | P95=%dms | P99=%dms%n", qps, errors.get(), errorRate,
+					p95, p99);
 
 			if (errorRate > maxErrorRate) {
 				log.warn("ALERT: Error rate (%.2f%%) exceeded threshold (%.2f%%)", errorRate, maxErrorRate);
@@ -365,8 +365,8 @@ class ProgressiveLoadTest {
 
 			double qps = (totalOps.get() * 1000.0) / testDuration;
 
-			log.info("Results: QPS=%.2f | Avg CPU=%.1f%% | Max CPU=%.1f%% | Avg Memory=%.2f MB", qps, avgCpu,
-					maxCpu, avgMemory / (1024.0 * 1024.0));
+			log.info("Results: QPS=%.2f | Avg CPU=%.1f%% | Max CPU=%.1f%% | Avg Memory=%.2f MB", qps, avgCpu, maxCpu,
+					avgMemory / (1024.0 * 1024.0));
 
 			Thread.sleep(3000);
 		}

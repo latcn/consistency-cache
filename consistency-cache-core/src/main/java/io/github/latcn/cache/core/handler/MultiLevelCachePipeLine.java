@@ -52,18 +52,12 @@ public class MultiLevelCachePipeLine {
 	}
 
 	public void evict(CacheKey cacheKey) {
-		CacheContext cacheContext = CacheContext.builder()
-			.cacheKey(cacheKey)
-			.metricsRecorder(metricsRecorder)
-			.build();
+		CacheContext cacheContext = CacheContext.builder().cacheKey(cacheKey).metricsRecorder(metricsRecorder).build();
 		firstHandler.evict(cacheContext);
 	}
 
 	public CompletableFuture<Boolean> evictAsync(CacheKey cacheKey) {
-		CacheContext cacheContext = CacheContext.builder()
-			.cacheKey(cacheKey)
-			.metricsRecorder(metricsRecorder)
-			.build();
+		CacheContext cacheContext = CacheContext.builder().cacheKey(cacheKey).metricsRecorder(metricsRecorder).build();
 		return firstHandler.evictAsync(cacheContext);
 	}
 

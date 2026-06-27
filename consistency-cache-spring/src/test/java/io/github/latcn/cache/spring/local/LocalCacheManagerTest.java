@@ -37,7 +37,7 @@ class LocalCacheManagerTest {
 			.key("test-key")
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
-			//.expireTimeMs(1000)
+			// .expireTimeMs(1000)
 			.build();
 
 		CacheValue<String> cacheValue = CacheValue.<String>builder()
@@ -51,12 +51,12 @@ class LocalCacheManagerTest {
 		CacheValue result = localCacheManager.get(cacheKey);
 
 		// Then
-		 assertNotNull(result);
-		 assertEquals("test-value", result.getValue());
-		 ThreadUtil.safeSleep(1000);
-		 assertTrue(result.isExpired());
-		 result = localCacheManager.get(cacheKey);
-		 assertNull(result);
+		assertNotNull(result);
+		assertEquals("test-value", result.getValue());
+		ThreadUtil.safeSleep(1000);
+		assertTrue(result.isExpired());
+		result = localCacheManager.get(cacheKey);
+		assertNull(result);
 	}
 
 	@Test

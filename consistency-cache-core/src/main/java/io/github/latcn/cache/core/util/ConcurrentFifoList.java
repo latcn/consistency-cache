@@ -50,7 +50,7 @@ public class ConcurrentFifoList<T> {
 		T oldValue = null;
 		writeLock.lock();
 		try {
-			if (map.size() > capacity) {
+			if (map.size() >= capacity) {
 				throw new CacheException(CacheError.EXECUTION_FAILED, "already more than " + capacity);
 			}
 			oldValue = map.put(value, value);
@@ -62,6 +62,7 @@ public class ConcurrentFifoList<T> {
 		}
 		catch (Exception e) {
 			log.error("put", e);
+			throw CacheException.wrap(e, CacheError.CONCURRENT_FIFO_LIST_PUT);
 		}
 		finally {
 			writeLock.unlock();
@@ -78,7 +79,7 @@ public class ConcurrentFifoList<T> {
 		T item;
 		writeLock.lock();
 		try {
-			while ((item = insertionOrder.poll()) != null && drained.size() < maxSize) {
+			while (drained.size() < maxSize && (item = insertionOrder.poll()) != null) {
 				drained.add(item);
 				map.remove(item);
 				removeCounter.incrementAndGet();

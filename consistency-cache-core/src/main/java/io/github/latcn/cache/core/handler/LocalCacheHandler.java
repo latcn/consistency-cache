@@ -86,7 +86,7 @@ public class LocalCacheHandler extends BaseCacheHandler {
 	private CacheValue getFromLocalCache(CacheContext cacheContext) {
 		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheValue cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheContext.getCacheKey());
-		if (cacheValue != null) {
+		if (cacheValue != null && !cacheValue.isExpired()) {
 			cacheContext.setL1Hit(true);
 			cacheContext.getMetricsRecorder().recordL1Hit();
 			return cacheValue;

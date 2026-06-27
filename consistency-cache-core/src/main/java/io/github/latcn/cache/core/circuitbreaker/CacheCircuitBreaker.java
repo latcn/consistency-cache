@@ -22,7 +22,7 @@ public class CacheCircuitBreaker {
 	private static final long DEFAULT_TIMEOUT_MS = 30000;
 
 	private static final Set<Class<? extends Exception>> RETRYABLE_EXCEPTIONS = new HashSet<>(
-			Arrays.asList(java.net.SocketTimeoutException.class, java.net.ConnectException.class));
+			Arrays.asList(java.io.IOException.class, java.sql.SQLException.class));
 
 	private static final Set<Class<? extends Exception>> NON_RETRYABLE_EXCEPTIONS = Set
 		.of(IllegalArgumentException.class, NullPointerException.class, IllegalStateException.class);
@@ -99,7 +99,7 @@ public class CacheCircuitBreaker {
 		if (NON_RETRYABLE_EXCEPTIONS.stream().anyMatch(clazz -> clazz.isInstance(e))) {
 			return false;
 		}
-		return RETRYABLE_EXCEPTIONS.stream().anyMatch(clazz -> clazz.isInstance(e));
+		return RETRYABLE_EXCEPTIONS.stream().anyMatch(clazz -> clazz.isInstance(e) || clazz.isInstance(e.getCause()));
 	}
 
 	private void recordSuccess() {

@@ -66,7 +66,10 @@ public enum CacheError {
 	UNSUPPORTED_OPERATION(1100001, "Unsupported operation"),
 
 	// ========== 通用异常 (1200001-1200999) ==========
-	NOT_EXISTS_LOCAL_CACHE_CLASS(1200001, "Local cache class not found"),;
+	NOT_EXISTS_LOCAL_CACHE_CLASS(1200001, "Local cache class not found"),
+	CONCURRENT_FIFO_LIST_PUT(1200002, "concurrent fifo list put error"),
+
+	;
 
 	CacheError(Integer errorCode, String errorMessage) {
 		this.errorCode = errorCode;

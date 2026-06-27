@@ -22,40 +22,34 @@ public class RedisScriptTest {
 
 	private static final String SCRIPT_ADD_AND_RENEW = "local key = KEYS[1]; " + "local nodeId = ARGV[1]; "
 			+ "local now = tonumber(ARGV[2]); " + "local score = tonumber(ARGV[3]); "
-			+ "local bufferTime = tonumber(ARGV[4]); " +
-			"redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
-			"redis.call('ZADD', key, score, nodeId); " +
-			"local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" +
-			"if res and #res > 0 then " + "    local maxScore = tonumber(res[2]); " +
-			"    redis.call('PEXPIREAT', key, maxScore + bufferTime); " + "end;" + "return 1;";
+			+ "local bufferTime = tonumber(ARGV[4]); " + "redis.call('ZREMRANGEBYSCORE', key, '-inf', now); "
+			+ "redis.call('ZADD', key, score, nodeId); "
+			+ "local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" + "if res and #res > 0 then "
+			+ "    local maxScore = tonumber(res[2]); " + "    redis.call('PEXPIREAT', key, maxScore + bufferTime); "
+			+ "end;" + "return 1;";
 
 	private static final String SCRIPT_REMOVE_AND_RENEW = "local key = KEYS[1]; " + "local nodeId = ARGV[1]; "
-			+ "local now = tonumber(ARGV[2]); " + "local bufferTime = tonumber(ARGV[3]); " +
-			"redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
-			"redis.call('zrem', key, nodeId); " +
-			"local count = redis.call('ZCARD', key); " + "if count == 0 then " +
-			"    redis.call('DEL', key); " + "    return 0; " + "else " +
-			"    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" + "    if res and #res > 0 then "
-			+ "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " + "    end; " + "end; "
-			+ "return count;";
+			+ "local now = tonumber(ARGV[2]); " + "local bufferTime = tonumber(ARGV[3]); "
+			+ "redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " + "redis.call('zrem', key, nodeId); "
+			+ "local count = redis.call('ZCARD', key); " + "if count == 0 then " + "    redis.call('DEL', key); "
+			+ "    return 0; " + "else " + "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');"
+			+ "    if res and #res > 0 then " + "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); "
+			+ "    end; " + "end; " + "return count;";
 
 	private static final String SCRIPT_CLEANUP = "local key = KEYS[1]; " + "local now = tonumber(ARGV[1]); "
-			+ "local bufferTime = tonumber(ARGV[2]); " +
-			"local removed = redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
-			"local count = redis.call('ZCARD', key); " + "if count == 0 then " +
-			"    redis.call('DEL', key); " + "    return 0; " + "else " +
-			"    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" + "    if res and #res > 0 then "
-			+ "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " + "    end; " + "end;"
-			+ "return count;";
+			+ "local bufferTime = tonumber(ARGV[2]); "
+			+ "local removed = redis.call('ZREMRANGEBYSCORE', key, '-inf', now); "
+			+ "local count = redis.call('ZCARD', key); " + "if count == 0 then " + "    redis.call('DEL', key); "
+			+ "    return 0; " + "else " + "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');"
+			+ "    if res and #res > 0 then " + "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); "
+			+ "    end; " + "end;" + "return count;";
 
 	private static final String SCRIPT_GET_ACTIVE_NODES = "local key = KEYS[1]; " + "local now = tonumber(ARGV[1]); "
-			+ "local bufferTime = tonumber(ARGV[2]); " +
-			"redis.call('ZREMRANGEBYSCORE', key, '-inf', now); " +
-			"local count = redis.call('ZCARD', key); " + "if count == 0 then " +
-			"    redis.call('DEL', key); " + "    return {}; " + "else " +
-			"    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');" + "    if res and #res > 0 then "
-			+ "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); " + "    end; " + "end; "
-			+ "return redis.call('ZRANGE', key, 0, 1, 'REV');";
+			+ "local bufferTime = tonumber(ARGV[2]); " + "redis.call('ZREMRANGEBYSCORE', key, '-inf', now); "
+			+ "local count = redis.call('ZCARD', key); " + "if count == 0 then " + "    redis.call('DEL', key); "
+			+ "    return {}; " + "else " + "    local res = redis.call('ZRANGE', key, 0, 0, 'REV', 'WITHSCORES');"
+			+ "    if res and #res > 0 then " + "        redis.call('PEXPIREAT', key, tonumber(res[2]) + bufferTime); "
+			+ "    end; " + "end; " + "return redis.call('ZRANGE', key, 0, 1, 'REV');";
 
 	public static RedissonClient redissonClient() {
 		Config config = new Config();
@@ -81,6 +75,9 @@ public class RedisScriptTest {
 		}
 		catch (Exception e) {
 			log.error("Redis Lua script execution failed", e);
+		}
+		finally {
+			redissonClient.shutdown();
 		}
 	}
 

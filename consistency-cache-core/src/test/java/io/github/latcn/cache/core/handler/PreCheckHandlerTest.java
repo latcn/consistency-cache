@@ -28,227 +28,229 @@ import org.mockito.MockitoAnnotations;
 @DisplayName("前置检查Handler测试")
 class PreCheckHandlerTest {
 
-    @Mock
-    private LocalCacheManager localCacheManager;
+	@Mock
+	private LocalCacheManager localCacheManager;
 
-    @Mock
-    private DistributedCacheManager distributedCacheManager;
+	@Mock
+	private DistributedCacheManager distributedCacheManager;
 
-    @Mock
-    private LocalCacheMarkerManager localCacheMarkerManager;
+	@Mock
+	private LocalCacheMarkerManager localCacheMarkerManager;
 
-    @Mock
-    private WriteHotspotDetector writeHotspotDetector;
+	@Mock
+	private WriteHotspotDetector writeHotspotDetector;
 
-    @Mock
-    private ReadHotspotDetector readHotspotDetector;
+	@Mock
+	private ReadHotspotDetector readHotspotDetector;
 
-    @Mock
-    private CacheCircuitBreaker circuitBreaker;
+	@Mock
+	private CacheCircuitBreaker circuitBreaker;
 
-    @Mock
-    private CacheBloomFilter bloomFilter;
+	@Mock
+	private CacheBloomFilter bloomFilter;
 
-    @Mock
-    private CacheHandler nextHandler;
+	@Mock
+	private CacheHandler nextHandler;
 
-    private CacheExecutorConfig config;
-    private PreCheckHandler preCheckHandler;
+	private CacheExecutorConfig config;
 
-    @BeforeEach
-    void setUp(TestInfo testInfo) {
-        MockitoAnnotations.openMocks(this);
+	private PreCheckHandler preCheckHandler;
 
-        config = CacheExecutorConfig.builder()
-                .localCacheManager(localCacheManager)
-                .distributedCacheManager(distributedCacheManager)
-                .localCacheMarkerManager(localCacheMarkerManager)
-                .writeHotspotDetector(writeHotspotDetector)
-                .readStatistics(readHotspotDetector)
-                .cacheCircuitBreaker(circuitBreaker)
-                .cacheBloomFilter(bloomFilter)
-                .build();
+	@BeforeEach
+	void setUp(TestInfo testInfo) {
+		MockitoAnnotations.openMocks(this);
 
-        preCheckHandler = new PreCheckHandler(nextHandler, config);
+		config = CacheExecutorConfig.builder()
+			.localCacheManager(localCacheManager)
+			.distributedCacheManager(distributedCacheManager)
+			.localCacheMarkerManager(localCacheMarkerManager)
+			.writeHotspotDetector(writeHotspotDetector)
+			.readStatistics(readHotspotDetector)
+			.cacheCircuitBreaker(circuitBreaker)
+			.cacheBloomFilter(bloomFilter)
+			.build();
 
-        System.out.println("执行测试: " + testInfo.getDisplayName());
-    }
+		preCheckHandler = new PreCheckHandler(nextHandler, config);
 
-    @Test
-    @DisplayName("PC-001: 正常请求通过检查")
-    void testNormalRequestPassCheck() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
-        CacheValue nextValue = createCacheValue("next-value");
-        CacheContext context = createCacheContext(cacheKey);
+		System.out.println("执行测试: " + testInfo.getDisplayName());
+	}
 
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(nextHandler.get(context)).thenReturn(nextValue);
+	@Test
+	@DisplayName("PC-001: 正常请求通过检查")
+	void testNormalRequestPassCheck() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
+		CacheValue nextValue = createCacheValue("next-value");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CacheValue result = preCheckHandler.get(context);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(nextHandler.get(context)).thenReturn(nextValue);
 
-        assertNotNull(result);
-        assertEquals("next-value", result.getValue());
-        verify(readHotspotDetector).recordRead(any());
-        verify(nextHandler).get(context);
-    }
+		CacheValue result = preCheckHandler.get(context);
 
-    @Test
-    @DisplayName("PC-002: 布隆过滤器过滤无效key")
-    void testBloomFilterFilterInvalidKey() {
-        CacheKey cacheKey = createCacheKeyWithBloomFilter(CacheLevel.LOCAL_CACHE, "invalid-key");
-        CacheContext context = createCacheContext(cacheKey);
+		assertNotNull(result);
+		assertEquals("next-value", result.getValue());
+		verify(readHotspotDetector).recordRead(any());
+		verify(nextHandler).get(context);
+	}
 
-        when(bloomFilter.exists(any(), any())).thenReturn(false);
+	@Test
+	@DisplayName("PC-002: 布隆过滤器过滤无效key")
+	void testBloomFilterFilterInvalidKey() {
+		CacheKey cacheKey = createCacheKeyWithBloomFilter(CacheLevel.LOCAL_CACHE, "invalid-key");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CacheValue result = preCheckHandler.get(context);
+		when(bloomFilter.exists(any(), any())).thenReturn(false);
 
-        assertNull(result);
-        verify(readHotspotDetector).recordRead(any());
-        verify(nextHandler, never()).get(any());
-    }
+		CacheValue result = preCheckHandler.get(context);
 
-    @Test
-    @DisplayName("PC-003: 空CacheKey检查失败")
-    void testNullCacheKeyCheckFailed() {
-        CacheContext context = createCacheContext(null);
+		assertNull(result);
+		verify(readHotspotDetector).recordRead(any());
+		verify(nextHandler, never()).get(any());
+	}
 
-        assertThrows(Exception.class, () -> {
-            preCheckHandler.get(context);
-        });
-    }
+	@Test
+	@DisplayName("PC-003: 空CacheKey检查失败")
+	void testNullCacheKeyCheckFailed() {
+		CacheContext context = createCacheContext(null);
 
-    @Test
-    @DisplayName("PC-004: 记录读操作")
-    void testRecordReadOperation() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
-        CacheValue nextValue = createCacheValue("next-value");
-        CacheContext context = createCacheContext(cacheKey);
+		assertThrows(Exception.class, () -> {
+			preCheckHandler.get(context);
+		});
+	}
 
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(nextHandler.get(context)).thenReturn(nextValue);
+	@Test
+	@DisplayName("PC-004: 记录读操作")
+	void testRecordReadOperation() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
+		CacheValue nextValue = createCacheValue("next-value");
+		CacheContext context = createCacheContext(cacheKey);
 
-        preCheckHandler.get(context);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(nextHandler.get(context)).thenReturn(nextValue);
 
-        verify(readHotspotDetector).recordRead(cacheKey.getKey());
-    }
+		preCheckHandler.get(context);
 
-    @Test
-    @DisplayName("PC-005: 布隆过滤器未启用时通过")
-    void testBloomFilterDisabled() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
-        CacheValue nextValue = createCacheValue("next-value");
-        CacheContext context = createCacheContext(cacheKey);
+		verify(readHotspotDetector).recordRead(cacheKey.getKey());
+	}
 
-        when(nextHandler.get(context)).thenReturn(nextValue);
+	@Test
+	@DisplayName("PC-005: 布隆过滤器未启用时通过")
+	void testBloomFilterDisabled() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "test-key");
+		CacheValue nextValue = createCacheValue("next-value");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CacheValue result = preCheckHandler.get(context);
+		when(nextHandler.get(context)).thenReturn(nextValue);
 
-        assertNotNull(result);
-        assertEquals("next-value", result.getValue());
-        verify(bloomFilter, never()).exists(any(), any());
-        verify(nextHandler).get(context);
-    }
+		CacheValue result = preCheckHandler.get(context);
 
-    @Test
-    @DisplayName("PC-006: 异步请求通过检查")
-    void testAsyncRequestPassCheck() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "async-key");
-        CacheValue asyncValue = createCacheValue("async-value");
-        CacheContext context = createCacheContext(cacheKey);
+		assertNotNull(result);
+		assertEquals("next-value", result.getValue());
+		verify(bloomFilter, never()).exists(any(), any());
+		verify(nextHandler).get(context);
+	}
 
-        when(bloomFilter.exists(any(), any())).thenReturn(true);
-        when(nextHandler.getAsync(context)).thenReturn(CompletableFuture.completedFuture(asyncValue));
+	@Test
+	@DisplayName("PC-006: 异步请求通过检查")
+	void testAsyncRequestPassCheck() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "async-key");
+		CacheValue asyncValue = createCacheValue("async-value");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CompletableFuture<CacheValue> future = preCheckHandler.getAsync(context);
+		when(bloomFilter.exists(any(), any())).thenReturn(true);
+		when(nextHandler.getAsync(context)).thenReturn(CompletableFuture.completedFuture(asyncValue));
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-        verify(readHotspotDetector).recordRead(any());
-        verify(nextHandler).getAsync(context);
-    }
+		CompletableFuture<CacheValue> future = preCheckHandler.getAsync(context);
 
-    @Test
-    @DisplayName("PC-007: 失效请求通过检查")
-    void testEvictRequestPassCheck() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "evict-key");
-        CacheContext context = createCacheContext(cacheKey);
+		assertNotNull(future);
+		assertTrue(future.isDone());
+		verify(readHotspotDetector).recordRead(any());
+		verify(nextHandler).getAsync(context);
+	}
 
-        preCheckHandler.evict(context);
+	@Test
+	@DisplayName("PC-007: 失效请求通过检查")
+	void testEvictRequestPassCheck() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "evict-key");
+		CacheContext context = createCacheContext(cacheKey);
 
-        verify(nextHandler).evict(context);
-    }
+		preCheckHandler.evict(context);
 
-    @Test
-    @DisplayName("PC-008: 异步失效请求通过检查")
-    void testEvictAsyncRequestPassCheck() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "async-evict-key");
-        CacheContext context = createCacheContext(cacheKey);
+		verify(nextHandler).evict(context);
+	}
 
-        when(nextHandler.evictAsync(context)).thenReturn(CompletableFuture.completedFuture(true));
+	@Test
+	@DisplayName("PC-008: 异步失效请求通过检查")
+	void testEvictAsyncRequestPassCheck() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "async-evict-key");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CompletableFuture<Boolean> future = preCheckHandler.evictAsync(context);
+		when(nextHandler.evictAsync(context)).thenReturn(CompletableFuture.completedFuture(true));
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-        verify(nextHandler).evictAsync(context);
-    }
+		CompletableFuture<Boolean> future = preCheckHandler.evictAsync(context);
 
-    @Test
-    @DisplayName("PC-009: 布隆过滤器异常时继续执行")
-    void testBloomFilterExceptionContinue() {
-        CacheKey cacheKey = createCacheKeyWithBloomFilter(CacheLevel.LOCAL_CACHE, "exception-key");
-        CacheValue nextValue = createCacheValue("next-value");
-        CacheContext context = createCacheContext(cacheKey);
+		assertNotNull(future);
+		assertTrue(future.isDone());
+		verify(nextHandler).evictAsync(context);
+	}
 
-        when(bloomFilter.exists(any(), any())).thenThrow(new RuntimeException("Bloom filter error"));
-        when(nextHandler.get(context)).thenReturn(nextValue);
+	@Test
+	@DisplayName("PC-009: 布隆过滤器异常时继续执行")
+	void testBloomFilterExceptionContinue() {
+		CacheKey cacheKey = createCacheKeyWithBloomFilter(CacheLevel.LOCAL_CACHE, "exception-key");
+		CacheValue nextValue = createCacheValue("next-value");
+		CacheContext context = createCacheContext(cacheKey);
 
-        CacheValue result = preCheckHandler.get(context);
+		when(bloomFilter.exists(any(), any())).thenThrow(new RuntimeException("Bloom filter error"));
+		when(nextHandler.get(context)).thenReturn(nextValue);
 
-        assertNotNull(result);
-        assertEquals("next-value", result.getValue());
-        verify(nextHandler).get(context);
-    }
+		CacheValue result = preCheckHandler.get(context);
 
-    private CacheKey createCacheKey(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(60000)
-                .build();
-    }
+		assertNotNull(result);
+		assertEquals("next-value", result.getValue());
+		verify(nextHandler).get(context);
+	}
 
-    private CacheKey createCacheKeyWithBloomFilter(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(true)
-                .bloomFilterName("default-filter")
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(60000)
-                .build();
-    }
+	private CacheKey createCacheKey(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(60000)
+			.build();
+	}
 
-    private CacheValue createCacheValue(Object value) {
-        return CacheValue.builder()
-                .value(value)
-                .createdAt(System.currentTimeMillis())
-                .expireTime(System.currentTimeMillis() + 60000)
-                .build();
-    }
+	private CacheKey createCacheKeyWithBloomFilter(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(true)
+			.bloomFilterName("default-filter")
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(60000)
+			.build();
+	}
 
-    private CacheContext createCacheContext(CacheKey cacheKey) {
-        Function<Object, Object> loader = key -> "loaded-value";
-        return CacheContext.builder()
-                .cacheKey(cacheKey)
-                .doSingleFlightFun(loader)
-                .metricsRecorder(CacheMetricsRecorder.noOp())
-                .build();
-    }
+	private CacheValue createCacheValue(Object value) {
+		return CacheValue.builder()
+			.value(value)
+			.createdAt(System.currentTimeMillis())
+			.expireTime(System.currentTimeMillis() + 60000)
+			.build();
+	}
+
+	private CacheContext createCacheContext(CacheKey cacheKey) {
+		Function<Object, Object> loader = key -> "loaded-value";
+		return CacheContext.builder()
+			.cacheKey(cacheKey)
+			.doSingleFlightFun(loader)
+			.metricsRecorder(CacheMetricsRecorder.noOp())
+			.build();
+	}
+
 }

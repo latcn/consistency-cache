@@ -57,18 +57,15 @@ public class RedisPubSub {
 
 	@Test
 	public void publish() throws InterruptedException {
-		setUp();
 		InvalidationMessage invalidationMessage = new InvalidationMessage();
 		for (int i = 0; i < 2; i++) {
 			CacheKey cacheKey = CacheKey.builder().key(i + ":" + UUID.randomUUID()).build();
 			invalidationMessage.addKey(cacheKey);
 		}
 		rTopicPublisher.broadcastMessage(Set.of(channelName), invalidationMessage);
-		Thread.sleep(100000);
-		/*
-		 * CacheKey cacheKey = CacheKey.builder() .key("0:"+UUID.randomUUID()).build();
-		 * this.cacheExecutor.evict(cacheKey);
-		 */
+		// Thread.sleep(100000);
+		CacheKey cacheKey = CacheKey.builder().key("0:" + UUID.randomUUID()).build();
+		this.cacheExecutor.evict(cacheKey);
 	}
 
 	@Test

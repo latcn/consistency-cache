@@ -55,7 +55,7 @@ public class TimerWheel {
 			throw new CacheException(CacheError.INVALID_PARAMETER,
 					"TimerWheel: num and interval must be positive, got num=" + num + ", interval=" + interval);
 		}
-		long now = TimeUtil.currentNanoToMil();
+		long now = System.currentTimeMillis();
 		this.num = num;
 		this.interval = interval;
 		this.maxThreadCount = maxThreadCount;
@@ -76,11 +76,8 @@ public class TimerWheel {
 		this.tickThread = new Thread(() -> {
 			while (!isStop.get()) {
 				long deadline = currentTime + interval;
-				long now = TimeUtil.currentNanoToMil();
-				while (deadline > now) {
-					long remaining = deadline - now;
-					LockSupport.parkNanos(remaining * TimeUtil.NANO_TO_MIL);
-					now = TimeUtil.currentNanoToMil();
+				while (deadline > System.currentTimeMillis()) {
+					LockSupport.parkUntil(deadline);
 				}
 				if (isStop.get()) {
 					break;

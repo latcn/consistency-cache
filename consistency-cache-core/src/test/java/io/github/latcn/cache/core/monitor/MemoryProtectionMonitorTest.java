@@ -45,7 +45,7 @@ class MemoryProtectionMonitorTest {
 	void testDefaultConstructor() {
 		when(localCacheManager.getSize()).thenReturn(0L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8);
-		
+
 		assertEquals(1000, monitor.getMaxSize());
 		assertEquals(0.8, monitor.getWarningThreshold(), 0.001);
 		assertEquals(30, monitor.getCheckIntervalSeconds());
@@ -56,7 +56,7 @@ class MemoryProtectionMonitorTest {
 	void testCustomConstructor() {
 		when(localCacheManager.getSize()).thenReturn(0L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 2000, 0.9, 15);
-		
+
 		assertEquals(2000, monitor.getMaxSize());
 		assertEquals(0.9, monitor.getWarningThreshold(), 0.001);
 		assertEquals(15, monitor.getCheckIntervalSeconds());
@@ -67,7 +67,7 @@ class MemoryProtectionMonitorTest {
 	void testConstructorWithMeterRegistry() {
 		when(localCacheManager.getSize()).thenReturn(500L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 30, meterRegistry);
-		
+
 		assertNotNull(meterRegistry.find("hcc_memory_usage_ratio").gauge());
 		assertNotNull(meterRegistry.find("hcc_memory_max_size_bytes").gauge());
 		assertNotNull(meterRegistry.find("hcc_memory_evictions_total").counter());
@@ -79,7 +79,7 @@ class MemoryProtectionMonitorTest {
 	void testGetUsageRatio() {
 		when(localCacheManager.getSize()).thenReturn(500L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8);
-		
+
 		assertEquals(0.5, monitor.getUsageRatio(), 0.001);
 	}
 
@@ -88,7 +88,7 @@ class MemoryProtectionMonitorTest {
 	void testGetFormattedUsage() {
 		when(localCacheManager.getSize()).thenReturn(750L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8);
-		
+
 		assertEquals("75.0%", monitor.getFormattedUsage());
 	}
 
@@ -98,9 +98,9 @@ class MemoryProtectionMonitorTest {
 	void testNoEvictionBelowThreshold() throws InterruptedException {
 		when(localCacheManager.getSize()).thenReturn(500L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 1);
-		
+
 		Thread.sleep(2000);
-		
+
 		verify(localCacheManager, never()).runEviction();
 	}
 
@@ -110,9 +110,9 @@ class MemoryProtectionMonitorTest {
 	void testEvictionAboveThreshold() throws InterruptedException {
 		when(localCacheManager.getSize()).thenReturn(850L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 1);
-		
+
 		Thread.sleep(2000);
-		
+
 		verify(localCacheManager, atLeastOnce()).runEviction();
 	}
 
@@ -122,9 +122,9 @@ class MemoryProtectionMonitorTest {
 	void testEvictionAboveThresholdWithMetrics() throws InterruptedException {
 		when(localCacheManager.getSize()).thenReturn(850L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 1, meterRegistry);
-		
+
 		Thread.sleep(2000);
-		
+
 		verify(localCacheManager, atLeastOnce()).runEviction();
 		assertTrue(meterRegistry.find("hcc_memory_warnings_total").counter().count() >= 1);
 		assertTrue(meterRegistry.find("hcc_memory_evictions_total").counter().count() >= 1);
@@ -136,9 +136,9 @@ class MemoryProtectionMonitorTest {
 	void testEvictionAtThreshold() throws InterruptedException {
 		when(localCacheManager.getSize()).thenReturn(800L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 1);
-		
+
 		Thread.sleep(2000);
-		
+
 		verify(localCacheManager, atLeastOnce()).runEviction();
 	}
 
@@ -147,7 +147,7 @@ class MemoryProtectionMonitorTest {
 	void testZeroMaxSize() {
 		when(localCacheManager.getSize()).thenReturn(0L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 0, 0.8);
-		
+
 		assertDoesNotThrow(() -> monitor.getUsageRatio());
 	}
 
@@ -156,7 +156,7 @@ class MemoryProtectionMonitorTest {
 	void testNegativeCacheSize() {
 		when(localCacheManager.getSize()).thenReturn(-100L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8);
-		
+
 		assertTrue(monitor.getUsageRatio() <= 0);
 	}
 
@@ -165,15 +165,14 @@ class MemoryProtectionMonitorTest {
 	void testShutdown() {
 		when(localCacheManager.getSize()).thenReturn(0L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8);
-		
+
 		assertDoesNotThrow(() -> monitor.shutdown());
 	}
 
 	@Test
 	@DisplayName("Should handle null local cache manager")
 	void testNullLocalCacheManager() {
-		assertThrows(NullPointerException.class,
-				() -> new MemoryProtectionMonitor(null, 1000, 0.8));
+		assertThrows(NullPointerException.class, () -> new MemoryProtectionMonitor(null, 1000, 0.8));
 	}
 
 	@Test
@@ -181,7 +180,7 @@ class MemoryProtectionMonitorTest {
 	void testNegativeThreshold() {
 		when(localCacheManager.getSize()).thenReturn(500L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, -0.5);
-		
+
 		assertFalse(monitor.getUsageRatio() >= monitor.getWarningThreshold());
 	}
 
@@ -190,7 +189,7 @@ class MemoryProtectionMonitorTest {
 	void testThresholdGreaterThanOne() {
 		when(localCacheManager.getSize()).thenReturn(1500L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 1.5);
-		
+
 		assertFalse(monitor.getUsageRatio() >= monitor.getWarningThreshold());
 	}
 
@@ -199,7 +198,7 @@ class MemoryProtectionMonitorTest {
 	void testMemoryUsageRatioMetrics() {
 		when(localCacheManager.getSize()).thenReturn(600L);
 		monitor = new MemoryProtectionMonitor(localCacheManager, 1000, 0.8, 30, meterRegistry);
-		
+
 		assertEquals(0.6, meterRegistry.find("hcc_memory_usage_ratio").gauge().value(), 0.001);
 		assertEquals(1000.0, meterRegistry.find("hcc_memory_max_size_bytes").gauge().value(), 0.001);
 	}

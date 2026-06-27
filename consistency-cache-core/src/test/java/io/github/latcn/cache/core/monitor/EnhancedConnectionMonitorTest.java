@@ -80,7 +80,7 @@ class EnhancedConnectionMonitorTest {
 	void testConstructorWithMeterRegistry() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
 		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 3, meterRegistry);
-		
+
 		assertNotNull(meterRegistry.find("hcc_connection_status").gauge());
 		assertNotNull(meterRegistry.find("hcc_connection_disconnections_total").counter());
 		assertNotNull(meterRegistry.find("hcc_connection_reconnections_total").counter());
@@ -185,22 +185,20 @@ class EnhancedConnectionMonitorTest {
 	void testShutdown() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
 		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
-		
+
 		assertDoesNotThrow(() -> monitor.shutdown());
 	}
 
 	@Test
 	@DisplayName("Should handle null distributed cache manager")
 	void testNullDistributedCacheManager() {
-		assertThrows(NullPointerException.class,
-				() -> new EnhancedConnectionMonitor(null, localCacheManager));
+		assertThrows(NullPointerException.class, () -> new EnhancedConnectionMonitor(null, localCacheManager));
 	}
 
 	@Test
 	@DisplayName("Should handle null local cache manager")
 	void testNullLocalCacheManager() {
-		assertThrows(NullPointerException.class,
-				() -> new EnhancedConnectionMonitor(distributedCacheManager, null));
+		assertThrows(NullPointerException.class, () -> new EnhancedConnectionMonitor(distributedCacheManager, null));
 	}
 
 }

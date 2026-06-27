@@ -38,8 +38,8 @@ public class CacheMetricsAutoConfiguration {
 	@ConditionalOnProperty(prefix = "spring.hcc.cache.monitor", name = "prometheus-enabled", havingValue = "true",
 			matchIfMissing = true)
 	public PrometheusCacheMetrics prometheusCacheMetrics(LocalCacheManager localCacheManager,
-														 DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
-														 ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
+			DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
+			ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
 		log.info("Initializing Prometheus Cache Metrics...");
 		return new PrometheusCacheMetrics(localCacheManager, distributedCacheManager, circuitBreaker,
 				readHotspotDetector, writeHotspotDetector);

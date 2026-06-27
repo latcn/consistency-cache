@@ -30,242 +30,244 @@ import org.mockito.MockitoAnnotations;
 @DisplayName("数据库Handler测试")
 class DbHandlerTest {
 
-    @Mock
-    private LocalCacheManager localCacheManager;
+	@Mock
+	private LocalCacheManager localCacheManager;
 
-    @Mock
-    private DistributedCacheManager distributedCacheManager;
+	@Mock
+	private DistributedCacheManager distributedCacheManager;
 
-    @Mock
-    private LocalCacheMarkerManager localCacheMarkerManager;
+	@Mock
+	private LocalCacheMarkerManager localCacheMarkerManager;
 
-    @Mock
-    private WriteHotspotDetector writeHotspotDetector;
+	@Mock
+	private WriteHotspotDetector writeHotspotDetector;
 
-    @Mock
-    private ReadHotspotDetector readHotspotDetector;
+	@Mock
+	private ReadHotspotDetector readHotspotDetector;
 
-    @Mock
-    private CacheCircuitBreaker circuitBreaker;
+	@Mock
+	private CacheCircuitBreaker circuitBreaker;
 
-    @Mock
-    private CacheBloomFilter bloomFilter;
+	@Mock
+	private CacheBloomFilter bloomFilter;
 
-    private CacheExecutorConfig config;
-    private DbHandler dbHandler;
+	private CacheExecutorConfig config;
 
-    @BeforeEach
-    void setUp(TestInfo testInfo) {
-        MockitoAnnotations.openMocks(this);
+	private DbHandler dbHandler;
 
-        config = CacheExecutorConfig.builder()
-                .localCacheManager(localCacheManager)
-                .distributedCacheManager(distributedCacheManager)
-                .localCacheMarkerManager(localCacheMarkerManager)
-                .writeHotspotDetector(writeHotspotDetector)
-                .readStatistics(readHotspotDetector)
-                .cacheCircuitBreaker(circuitBreaker)
-                .cacheBloomFilter(bloomFilter)
-                .build();
+	@BeforeEach
+	void setUp(TestInfo testInfo) {
+		MockitoAnnotations.openMocks(this);
 
-        dbHandler = new DbHandler(null, config);
+		config = CacheExecutorConfig.builder()
+			.localCacheManager(localCacheManager)
+			.distributedCacheManager(distributedCacheManager)
+			.localCacheMarkerManager(localCacheMarkerManager)
+			.writeHotspotDetector(writeHotspotDetector)
+			.readStatistics(readHotspotDetector)
+			.cacheCircuitBreaker(circuitBreaker)
+			.cacheBloomFilter(bloomFilter)
+			.build();
 
-        System.out.println("执行测试: " + testInfo.getDisplayName());
-    }
+		dbHandler = new DbHandler(null, config);
 
-    @Test
-    @DisplayName("DB-001: 从DB加载数据")
-    void testLoadFromDb() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        Function<Object, Object> loader = key -> "db-loaded-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		System.out.println("执行测试: " + testInfo.getDisplayName());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-001: 从DB加载数据")
+	void testLoadFromDb() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		Function<Object, Object> loader = key -> "db-loaded-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertEquals("db-loaded-value", result.getValue());
-        assertNotNull(result.getCreatedAt());
-        assertTrue(result.getExpireTime() > System.currentTimeMillis());
-        verify(distributedCacheManager).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-002: DB返回null且允许缓存null")
-    void testLoadNullWithCacheNullValues() {
-        CacheKey cacheKey = createCacheKeyWithCacheNull(CacheLevel.ADAPTIVE_CACHE, "null-key");
-        Function<Object, Object> loader = key -> null;
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNotNull(result);
+		assertEquals("db-loaded-value", result.getValue());
+		assertNotNull(result.getCreatedAt());
+		assertTrue(result.getExpireTime() > System.currentTimeMillis());
+		verify(distributedCacheManager).put(any(), any());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-002: DB返回null且允许缓存null")
+	void testLoadNullWithCacheNullValues() {
+		CacheKey cacheKey = createCacheKeyWithCacheNull(CacheLevel.ADAPTIVE_CACHE, "null-key");
+		Function<Object, Object> loader = key -> null;
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertNull(result.getValue());
-        verify(distributedCacheManager).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-003: DB返回null且不允许缓存null")
-    void testLoadNullWithoutCacheNullValues() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "null-key");
-        Function<Object, Object> loader = key -> null;
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNotNull(result);
+		assertNull(result.getValue());
+		verify(distributedCacheManager).put(any(), any());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-003: DB返回null且不允许缓存null")
+	void testLoadNullWithoutCacheNullValues() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "null-key");
+		Function<Object, Object> loader = key -> null;
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNull(result);
-        verify(distributedCacheManager, never()).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-004: LOCAL_CACHE级别回填本地缓存")
-    void testLocalCacheLevelBackfill() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "local-key");
-        Function<Object, Object> loader = key -> "local-loaded-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNull(result);
+		verify(distributedCacheManager, never()).put(any(), any());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-004: LOCAL_CACHE级别回填本地缓存")
+	void testLocalCacheLevelBackfill() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.LOCAL_CACHE, "local-key");
+		Function<Object, Object> loader = key -> "local-loaded-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertEquals("local-loaded-value", result.getValue());
-        verify(localCacheManager).put(cacheKey, result);
-        verify(distributedCacheManager, never()).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-005: ADAPTIVE_CACHE级别回填分布式缓存")
-    void testAdaptiveCacheLevelBackfill() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "adaptive-key");
-        Function<Object, Object> loader = key -> "adaptive-loaded-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNotNull(result);
+		assertEquals("local-loaded-value", result.getValue());
+		verify(localCacheManager).put(cacheKey, result);
+		verify(distributedCacheManager, never()).put(any(), any());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-005: ADAPTIVE_CACHE级别回填分布式缓存")
+	void testAdaptiveCacheLevelBackfill() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "adaptive-key");
+		Function<Object, Object> loader = key -> "adaptive-loaded-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertEquals("adaptive-loaded-value", result.getValue());
-        verify(distributedCacheManager).put(cacheKey, result);
-        verify(localCacheManager, never()).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-006: 设置过期时间")
-    void testSetExpireTime() {
-        long customExpireTimeMs = 120000;
-        CacheKey cacheKey = createCacheKeyWithExpireTime(CacheLevel.ADAPTIVE_CACHE, "expire-key", customExpireTimeMs);
-        Function<Object, Object> loader = key -> "expire-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNotNull(result);
+		assertEquals("adaptive-loaded-value", result.getValue());
+		verify(distributedCacheManager).put(cacheKey, result);
+		verify(localCacheManager, never()).put(any(), any());
+	}
 
-        long startTime = System.currentTimeMillis();
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-006: 设置过期时间")
+	void testSetExpireTime() {
+		long customExpireTimeMs = 120000;
+		CacheKey cacheKey = createCacheKeyWithExpireTime(CacheLevel.ADAPTIVE_CACHE, "expire-key", customExpireTimeMs);
+		Function<Object, Object> loader = key -> "expire-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertTrue(result.getExpireTime() >= startTime + customExpireTimeMs);
-    }
+		long startTime = System.currentTimeMillis();
+		CacheValue result = dbHandler.get(context);
 
-    @Test
-    @DisplayName("DB-007: 异步加载数据")
-    void testLoadFromDbAsync() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-key");
-        Function<Object, Object> loader = key -> "async-loaded-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertNotNull(result);
+		assertTrue(result.getExpireTime() >= startTime + customExpireTimeMs);
+	}
 
-        when(distributedCacheManager.putInBatch(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(true));
+	@Test
+	@DisplayName("DB-007: 异步加载数据")
+	void testLoadFromDbAsync() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "async-key");
+		Function<Object, Object> loader = key -> "async-loaded-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        CompletableFuture<CacheValue> future = dbHandler.getAsync(context);
+		when(distributedCacheManager.putInBatch(any(), any())).thenReturn(CompletableFuture.completedFuture(true));
 
-        assertNotNull(future);
-        assertTrue(future.isDone());
-        try {
-            CacheValue result = future.get();
-            assertNotNull(result);
-            assertEquals("async-loaded-value", result.getValue());
-        } catch (Exception e) {
-            fail("异步加载失败: " + e.getMessage());
-        }
-    }
+		CompletableFuture<CacheValue> future = dbHandler.getAsync(context);
 
-    @Test
-    @DisplayName("DB-008: 调用evict抛出异常")
-    void testEvictThrowsException() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        CacheContext context = createCacheContext(cacheKey, key -> "value");
+		assertNotNull(future);
+		try {
+			CacheValue result = future.get();
+			assertTrue(future.isDone());
+			assertNotNull(result);
+			assertEquals("async-loaded-value", result.getValue());
+		}
+		catch (Exception e) {
+			fail("异步加载失败: " + e.getMessage());
+		}
+	}
 
-        CacheException exception = assertThrows(CacheException.class, () -> {
-            dbHandler.evict(context);
-        });
+	@Test
+	@DisplayName("DB-008: 调用evict抛出异常")
+	void testEvictThrowsException() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		CacheContext context = createCacheContext(cacheKey, key -> "value");
 
-        assertEquals(CacheError.UNSUPPORTED_OPERATION.getErrorCode(), exception.getErrorCode());
-    }
+		CacheException exception = assertThrows(CacheException.class, () -> {
+			dbHandler.evict(context);
+		});
 
-    @Test
-    @DisplayName("DB-009: 调用evictAsync抛出异常")
-    void testEvictAsyncThrowsException() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
-        CacheContext context = createCacheContext(cacheKey, key -> "value");
+		assertEquals(CacheError.UNSUPPORTED_OPERATION.getErrorCode(), exception.getErrorCode());
+	}
 
-        CacheException exception = assertThrows(CacheException.class, () -> {
-            dbHandler.evictAsync(context);
-        });
+	@Test
+	@DisplayName("DB-009: 调用evictAsync抛出异常")
+	void testEvictAsyncThrowsException() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.ADAPTIVE_CACHE, "test-key");
+		CacheContext context = createCacheContext(cacheKey, key -> "value");
 
-        assertEquals(CacheError.UNSUPPORTED_OPERATION.getErrorCode(), exception.getErrorCode());
-    }
+		CacheException exception = assertThrows(CacheException.class, () -> {
+			dbHandler.evictAsync(context);
+		});
 
-    @Test
-    @DisplayName("DB-010: L2_CACHE级别回填分布式缓存")
-    void testL2CacheLevelBackfill() {
-        CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "l2-key");
-        Function<Object, Object> loader = key -> "l2-loaded-value";
-        CacheContext context = createCacheContext(cacheKey, loader);
+		assertEquals(CacheError.UNSUPPORTED_OPERATION.getErrorCode(), exception.getErrorCode());
+	}
 
-        CacheValue result = dbHandler.get(context);
+	@Test
+	@DisplayName("DB-010: L2_CACHE级别回填分布式缓存")
+	void testL2CacheLevelBackfill() {
+		CacheKey cacheKey = createCacheKey(CacheLevel.L2_CACHE, "l2-key");
+		Function<Object, Object> loader = key -> "l2-loaded-value";
+		CacheContext context = createCacheContext(cacheKey, loader);
 
-        assertNotNull(result);
-        assertEquals("l2-loaded-value", result.getValue());
-        verify(distributedCacheManager).put(cacheKey, result);
-        verify(localCacheManager, never()).put(any(), any());
-    }
+		CacheValue result = dbHandler.get(context);
 
-    private CacheKey createCacheKey(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(60000)
-                .build();
-    }
+		assertNotNull(result);
+		assertEquals("l2-loaded-value", result.getValue());
+		verify(distributedCacheManager).put(cacheKey, result);
+		verify(localCacheManager, never()).put(any(), any());
+	}
 
-    private CacheKey createCacheKeyWithCacheNull(CacheLevel level, String key) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(true)
-                .expireTimeMs(60000)
-                .build();
-    }
+	private CacheKey createCacheKey(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(60000)
+			.build();
+	}
 
-    private CacheKey createCacheKeyWithExpireTime(CacheLevel level, String key, long expireTimeMs) {
-        return CacheKey.builder()
-                .key(key)
-                .cacheLevel(level)
-                .consistencyLevel(ConsistencyLevel.HIGH)
-                .bloomFilterEnabled(false)
-                .broadcastEnabled(false)
-                .cacheNullValues(false)
-                .expireTimeMs(expireTimeMs)
-                .build();
-    }
+	private CacheKey createCacheKeyWithCacheNull(CacheLevel level, String key) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(true)
+			.expireTimeMs(60000)
+			.build();
+	}
 
-    private CacheContext createCacheContext(CacheKey cacheKey, Function<Object, Object> loader) {
-        return CacheContext.builder()
-                .cacheKey(cacheKey)
-                .doSingleFlightFun(loader)
-                .metricsRecorder(CacheMetricsRecorder.noOp())
-                .build();
-    }
+	private CacheKey createCacheKeyWithExpireTime(CacheLevel level, String key, long expireTimeMs) {
+		return CacheKey.builder()
+			.key(key)
+			.cacheLevel(level)
+			.consistencyLevel(ConsistencyLevel.HIGH)
+			.bloomFilterEnabled(false)
+			.broadcastEnabled(false)
+			.cacheNullValues(false)
+			.expireTimeMs(expireTimeMs)
+			.build();
+	}
+
+	private CacheContext createCacheContext(CacheKey cacheKey, Function<Object, Object> loader) {
+		return CacheContext.builder()
+			.cacheKey(cacheKey)
+			.doSingleFlightFun(loader)
+			.metricsRecorder(CacheMetricsRecorder.noOp())
+			.build();
+	}
+
 }

@@ -14,213 +14,215 @@ import org.junit.jupiter.api.TestInfo;
 @DisplayName("时间轮测试")
 class TimerWheelTest {
 
-    private TimerWheel timerWheel;
-    private AtomicInteger executedCount;
+	private TimerWheel timerWheel;
 
-    @BeforeEach
-    void setUp(TestInfo testInfo) {
-        timerWheel = new TimerWheel(10, 100, 4);
-        executedCount = new AtomicInteger(0);
-        System.out.println("执行测试: " + testInfo.getDisplayName());
-    }
+	private AtomicInteger executedCount;
 
-    @AfterEach
-    void tearDown() {
-        if (timerWheel != null) {
-            timerWheel.shutDown();
-        }
-    }
+	@BeforeEach
+	void setUp(TestInfo testInfo) {
+		timerWheel = new TimerWheel(10, 100, 4);
+		executedCount = new AtomicInteger(0);
+		System.out.println("执行测试: " + testInfo.getDisplayName());
+	}
 
-    @Test
-    @DisplayName("TW-001: 添加立即执行任务")
-    void testAddImmediateExecutionTask() throws InterruptedException {
-        TimerTask task = new TimerTask(System.currentTimeMillis(), () -> {
-            executedCount.incrementAndGet();
-            return null;
-        });
+	@AfterEach
+	void tearDown() {
+		if (timerWheel != null) {
+			timerWheel.shutDown();
+		}
+	}
 
-        timerWheel.addTask(task);
+	@Test
+	@DisplayName("TW-001: 添加立即执行任务")
+	void testAddImmediateExecutionTask() throws InterruptedException {
+		TimerTask task = new TimerTask(System.currentTimeMillis(), () -> {
+			executedCount.incrementAndGet();
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(200);
+		timerWheel.addTask(task);
 
-        assertTrue(executedCount.get() >= 1);
-    }
+		TimeUnit.MILLISECONDS.sleep(200);
 
-    @Test
-    @DisplayName("TW-002: 添加延迟执行任务")
-    void testAddDelayedExecutionTask() throws InterruptedException {
-        long execTime = System.currentTimeMillis() + 500;
-        TimerTask task = new TimerTask(execTime, () -> {
-            executedCount.incrementAndGet();
-            return null;
-        });
+		assertTrue(executedCount.get() >= 1);
+	}
 
-        timerWheel.addTask(task);
+	@Test
+	@DisplayName("TW-002: 添加延迟执行任务")
+	void testAddDelayedExecutionTask() throws InterruptedException {
+		long execTime = System.currentTimeMillis() + 500;
+		TimerTask task = new TimerTask(execTime, () -> {
+			executedCount.incrementAndGet();
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(100);
-        assertEquals(0, executedCount.get());
+		timerWheel.addTask(task);
 
-        TimeUnit.MILLISECONDS.sleep(600);
-        assertTrue(executedCount.get() >= 1);
-    }
+		TimeUnit.MILLISECONDS.sleep(100);
+		assertEquals(0, executedCount.get());
 
-    @Test
-    @DisplayName("TW-003: 添加超范围任务（溢出）")
-    void testAddOverflowTask() throws InterruptedException {
-        long execTime = System.currentTimeMillis() + 2000;
-        TimerTask task = new TimerTask(execTime, () -> {
-            executedCount.incrementAndGet();
-            return null;
-        });
+		TimeUnit.MILLISECONDS.sleep(600);
+		assertTrue(executedCount.get() >= 1);
+	}
 
-        timerWheel.addTask(task);
+	@Test
+	@DisplayName("TW-003: 添加超范围任务（溢出）")
+	void testAddOverflowTask() throws InterruptedException {
+		long execTime = System.currentTimeMillis() + 2000;
+		TimerTask task = new TimerTask(execTime, () -> {
+			executedCount.incrementAndGet();
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(500);
-        assertEquals(0, executedCount.get());
+		timerWheel.addTask(task);
 
-        TimeUnit.MILLISECONDS.sleep(2500);
-        assertTrue(executedCount.get() >= 1);
-    }
+		TimeUnit.MILLISECONDS.sleep(500);
+		assertEquals(0, executedCount.get());
 
-    @Test
-    @DisplayName("TW-004: 多个任务按时间顺序执行")
-    void testMultipleTasksExecuteInOrder() throws InterruptedException {
-        AtomicInteger executionOrder = new AtomicInteger(0);
-        StringBuilder orderBuilder = new StringBuilder();
+		TimeUnit.MILLISECONDS.sleep(2500);
+		assertTrue(executedCount.get() >= 1);
+	}
 
-        TimerTask task1 = new TimerTask(System.currentTimeMillis() + 100, () -> {
-            orderBuilder.append("1");
-            return null;
-        });
+	@Test
+	@DisplayName("TW-004: 多个任务按时间顺序执行")
+	void testMultipleTasksExecuteInOrder() throws InterruptedException {
+		AtomicInteger executionOrder = new AtomicInteger(0);
+		StringBuilder orderBuilder = new StringBuilder();
 
-        TimerTask task2 = new TimerTask(System.currentTimeMillis() + 200, () -> {
-            orderBuilder.append("2");
-            return null;
-        });
+		TimerTask task1 = new TimerTask(System.currentTimeMillis() + 100, () -> {
+			orderBuilder.append("1");
+			return null;
+		});
 
-        TimerTask task3 = new TimerTask(System.currentTimeMillis() + 300, () -> {
-            orderBuilder.append("3");
-            return null;
-        });
+		TimerTask task2 = new TimerTask(System.currentTimeMillis() + 200, () -> {
+			orderBuilder.append("2");
+			return null;
+		});
 
-        timerWheel.addTask(task1);
-        timerWheel.addTask(task2);
-        timerWheel.addTask(task3);
+		TimerTask task3 = new TimerTask(System.currentTimeMillis() + 300, () -> {
+			orderBuilder.append("3");
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(500);
+		timerWheel.addTask(task1);
+		timerWheel.addTask(task2);
+		timerWheel.addTask(task3);
 
-        String order = orderBuilder.toString();
-        assertTrue(order.contains("1"));
-        assertTrue(order.contains("2"));
-        assertTrue(order.contains("3"));
-    }
+		TimeUnit.MILLISECONDS.sleep(500);
 
-    @Test
-    @DisplayName("TW-005: 空任务参数检查")
-    void testNullTaskParameterCheck() {
-        assertThrows(CacheException.class, () -> {
-            timerWheel.addTask(null);
-        });
-    }
+		String order = orderBuilder.toString();
+		assertTrue(order.contains("1"));
+		assertTrue(order.contains("2"));
+		assertTrue(order.contains("3"));
+	}
 
-    @Test
-    @DisplayName("TW-006: 非法构造参数检查")
-    void testInvalidConstructorParameters() {
-        assertThrows(CacheException.class, () -> {
-            new TimerWheel(0, 100, 4);
-        });
+	@Test
+	@DisplayName("TW-005: 空任务参数检查")
+	void testNullTaskParameterCheck() {
+		assertThrows(CacheException.class, () -> {
+			timerWheel.addTask(null);
+		});
+	}
 
-        assertThrows(CacheException.class, () -> {
-            new TimerWheel(10, 0, 4);
-        });
+	@Test
+	@DisplayName("TW-006: 非法构造参数检查")
+	void testInvalidConstructorParameters() {
+		assertThrows(CacheException.class, () -> {
+			new TimerWheel(0, 100, 4);
+		});
 
-        assertThrows(CacheException.class, () -> {
-            new TimerWheel(-1, 100, 4);
-        });
+		assertThrows(CacheException.class, () -> {
+			new TimerWheel(10, 0, 4);
+		});
 
-        assertThrows(CacheException.class, () -> {
-            new TimerWheel(10, -1, 4);
-        });
-    }
+		assertThrows(CacheException.class, () -> {
+			new TimerWheel(-1, 100, 4);
+		});
 
-    @Test
-    @DisplayName("TW-007: 关闭TimerWheel")
-    void testShutdownTimerWheel() throws InterruptedException {
-        TimerTask task = new TimerTask(System.currentTimeMillis() + 1000, () -> {
-            executedCount.incrementAndGet();
-            return null;
-        });
+		assertThrows(CacheException.class, () -> {
+			new TimerWheel(10, -1, 4);
+		});
+	}
 
-        timerWheel.addTask(task);
-        timerWheel.shutDown();
+	@Test
+	@DisplayName("TW-007: 关闭TimerWheel")
+	void testShutdownTimerWheel() throws InterruptedException {
+		TimerTask task = new TimerTask(System.currentTimeMillis() + 1000, () -> {
+			executedCount.incrementAndGet();
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(1500);
+		timerWheel.addTask(task);
+		timerWheel.shutDown();
 
-        assertTrue(executedCount.get() == 0 || executedCount.get() >= 1);
-    }
+		TimeUnit.MILLISECONDS.sleep(1500);
 
-    @Test
-    @DisplayName("TW-008: 并发添加任务")
-    void testConcurrentAddTasks() throws InterruptedException {
-        int threadCount = 10;
-        Thread[] threads = new Thread[threadCount];
+		assertTrue(executedCount.get() == 0 || executedCount.get() >= 1);
+	}
 
-        for (int i = 0; i < threadCount; i++) {
-            final int index = i;
-            threads[i] = new Thread(() -> {
-                TimerTask task = new TimerTask(System.currentTimeMillis() + 100 + index * 10, () -> {
-                    executedCount.incrementAndGet();
-                    return null;
-                });
-                timerWheel.addTask(task);
-            });
-        }
+	@Test
+	@DisplayName("TW-008: 并发添加任务")
+	void testConcurrentAddTasks() throws InterruptedException {
+		int threadCount = 10;
+		Thread[] threads = new Thread[threadCount];
 
-        for (Thread thread : threads) {
-            thread.start();
-        }
+		for (int i = 0; i < threadCount; i++) {
+			final int index = i;
+			threads[i] = new Thread(() -> {
+				TimerTask task = new TimerTask(System.currentTimeMillis() + 100 + index * 10, () -> {
+					executedCount.incrementAndGet();
+					return null;
+				});
+				timerWheel.addTask(task);
+			});
+		}
 
-        for (Thread thread : threads) {
-            thread.join();
-        }
+		for (Thread thread : threads) {
+			thread.start();
+		}
 
-        TimeUnit.MILLISECONDS.sleep(500);
+		for (Thread thread : threads) {
+			thread.join();
+		}
 
-        assertTrue(executedCount.get() >= threadCount);
-    }
+		TimeUnit.MILLISECONDS.sleep(500);
 
-    @Test
-    @DisplayName("TW-009: 任务执行时间精度")
-    void testTaskExecutionTimePrecision() throws InterruptedException {
-        long expectedExecTime = System.currentTimeMillis() + 200;
-        AtomicInteger actualExecTime = new AtomicInteger(0);
+		assertTrue(executedCount.get() >= threadCount);
+	}
 
-        TimerTask task = new TimerTask(expectedExecTime, () -> {
-            actualExecTime.set((int) System.currentTimeMillis());
-            return null;
-        });
+	@Test
+	@DisplayName("TW-009: 任务执行时间精度")
+	void testTaskExecutionTimePrecision() throws InterruptedException {
+		long expectedExecTime = System.currentTimeMillis() + 200;
+		AtomicInteger actualExecTime = new AtomicInteger(0);
 
-        timerWheel.addTask(task);
+		TimerTask task = new TimerTask(expectedExecTime, () -> {
+			actualExecTime.set((int) System.currentTimeMillis());
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(400);
+		timerWheel.addTask(task);
 
-        int timeDiff = Math.abs(actualExecTime.get() - (int) expectedExecTime);
-        assertTrue(timeDiff < 200);
-    }
+		TimeUnit.MILLISECONDS.sleep(400);
 
-    @Test
-    @DisplayName("TW-010: 多轮任务执行")
-    void testMultiRoundTaskExecution() throws InterruptedException {
-        long execTime = System.currentTimeMillis() + 1500;
-        TimerTask task = new TimerTask(execTime, () -> {
-            executedCount.incrementAndGet();
-            return null;
-        });
+		int timeDiff = Math.abs(actualExecTime.get() - (int) expectedExecTime);
+		assertTrue(timeDiff < 200);
+	}
 
-        timerWheel.addTask(task);
+	@Test
+	@DisplayName("TW-010: 多轮任务执行")
+	void testMultiRoundTaskExecution() throws InterruptedException {
+		long execTime = System.currentTimeMillis() + 1500;
+		TimerTask task = new TimerTask(execTime, () -> {
+			executedCount.incrementAndGet();
+			return null;
+		});
 
-        TimeUnit.MILLISECONDS.sleep(2000);
+		timerWheel.addTask(task);
 
-        assertTrue(executedCount.get() >= 1);
-    }
+		TimeUnit.MILLISECONDS.sleep(2000);
+
+		assertTrue(executedCount.get() >= 1);
+	}
+
 }

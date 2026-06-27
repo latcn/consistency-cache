@@ -119,20 +119,20 @@ public class DistributedCacheHandler extends BaseCacheHandler {
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheMetricsRecorder recorder = cacheContext.getMetricsRecorder();
 		long startTime = System.currentTimeMillis();
-		return cacheExecutorConfig.getDistributedCacheManager()
-			.removeInBatch(cacheKey)
-			.whenComplete((r, e) -> {
-				if (e == null) {
-					recorder.recordL2Operation(startTime, DELETE);
-				}
-				deleteAndBroadcast(cacheKey);
-			});
+		return cacheExecutorConfig.getDistributedCacheManager().removeInBatch(cacheKey).whenComplete((r, e) -> {
+			if (e == null) {
+				recorder.recordL2Operation(startTime, DELETE);
+			}
+			deleteAndBroadcast(cacheKey);
+		});
 	}
 
 	private void deleteAndBroadcast(CacheKey cacheKey) {
 		if (cacheKey.getCacheLevel() != CacheLevel.ADAPTIVE_CACHE) {
 			return;
 		}
+		cacheExecutorConfig.getLocalCacheManager().remove(cacheKey);
+		cacheExecutorConfig.getWriteHotspotDetector().recordInvalidation(cacheKey.getKey());
 		if (cacheKey.isBroadcastEnabled()) {
 			List<String> nodeIds = cacheExecutorConfig.getLocalCacheMarkerManager()
 				.getActiveNodes(cacheKey.getKey().toString());
@@ -141,17 +141,8 @@ public class DistributedCacheHandler extends BaseCacheHandler {
 				if (!(nodeIds.size() == 1 && NodeInstanceHolder.getNodeId().equals(nodeIds.get(0)))) {
 					this.broadcaster.addKey(cacheKey);
 				}
-				deleteLocalCache(cacheKey);
 			}
 		}
-		else {
-			deleteLocalCache(cacheKey);
-		}
-	}
-
-	private void deleteLocalCache(CacheKey cacheKey) {
-		cacheExecutorConfig.getLocalCacheManager().remove(cacheKey);
-		cacheExecutorConfig.getWriteHotspotDetector().recordInvalidation(cacheKey.getKey());
 	}
 
 	private CacheValue getValueFromDistributedCache(CacheContext cacheContext) {
@@ -186,12 +177,11 @@ public class DistributedCacheHandler extends BaseCacheHandler {
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheMetricsRecorder recorder = cacheContext.getMetricsRecorder();
 		long startTime = System.currentTimeMillis();
-		return cacheExecutorConfig.getDistributedCacheManager().getInBatch(cacheKey)
-			.whenComplete((r, e) -> {
-				if (e == null) {
-					recorder.recordL2Operation(startTime, GET);
-				}
-			});
+		return cacheExecutorConfig.getDistributedCacheManager().getInBatch(cacheKey).whenComplete((r, e) -> {
+			if (e == null) {
+				recorder.recordL2Operation(startTime, GET);
+			}
+		});
 	}
 
 }
