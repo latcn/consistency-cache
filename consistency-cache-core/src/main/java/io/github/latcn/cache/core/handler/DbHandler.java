@@ -10,7 +10,7 @@ import io.github.latcn.cache.core.manager.SingleFlightResult;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
-import io.github.latcn.cache.core.util.ThreadPoolUtils;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -26,7 +26,7 @@ public class DbHandler extends BaseCacheHandler {
 	public DbHandler(CacheHandler next, CacheExecutorConfig cacheExecutorConfig) {
 		super(next, cacheExecutorConfig);
 		this.dbSingleFlightExecutor = new SingleFlightExecutor();
-		this.threadPool = ThreadPoolUtils.getThreadPool("DbHandler-getAsync", true, 256);
+		this.threadPool = ThreadUtils.getThreadPool("DbHandler-getAsync", true, 256);
 	}
 
 	@Override

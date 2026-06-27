@@ -36,15 +36,16 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		PreparedStatement ps = null;
 		try {
 			Timestamp now = new Timestamp(System.currentTimeMillis());
-			String sql = InvalidationRecordSqls.getSQL("insert", DEFAULT_LOG_TABLE_NAME);
+			String sql = InvalidationRecordSqls.getSQL(InvalidationRecordSqls.SqlNames.INSERT, DEFAULT_LOG_TABLE_NAME);
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, record.getUid());
 			ps.setString(2, record.getCacheKey());
-			ps.setString(3, record.getOperationType());
-			ps.setString(4, record.getNodeId());
-			ps.setInt(5, record.getStatus());
-			ps.setTimestamp(6, now);
+			ps.setString(3, record.getCacheLevel());
+			ps.setString(4, record.getConsistencyLevel());
+			ps.setString(5, record.getOperationType());
+			ps.setString(6, record.getNodeId());
 			ps.setTimestamp(7, now);
+			ps.setTimestamp(8, now);
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLIntegrityConstraintViolationException e) {
@@ -102,7 +103,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		ResultSet rs = null;
 		List<InvalidationRecord> list = new ArrayList<>();
 		try {
-			String sql = InvalidationRecordSqls.getLimitQuerySQL("findByUidAndCacheKey", DEFAULT_LOG_TABLE_NAME,
+			String sql = InvalidationRecordSqls.getLimitQuerySQL(InvalidationRecordSqls.SqlNames.FIND_BY_UID_AND_CACHE_KEY, DEFAULT_LOG_TABLE_NAME,
 					isOracle(conn));
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, uid);
@@ -128,7 +129,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		PreparedStatement ps = null;
 		try {
 			Timestamp now = new Timestamp(System.currentTimeMillis());
-			String sql = InvalidationRecordSqls.getSQL("markCompleted", DEFAULT_LOG_TABLE_NAME);
+			String sql = InvalidationRecordSqls.getSQL(InvalidationRecordSqls.SqlNames.MARK_COMPLETED, DEFAULT_LOG_TABLE_NAME);
 			ps = conn.prepareStatement(sql);
 			ps.setTimestamp(1, now);
 			ps.setString(2, uid);
@@ -149,7 +150,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		PreparedStatement ps = null;
 		try {
 			Timestamp now = new Timestamp(System.currentTimeMillis());
-			String sql = InvalidationRecordSqls.getSQL("markFailed", DEFAULT_LOG_TABLE_NAME);
+			String sql = InvalidationRecordSqls.getSQL(InvalidationRecordSqls.SqlNames.MARK_FAILED, DEFAULT_LOG_TABLE_NAME);
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, errorMessage);
 			ps.setTimestamp(2, now);
@@ -171,7 +172,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 		PreparedStatement ps = null;
 		try {
 			Timestamp createTimeParam = new Timestamp(System.currentTimeMillis() - thresholdSeconds * 1000);
-			String sql = InvalidationRecordSqls.getSQL("deleteOldCompletedRecords", DEFAULT_LOG_TABLE_NAME);
+			String sql = InvalidationRecordSqls.getSQL(InvalidationRecordSqls.SqlNames.DELETE_OLD_COMPLETED_RECORDS, DEFAULT_LOG_TABLE_NAME);
 			ps = conn.prepareStatement(sql);
 			ps.setTimestamp(1, createTimeParam);
 			return ps.executeUpdate();
@@ -187,12 +188,12 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 
 	@Override
 	public long getPendingCount(Connection conn) {
-		return commonNoParamQuery("getPendingCount", conn);
+		return commonNoParamQuery(InvalidationRecordSqls.SqlNames.GET_PENDING_COUNT, conn);
 	}
 
 	@Override
 	public long getFailedCount(Connection conn) {
-		return commonNoParamQuery("getFailedCount", conn);
+		return commonNoParamQuery(InvalidationRecordSqls.SqlNames.GET_FAILED_COUNT, conn);
 	}
 
 	private long commonNoParamQuery(String methodName, Connection conn) {

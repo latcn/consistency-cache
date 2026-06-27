@@ -5,6 +5,7 @@ import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
+import io.github.latcn.cache.core.monitor.CacheMetricsManager;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.prometheus.client.CollectorRegistry;

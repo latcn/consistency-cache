@@ -204,9 +204,9 @@ public class CMSHotKeyDetector implements AutoCloseable {
 		if (duration > decayIntervalMs) {
 			long w = warnCount.incrementAndGet();
 			if (w % WARN_LOG_INTERVAL == 0) {
-                log.error("Decay segment {} took {}ms, exceeding interval {}ms", seg, duration, decayIntervalMs);
+                log.debug("Decay segment {} took {}ms, exceeding interval {}ms", seg, duration, decayIntervalMs);
 			} else {
-                log.error("Decay segment {} took {}ms (exceeded)", seg, duration);
+                log.debug("Decay segment {} took {}ms (exceeded)", seg, duration);
 			}
 		}
 	}

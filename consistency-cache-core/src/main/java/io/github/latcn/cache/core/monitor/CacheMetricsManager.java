@@ -1,4 +1,4 @@
-package io.github.latcn.cache.spring.monitor;
+package io.github.latcn.cache.core.monitor;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;

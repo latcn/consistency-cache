@@ -47,7 +47,7 @@ class SingleFlightExecutorComprehensiveTest {
 			new Thread(() -> {
 				try {
 					startLatch.await();
-					singleFlightExecutor.execute(key, slowLoader);
+					singleFlightExecutor.executeWithResult(key, slowLoader);
 				}
 				catch (Exception e) {
 					fail("Unexpected exception: " + e.getMessage());
@@ -78,12 +78,12 @@ class SingleFlightExecutorComprehensiveTest {
 		};
 
 		// When - First call completes before second starts
-		String result1 = singleFlightExecutor.execute(key, loader);
+		SingleFlightResult<String> result1 = singleFlightExecutor.executeWithResult(key, loader);
 
 		// Wait for cleanup
 		Thread.sleep(50);
 
-		String result2 = singleFlightExecutor.execute(key, loader);
+		SingleFlightResult<String> result2 = singleFlightExecutor.executeWithResult(key, loader);
 
 		// Then - Should execute twice since first completed
 		assertEquals(2, count.get());
@@ -99,7 +99,7 @@ class SingleFlightExecutorComprehensiveTest {
 
 		// When/Then - RuntimeException should be preserved
 		CustomRuntimeException thrown = assertThrows(CustomRuntimeException.class,
-				() -> singleFlightExecutor.execute(key, k -> {
+				() -> singleFlightExecutor.executeWithResult(key, k -> {
 					throw new CustomRuntimeException("test-error");
 				}));
 
@@ -116,7 +116,7 @@ class SingleFlightExecutorComprehensiveTest {
 
 		Thread thread = new Thread(() -> {
 			try {
-				singleFlightExecutor.execute(key, k -> {
+				singleFlightExecutor.executeWithResult(key, k -> {
 					started.countDown();
 					try {
 						Thread.sleep(10000);
@@ -152,7 +152,7 @@ class SingleFlightExecutorComprehensiveTest {
 		String key = "unwrap-test";
 
 		// When
-		RuntimeException thrown = assertThrows(RuntimeException.class, () -> singleFlightExecutor.execute(key, k -> {
+		RuntimeException thrown = assertThrows(RuntimeException.class, () -> singleFlightExecutor.executeWithResult(key, k -> {
 			throw new IllegalStateException("wrapped-cause");
 		}));
 
@@ -168,7 +168,7 @@ class SingleFlightExecutorComprehensiveTest {
 		String key = "error-test";
 
 		// When/Then - AssertionError should propagate
-		AssertionError thrown = assertThrows(AssertionError.class, () -> singleFlightExecutor.execute(key, k -> {
+		AssertionError thrown = assertThrows(AssertionError.class, () -> singleFlightExecutor.executeWithResult(key, k -> {
 			throw new AssertionError("assertion-failed");
 		}));
 
@@ -188,15 +188,15 @@ class SingleFlightExecutorComprehensiveTest {
 		};
 
 		// When
-		String result = singleFlightExecutor.execute(key, loader);
+		SingleFlightResult<String> result = singleFlightExecutor.executeWithResult(key, loader);
 		Thread.sleep(150); // Allow cleanup
 
 		// Execute again - should create new future
-		String result2 = singleFlightExecutor.execute(key, loader);
+		SingleFlightResult<String> result2 = singleFlightExecutor.executeWithResult(key, loader);
 
 		// Then
-		assertEquals("success", result);
-		assertEquals("success", result2);
+		assertEquals("success", result.getValue());
+		assertEquals("success", result2.getValue());
 		assertEquals(2, executions.get());
 	}
 
@@ -208,14 +208,14 @@ class SingleFlightExecutorComprehensiveTest {
 
 		// When - First execution fails
 		assertThrows(CustomRuntimeException.class, () -> {
-			singleFlightExecutor.execute(key, k -> {
+			singleFlightExecutor.executeWithResult(key, k -> {
 				throw new CustomRuntimeException("fail");
 			});
 		});
 
 		// Then - Second execution should work (map was cleaned up)
-		String result = singleFlightExecutor.execute(key, k -> "recovered");
-		assertEquals("recovered", result);
+		SingleFlightResult<String> result = singleFlightExecutor.executeWithResult(key, k -> "recovered");
+		assertEquals("recovered", result.getValue());
 	}
 
 	@Test
@@ -239,7 +239,7 @@ class SingleFlightExecutorComprehensiveTest {
 			for (int j = 0; j < threadsPerKey; j++) {
 				new Thread(() -> {
 					try {
-						singleFlightExecutor.execute(key, k -> {
+						singleFlightExecutor.executeWithResult(key, k -> {
 							executionCounts[keyIndex].incrementAndGet();
 							try {
 								Thread.sleep(10);
@@ -276,12 +276,12 @@ class SingleFlightExecutorComprehensiveTest {
 		Integer integerKey = 123;
 
 		// When - Different generic types
-		String stringValue = singleFlightExecutor.execute(stringKey, k -> "hello");
-		Integer integerValue = singleFlightExecutor.execute(integerKey, k -> 42);
+		SingleFlightResult<String> stringValue = singleFlightExecutor.executeWithResult(stringKey, k -> "hello");
+		SingleFlightResult<Integer> integerValue = singleFlightExecutor.executeWithResult(integerKey, k -> 42);
 
 		// Then - Type-safe without warnings
-		assertEquals("hello", stringValue);
-		assertEquals(Integer.valueOf(42), integerValue);
+		assertEquals("hello", stringValue.getValue());
+		assertEquals(Integer.valueOf(42), integerValue.getValue());
 	}
 
 	/**

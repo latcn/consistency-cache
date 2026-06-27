@@ -11,6 +11,7 @@ import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheStats;
+import io.github.latcn.cache.core.monitor.CacheMetricsManager;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

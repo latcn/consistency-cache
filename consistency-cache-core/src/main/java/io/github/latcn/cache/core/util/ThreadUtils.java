@@ -3,7 +3,7 @@ package io.github.latcn.cache.core.util;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ThreadPoolUtils {
+public class ThreadUtils {
 
 	private static final int DEFAULT_CORE_POOL_SIZE = 1;
 

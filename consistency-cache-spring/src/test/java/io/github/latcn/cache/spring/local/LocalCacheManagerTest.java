@@ -2,6 +2,7 @@ package io.github.latcn.cache.spring.local;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import cn.hutool.core.thread.ThreadUtil;
 import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheStats;
@@ -36,12 +37,12 @@ class LocalCacheManagerTest {
 			.key("test-key")
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
-			.expireTimeMs(60000)
+			//.expireTimeMs(1000)
 			.build();
 
 		CacheValue<String> cacheValue = CacheValue.<String>builder()
 			.value("test-value")
-			.expireTime(System.currentTimeMillis() + 60000)
+			.expireTime(System.currentTimeMillis() + 1000)
 			.createdAt(System.currentTimeMillis())
 			.build();
 
@@ -50,9 +51,12 @@ class LocalCacheManagerTest {
 		CacheValue result = localCacheManager.get(cacheKey);
 
 		// Then
-		// assertNotNull(result);
-		// assertEquals("test-value", result.getValue());
-		// assertFalse(result.isExpired());
+		 assertNotNull(result);
+		 assertEquals("test-value", result.getValue());
+		 ThreadUtil.safeSleep(1000);
+		 assertTrue(result.isExpired());
+		 result = localCacheManager.get(cacheKey);
+		 assertNull(result);
 	}
 
 	@Test
@@ -113,7 +117,7 @@ class LocalCacheManagerTest {
 			.build();
 
 		localCacheManager.put(cacheKey, cacheValue);
-		// assertTrue(localCacheManager.containKey(cacheKey));
+		assertTrue(localCacheManager.containKey(cacheKey));
 
 		// When
 		localCacheManager.remove(cacheKey);
@@ -193,10 +197,10 @@ class LocalCacheManagerTest {
 
 		// Then
 		LocalCacheStats localCacheStats = localCacheManager.getStats();
-		// assertEquals(2, localCacheStats.getHitCount());
-		// assertEquals(2, localCacheStats.getMissCount());
-		// assertEquals(0.5, localCacheStats.getHitRate(), 0.01);
-		// assertEquals("50.00%", localCacheStats.getFormattedHitRate());
+		assertEquals(2, localCacheStats.getHitCount());
+		assertEquals(2, localCacheStats.getMissCount());
+		assertEquals(0.5, localCacheStats.getHitRate(), 0.01);
+		assertEquals("50.00%", localCacheStats.getFormattedHitRate());
 	}
 
 	@Test
@@ -231,9 +235,9 @@ class LocalCacheManagerTest {
 		localCacheManager.put(availableKey, value2);
 
 		// Then
-		// assertTrue(localCacheManager.containKey(highConsistencyKey));
-		// assertTrue(localCacheManager.containKey(availableKey));
-		// assertEquals(2L, localCacheManager.getSize());
+		assertTrue(localCacheManager.containKey(highConsistencyKey));
+		assertTrue(localCacheManager.containKey(availableKey));
+		assertEquals(2L, localCacheManager.getSize());
 	}
 
 	@Test
@@ -327,7 +331,7 @@ class LocalCacheManagerTest {
 		localCacheManager.put(cacheKey, value);
 		localCacheManager.put(cacheKey1, value1);
 		// Then - Should not throw exception
-		// assertTrue(localCacheManager.containKey(cacheKey1));
+		assertTrue(localCacheManager.containKey(cacheKey1));
 		try {
 			Thread.sleep(1000);
 		}
@@ -338,8 +342,8 @@ class LocalCacheManagerTest {
 		localCacheManager.runEviction();
 
 		// Then - Should not throw exception
-		// assertTrue(localCacheManager.containKey(cacheKey));
-		// assertFalse(localCacheManager.containKey(cacheKey1));
+		assertTrue(localCacheManager.containKey(cacheKey));
+		assertFalse(localCacheManager.containKey(cacheKey1));
 	}
 
 }

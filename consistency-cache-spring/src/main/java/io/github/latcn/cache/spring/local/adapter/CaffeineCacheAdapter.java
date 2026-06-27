@@ -70,9 +70,8 @@ public class CaffeineCacheAdapter<K, V extends CacheValue> implements LocalCache
 		@Override
 		public long expireAfterCreate(K key, V value, long currentTime) {
 			CacheValue cacheValue = (CacheValue) value;
-			// 假设 getExpireTime() 是毫秒级时间戳
-			long expireTimeNanos = TimeUnit.MILLISECONDS.toNanos(cacheValue.getExpireTime());
-			long remainingNanos = expireTimeNanos - currentTime;
+			// getExpireTime() 是毫秒级时间戳
+			long remainingNanos = TimeUnit.MILLISECONDS.toNanos(cacheValue.getExpireTime() - System.currentTimeMillis());
 			// 防止返回负数，如果已过期则立即返回0
 			return Math.max(0, remainingNanos);
 		}

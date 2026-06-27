@@ -6,6 +6,7 @@ import io.github.latcn.cache.core.hotspot.reads.DefaultReadHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.manager.SingleFlightExecutor;
+import io.github.latcn.cache.core.manager.SingleFlightResult;
 import io.github.latcn.cache.core.model.*;
 import io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter;
 import java.util.concurrent.CountDownLatch;
@@ -310,7 +311,7 @@ class ConcurrentPerformanceTest {
 						throw new RuntimeException(e);
 					}
 
-					String result = singleFlight.execute(sharedKey, k -> {
+					SingleFlightResult<String> result = singleFlight.executeWithResult(sharedKey, k -> {
 						actualExecutions.incrementAndGet();
 						try {
 							Thread.sleep(10);

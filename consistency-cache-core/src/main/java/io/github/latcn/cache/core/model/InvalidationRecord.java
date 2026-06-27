@@ -9,9 +9,6 @@ import lombok.NoArgsConstructor;
 
 /**
  * Cache invalidation message entity for transactional outbox pattern.
- *
- * Stored in hcc_cache_message table to guarantee eventual consistency even when
- * application nodes crash.
  */
 @Data
 @Builder
@@ -51,12 +48,12 @@ public class InvalidationRecord implements Serializable {
 	 * Record status: 0 = PENDING (not yet processed) 1 = COMPLETED (successfully
 	 * invalidated) 2 = FAILED (multiple failures, requires manual intervention)
 	 */
-	private Integer status;
+	private Integer status = 0;
 
 	/**
 	 * Number of retry attempts.
 	 */
-	private Integer retryCount;
+	private Integer retryCount = 0;
 
 	/**
 	 * Last error message (if failed).

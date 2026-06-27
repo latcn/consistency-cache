@@ -26,9 +26,9 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	private static final int INVALIDATION_RECORD_QUEUE_CAPACITY = 1000;
 
-	private static final int CLEAN_CACHE_INITIAL_DELAY_SECONDS = 5;
+	private static final int CLEAN_CACHE_INITIAL_DELAY_SECONDS = 1;
 
-	private static final int CLEAN_CACHE_PERIOD_SECONDS = 5;
+	private static final int CLEAN_CACHE_PERIOD_SECONDS = 1;
 
 	private final CacheExecutor cacheExecutor;
 

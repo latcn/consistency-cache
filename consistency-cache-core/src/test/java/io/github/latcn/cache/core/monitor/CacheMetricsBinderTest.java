@@ -1,4 +1,4 @@
-package io.github.latcn.cache.spring.monitor;
+package io.github.latcn.cache.core.monitor;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-@DisplayName("CacheMetricsManager Tests")
-class CacheMetricsManagerTest {
+@DisplayName("CacheMetricsBinder Tests")
+class CacheMetricsBinderTest {
 
 	@Mock
 	private LocalCacheManager localCacheManager;
@@ -44,7 +44,7 @@ class CacheMetricsManagerTest {
 	@Mock
 	private CircuitBreakerStats circuitBreakerStats;
 
-	private CacheMetricsManager metricsManager;
+	private CacheMetricsBinder binder;
 
 	private MeterRegistry meterRegistry;
 
@@ -78,42 +78,12 @@ class CacheMetricsManagerTest {
 	}
 
 	@Test
-	@DisplayName("Should create CacheMetricsManager successfully")
-	void testCreation() {
-		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
+	@DisplayName("Should bind all metrics successfully")
+	void testBindTo() {
+		binder = new CacheMetricsBinder(localCacheManager, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
 		
-		assertNotNull(metricsManager);
-		assertNotNull(metricsManager.getMeterRegistry());
-		assertNotNull(metricsManager.getMetricsBinder());
-	}
-
-	@Test
-	@DisplayName("Should get MeterRegistry")
-	void testGetMeterRegistry() {
-		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
-		MeterRegistry registry = metricsManager.getMeterRegistry();
-		
-		assertNotNull(registry);
-		assertSame(meterRegistry, registry);
-	}
-
-	@Test
-	@DisplayName("Should get CacheMetricsBinder")
-	void testGetMetricsBinder() {
-		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
-		
-		assertNotNull(metricsManager.getMetricsBinder());
-	}
-
-	@Test
-	@DisplayName("Should bind all cache metrics")
-	void testMetricsBound() {
-		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
+		binder.bindTo(meterRegistry);
 		
 		assertNotNull(meterRegistry.find("hcc_cache_hit_ratio").gauge());
 		assertNotNull(meterRegistry.find("hcc_cache_size").gauge());
@@ -121,35 +91,64 @@ class CacheMetricsManagerTest {
 		assertNotNull(meterRegistry.find("hcc_cache_evictions_total").gauge());
 		assertNotNull(meterRegistry.find("hcc_distributed_cache_connected").gauge());
 		assertNotNull(meterRegistry.find("hcc_circuit_breaker_state").gauge());
+		assertNotNull(meterRegistry.find("hcc_hotspot_read_hotkeys_count").gauge());
+		assertNotNull(meterRegistry.find("hcc_hotspot_write_hotkeys_count").gauge());
 	}
 
 	@Test
-	@DisplayName("Should get cache size")
-	void testGetCacheSize() {
-		metricsManager = new CacheMetricsManager(meterRegistry, localCacheManager, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector);
+	@DisplayName("Should handle null LocalCacheManager")
+	void testBindToNullLocalCacheManager() {
+		binder = new CacheMetricsBinder(null, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
 		
-		long cacheSize = metricsManager.getCacheSize();
-		
-		assertNotNull(cacheSize);
-	}
-
-	@Test
-	@DisplayName("Should handle null LocalCacheManager gracefully")
-	void testNullLocalCacheManager() {
-		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, null, distributedCacheManager,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector));
+		assertDoesNotThrow(() -> binder.bindTo(meterRegistry));
 		
 		assertNull(meterRegistry.find("hcc_cache_hit_ratio").gauge());
 	}
 
 	@Test
-	@DisplayName("Should handle null DistributedCacheManager gracefully")
-	void testNullDistributedCacheManager() {
-		assertDoesNotThrow(() -> new CacheMetricsManager(meterRegistry, localCacheManager, null,
-				circuitBreaker, readHotspotDetector, writeHotspotDetector));
+	@DisplayName("Should handle null DistributedCacheManager")
+	void testBindToNullDistributedCacheManager() {
+		binder = new CacheMetricsBinder(localCacheManager, null, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
+		
+		assertDoesNotThrow(() -> binder.bindTo(meterRegistry));
 		
 		assertNull(meterRegistry.find("hcc_distributed_cache_connected").gauge());
+	}
+
+	@Test
+	@DisplayName("Should handle null CircuitBreaker")
+	void testBindToNullCircuitBreaker() {
+		binder = new CacheMetricsBinder(localCacheManager, distributedCacheManager, null,
+				readHotspotDetector, writeHotspotDetector);
+		
+		assertDoesNotThrow(() -> binder.bindTo(meterRegistry));
+		
+		assertNull(meterRegistry.find("hcc_circuit_breaker_state").gauge());
+	}
+
+	@Test
+	@DisplayName("Should handle null hotspot detectors")
+	void testNullHotspotDetectors() {
+		binder = new CacheMetricsBinder(localCacheManager, distributedCacheManager, circuitBreaker,
+				null, null);
+		
+		assertDoesNotThrow(() -> binder.bindTo(meterRegistry));
+		
+		assertNull(meterRegistry.find("hcc_hotspot_read_hotkeys_count").gauge());
+		assertNull(meterRegistry.find("hcc_hotspot_write_hotkeys_count").gauge());
+	}
+
+	@Test
+	@DisplayName("Should handle bindTo errors gracefully")
+	void testBindToWithErrors() {
+		when(localCacheManager.getStats()).thenThrow(new RuntimeException("Simulated error"));
+		
+		binder = new CacheMetricsBinder(localCacheManager, distributedCacheManager, circuitBreaker,
+				readHotspotDetector, writeHotspotDetector);
+		
+		assertDoesNotThrow(() -> binder.bindTo(meterRegistry));
 	}
 
 }

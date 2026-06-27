@@ -100,9 +100,7 @@ public class LocalCacheBlacklist {
 	 */
 	public void autoCleanup() {
 		long now = System.currentTimeMillis();
-		log.info("autoCleanup pre {},{}", System.currentTimeMillis(), this.blacklist);
 		this.blacklist.entrySet().removeIf(e -> now > e.getValue());
-		log.info("autoCleanup after {}", this.blacklist);
 	}
 
 	/**

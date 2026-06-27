@@ -9,6 +9,7 @@ import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.manager.SingleFlightExecutor;
+import io.github.latcn.cache.core.manager.SingleFlightResult;
 import io.github.latcn.cache.core.model.*;
 import io.github.latcn.cache.core.pubsub.BroadcastPublisher;
 import io.github.latcn.cache.core.pubsub.BroadcastSubscriber;
@@ -172,7 +173,7 @@ class EdgeCaseStressTest {
 			executor.submit(() -> {
 				try {
 					startLatch.await();
-					String result = singleFlight.execute(sharedKey, k -> {
+					SingleFlightResult<String> result = singleFlight.executeWithResult(sharedKey, k -> {
 						actualExecutions.incrementAndGet();
 						try {
 							Thread.sleep(20);

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class TestController {
 
 	@GetMapping("/{itemId}")
-	@HccCacheable(key = "#itemId", expireTime = 100)
+	@HccCacheable(key = "#itemId", expireTime = 100, fallbackExecActual = true)
 	public TestDTO getItem(@PathVariable Long itemId) {
 		TestDTO testDTO = new TestDTO();
 		testDTO.setId(itemId);
@@ -25,7 +25,7 @@ public class TestController {
 	}
 
 	@DeleteMapping("/del/{itemId}")
-	@HccCacheEvict(key = "#itemId")
+	@HccCacheEvict(key = "#itemId", transactionEnabled = true, fallbackExecActual = true)
 	public boolean delItem(@PathVariable Long itemId) {
 		return true;
 	}

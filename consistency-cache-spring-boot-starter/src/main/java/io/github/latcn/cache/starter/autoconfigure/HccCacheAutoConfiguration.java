@@ -3,7 +3,6 @@ package io.github.latcn.cache.starter.autoconfigure;
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
-import io.github.latcn.cache.core.executor.CacheEvictHandler;
 import io.github.latcn.cache.core.executor.CacheExecutor;
 import io.github.latcn.cache.core.executor.DefaultCacheExecutor;
 import io.github.latcn.cache.core.hotspot.reads.DefaultReadHotspotDetector;
@@ -35,24 +34,28 @@ import io.github.latcn.cache.spring.uid.SnowflakeGeneratorHolder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.redisson.spring.starter.RedissonProperties;
 import org.springframework.aop.support.AbstractBeanFactoryPointcutAdvisor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.AnnotationCacheOperationSource;
 import org.springframework.cache.interceptor.BeanFactoryCacheOperationSourceAdvisor;
 import org.springframework.cache.interceptor.CacheOperationSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Slf4j
-@AutoConfiguration(after = { RedisAutoConfiguration.class })
+@AutoConfiguration(after = { RedisAutoConfiguration.class, DataSourceAutoConfiguration.class })
 @EnableConfigurationProperties({ RedissonProperties.class, RedisProperties.class })
 @ConditionalOnProperty(prefix = "spring.hcc.cache", name = "enabled", havingValue = "true")
 public class HccCacheAutoConfiguration {
@@ -149,12 +152,25 @@ public class HccCacheAutoConfiguration {
 	}
 
 	/**
+	 * 处理缓存失效
+	 * @param cacheExecutor
+	 * @param dataSource
+	 * @param platformTransactionManager
+	 * @return
+	 */
+	@Bean
+	public SpringCacheEvictHandler cacheEvictHandler(CacheExecutor cacheExecutor,
+													 @Autowired(required = false) DataSource dataSource,
+													 @Autowired(required = false) PlatformTransactionManager platformTransactionManager) {
+		return new SpringCacheEvictHandler(cacheExecutor, dataSource, platformTransactionManager);
+	}
+
+	/**
 	 * 定义自定义拦截器
 	 * @return
 	 */
 	@Bean
-	public HccCacheInterceptor hccCacheInterceptor(CacheExecutor cacheExecutor) {
-		CacheEvictHandler cacheEvictHandler = new SpringCacheEvictHandler(cacheExecutor);
+	public HccCacheInterceptor hccCacheInterceptor(CacheExecutor cacheExecutor, SpringCacheEvictHandler cacheEvictHandler) {
 		HccCacheInterceptor interceptor = new HccCacheInterceptor(cacheExecutor, cacheEvictHandler);
 		// 可以使用默认的，或者自定义一个解析
 		CacheOperationSource cacheOperationSource = new AnnotationCacheOperationSource(new HccCacheAnnotationParser()

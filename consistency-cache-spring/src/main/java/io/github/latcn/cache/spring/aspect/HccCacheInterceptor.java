@@ -11,6 +11,8 @@ import io.github.latcn.cache.core.model.NodeInstanceHolder;
 import io.github.latcn.cache.core.util.StringUtil;
 import io.github.latcn.cache.spring.uid.SnowflakeGeneratorHolder;
 import java.lang.reflect.Method;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -131,6 +133,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
 	 */
 	private Object handleHccCacheEvict(MethodInvocation invocation,
 			HccCacheAnnotationParser.CacheableOperationExt cacheableOperationExt) throws Throwable {
+		Timestamp currentTime = Timestamp.from(Instant.now());
 		InvalidationRecord invalidationRecord = new InvalidationRecord();
 		CacheKey cacheKey = parseKey(invocation.getMethod(), invocation.getArguments(), cacheableOperationExt);
 		invalidationRecord.setCacheKey(cacheKey.getKey().toString());
@@ -140,6 +143,8 @@ public class HccCacheInterceptor extends CacheInterceptor {
 		invalidationRecord.setTransactionEnabled(cacheableOperationExt.isTransactionEnabled());
 		invalidationRecord.setNodeId(NodeInstanceHolder.getNodeId());
 		invalidationRecord.setOperationType(InvalidationRecord.OperationType.DELETE.toString());
+		invalidationRecord.setCreateTime(currentTime);
+		invalidationRecord.setCreateTime(currentTime);
 		Object result = null;
 		try {
 			result = cacheEvictHandler.startInvalidate(invalidationRecord, () -> invocation.proceed());

@@ -6,9 +6,9 @@ import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.model.HccProperties;
+import io.github.latcn.cache.core.monitor.CacheMetricsManager;
 import io.github.latcn.cache.core.monitor.EnhancedConnectionMonitor;
 import io.github.latcn.cache.core.monitor.MemoryProtectionMonitor;
-import io.github.latcn.cache.spring.monitor.CacheMetricsManager;
 import io.github.latcn.cache.spring.monitor.PrometheusCacheMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +38,8 @@ public class CacheMetricsAutoConfiguration {
 	@ConditionalOnProperty(prefix = "spring.hcc.cache.monitor", name = "prometheus-enabled", havingValue = "true",
 			matchIfMissing = true)
 	public PrometheusCacheMetrics prometheusCacheMetrics(LocalCacheManager localCacheManager,
-			DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
-			ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
+														 DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
+														 ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
 		log.info("Initializing Prometheus Cache Metrics...");
 		return new PrometheusCacheMetrics(localCacheManager, distributedCacheManager, circuitBreaker,
 				readHotspotDetector, writeHotspotDetector);
