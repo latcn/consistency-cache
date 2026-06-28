@@ -18,22 +18,17 @@ public interface InvalidationRecordRepository {
 	boolean insert(Connection conn, InvalidationRecord record);
 
 	/**
-	 * Find all pending records older than threshold. Used by compensation task to find
-	 * records that need retry.
-	 * @param thresholdSeconds age threshold in seconds
+	 * Find pending records by next execution time for compensation task. Uses FOR UPDATE
+	 * SKIP LOCKED to avoid distributed lock contention.
+	 *
+	 * Query conditions: - next_execution_time <= current time - status is PENDING(0) or
+	 * FAILED(2) - retry_count less than max retry count
+	 * @param conn database connection
+	 * @param maxRetryCount maximum retry count, records exceeding this are not processed
 	 * @param limit maximum number of records to return
 	 * @return list of pending records
 	 */
-	List<InvalidationRecord> findPendingRecordsOlderThan(Connection conn, int thresholdSeconds, int limit);
-
-	/**
-	 * findByUidAndCacheKey
-	 * @param conn
-	 * @param uid
-	 * @param cacheKey
-	 * @return
-	 */
-	List<InvalidationRecord> findByUidAndCacheKey(Connection conn, String uid, String cacheKey);
+	List<InvalidationRecord> findPendingRecords(Connection conn, int maxRetryCount, int limit);
 
 	/**
 	 * Mark record as completed.
@@ -49,9 +44,11 @@ public interface InvalidationRecordRepository {
 	 * @param uid
 	 * @param cacheKey
 	 * @param errorMessage
+	 * @param nextExecutionTime next execution time for exponential backoff
 	 * @return
 	 */
-	boolean markFailed(Connection conn, String uid, String cacheKey, String errorMessage);
+	boolean markFailed(Connection conn, String uid, String cacheKey, String errorMessage,
+			java.sql.Timestamp nextExecutionTime);
 
 	/**
 	 * Delete old completed records (cleanup).

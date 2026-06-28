@@ -6,15 +6,16 @@ import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheEvictHandler;
 import io.github.latcn.cache.core.executor.CacheExecutor;
 import io.github.latcn.cache.core.function.CallableWithThrowable;
-import io.github.latcn.cache.core.model.CacheKey;
-import io.github.latcn.cache.core.model.CacheLevel;
-import io.github.latcn.cache.core.model.ConsistencyLevel;
-import io.github.latcn.cache.core.model.InvalidationRecord;
+import io.github.latcn.cache.core.model.*;
 import io.github.latcn.cache.core.repository.InvalidationRecordDAO;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -24,11 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class SpringCacheEvictHandler implements CacheEvictHandler {
 
-	private static final int INVALIDATION_RECORD_QUEUE_CAPACITY = 1000;
-
-	private static final int CLEAN_CACHE_INITIAL_DELAY_SECONDS = 1;
-
-	private static final int CLEAN_CACHE_PERIOD_SECONDS = 1;
+	private static final int INITIAL_DELAY_SECONDS = 1;
 
 	private final CacheExecutor cacheExecutor;
 
@@ -40,29 +37,51 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	private InvalidationRecordDAO invalidationRecordDAO;
 
-	private final ScheduledExecutorService scheduledExecutorService;
+	private final ScheduledExecutorService cleanCacheScheduler;
 
-	private final LinkedBlockingQueue<InvalidationRecord> invalidationRecords = new LinkedBlockingQueue<>(
-			INVALIDATION_RECORD_QUEUE_CAPACITY);
+	private final ScheduledExecutorService compensationScheduler;
 
-	public SpringCacheEvictHandler(CacheExecutor cacheExecutor) {
+	private final LinkedBlockingQueue<InvalidationRecord> invalidationRecords;
+
+	private final long baseDelayMs;
+
+	private final int compensationBatchSize;
+
+	private final int maxRetryCount;
+
+	private final int invalidationQueueCapacity;
+
+	public SpringCacheEvictHandler(CacheExecutor cacheExecutor,
+			HccProperties.CacheEvictProperties cacheEvictProperties) {
 		this.cacheExecutor = cacheExecutor;
-		this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(r -> {
+		this.baseDelayMs = cacheEvictProperties.getBaseDelayMs();
+		this.compensationBatchSize = cacheEvictProperties.getCompensationBatchSize();
+		this.maxRetryCount = cacheEvictProperties.getMaxRetryCount();
+		this.invalidationQueueCapacity = cacheEvictProperties.getInvalidationQueueCapacity();
+		this.invalidationRecords = new LinkedBlockingQueue(invalidationQueueCapacity);
+		this.cleanCacheScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
 			Thread thread = new Thread(r, "Invalidate-Cleaner-Scheduled-Thread");
 			thread.setDaemon(true);
 			return thread;
 		});
-		this.scheduledExecutorService.scheduleWithFixedDelay(this::cleanCache, CLEAN_CACHE_INITIAL_DELAY_SECONDS,
-				CLEAN_CACHE_PERIOD_SECONDS, TimeUnit.SECONDS);
+		this.compensationScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+			Thread thread = new Thread(r, "Compensation-Task-Scheduled-Thread");
+			thread.setDaemon(true);
+			return thread;
+		});
 	}
 
-	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, DataSource dataSource,
-			PlatformTransactionManager platformTransactionManager) {
-		this(cacheExecutor);
+	public SpringCacheEvictHandler(CacheExecutor cacheExecutor, HccProperties.CacheEvictProperties cacheEvictProperties,
+			DataSource dataSource, PlatformTransactionManager platformTransactionManager) {
+		this(cacheExecutor, cacheEvictProperties);
 		this.dataSource = dataSource;
 		this.platformTransactionManager = platformTransactionManager;
 		this.transactionTemplate = new TransactionTemplate(this.platformTransactionManager);
 		this.invalidationRecordDAO = InvalidationRecordDAO.getInstance();
+		this.cleanCacheScheduler.scheduleAtFixedRate(this::cleanCache, INITIAL_DELAY_SECONDS,
+				cacheEvictProperties.getCleanCachePeriodSeconds(), TimeUnit.SECONDS);
+		this.compensationScheduler.scheduleAtFixedRate(this::compensatePendingRecords, INITIAL_DELAY_SECONDS,
+				cacheEvictProperties.getCompensationPeriodSeconds(), TimeUnit.SECONDS);
 	}
 
 	@Override
@@ -97,25 +116,29 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 
 	@Override
 	public void addToSuccess(InvalidationRecord invalidationRecord) {
-		if (invalidationRecord != null) {
-			if (this.invalidationRecords.size() < INVALIDATION_RECORD_QUEUE_CAPACITY) {
+		if (invalidationRecord == null) {
+			return;
+		}
+
+		if (invalidationRecord.getEvictPolicy() == InvalidationRecord.EvictPolicy.IMMEDIATE) {
+			doClean(null, invalidationRecord);
+		}
+		else {
+			if (this.invalidationRecords.size() < invalidationQueueCapacity) {
 				this.invalidationRecords.add(invalidationRecord);
 			}
 			else {
-				doClean(invalidationRecord);
+				doClean(null, invalidationRecord);
 			}
 		}
 	}
 
-	/**
-	 * cleanCache
-	 */
 	private void cleanCache() {
 		List<InvalidationRecord> records = new ArrayList<>();
 		this.invalidationRecords.drainTo(records);
 		for (InvalidationRecord record : records) {
 			try {
-				doClean(record);
+				doClean(null, record);
 			}
 			catch (Exception e) {
 				log.error("cleanCache", e);
@@ -123,11 +146,38 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 		}
 	}
 
-	/**
-	 * doClean
-	 * @param invalidationRecord
-	 */
-	private void doClean(InvalidationRecord invalidationRecord) {
+	private void compensatePendingRecords() {
+		if (dataSource == null || invalidationRecordDAO == null) {
+			return;
+		}
+		try {
+			this.transactionTemplate.execute(status -> {
+				Connection conn = DataSourceUtils.getConnection(dataSource);
+				List<InvalidationRecord> pendingRecords = invalidationRecordDAO.findPendingRecords(conn, maxRetryCount,
+						compensationBatchSize);
+				if (pendingRecords != null && !pendingRecords.isEmpty()) {
+					log.info("Compensation task found {} pending records (maxRetry={})", pendingRecords.size(),
+							maxRetryCount);
+					for (InvalidationRecord record : pendingRecords) {
+						try {
+							doClean(conn, record);
+						}
+						catch (Exception e) {
+							log.error("Compensation task failed for record uid: {}, cacheKey: {}", record.getUid(),
+									record.getCacheKey(), e);
+						}
+					}
+				}
+				return null;
+			});
+
+		}
+		catch (Exception e) {
+			log.error("Compensation task error", e);
+		}
+	}
+
+	private void doClean(Connection conn, InvalidationRecord invalidationRecord) {
 		try {
 			CacheKey cacheKey = CacheKey.builder()
 				.key(invalidationRecord.getCacheKey())
@@ -137,50 +187,114 @@ public class SpringCacheEvictHandler implements CacheEvictHandler {
 						ConsistencyLevel.HIGH))
 				.build();
 			this.cacheExecutor.evict(cacheKey);
-			if (invalidationRecord.isTransactionEnabled()) {
-				// 标记成功
-				markCompleted(invalidationRecord.getUid(), invalidationRecord.getCacheKey());
-			}
+			markCompleted(conn, invalidationRecord);
 		}
 		catch (Exception e) {
-			if (invalidationRecord.isTransactionEnabled()) {
-				// 标记失败
-				markFailed(invalidationRecord.getUid(), invalidationRecord.getCacheKey(), e.getMessage());
-			}
-			log.error("cleanCache", e);
+			markFailed(conn, invalidationRecord);
+			log.error("doClean", e);
 		}
 	}
 
-	private boolean markFailed(String uid, String cacheKey, String errorMessage) {
-		return this.transactionTemplate.execute(status -> {
-			try {
-				Connection conn = DataSourceUtils.getConnection(dataSource);
-				boolean result = this.invalidationRecordDAO.markFailed(conn, uid, cacheKey, errorMessage);
-				log.info("markFailed uid:{}, cacheKey:{}", uid, cacheKey);
-				return result;
-			}
-			catch (Throwable t) {
-				status.setRollbackOnly();
-				log.error("markFailed uid:{}, cacheKey:{}", uid, cacheKey, t);
-			}
-			return false;
-		});
+	private boolean markFailed(Connection conn, InvalidationRecord invalidationRecord) {
+		if (conn == null && invalidationRecord.isTransactionEnabled()) {
+			invalidationRecord.calculateNextExecutionTime(baseDelayMs);
+			return this.transactionTemplate.execute(status -> {
+				try {
+					Connection newConn = DataSourceUtils.getConnection(dataSource);
+					boolean result = this.invalidationRecordDAO.markFailed(newConn, invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey(), invalidationRecord.getErrorMessage(),
+							invalidationRecord.getNextExecutionTime());
+					log.info("markFailed uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey());
+					return result;
+				}
+				catch (Throwable t) {
+					status.setRollbackOnly();
+					log.error("markFailed failed uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey(), t);
+				}
+				return false;
+			});
+		}
+		else if (conn != null) {
+			invalidationRecord.calculateNextExecutionTime(baseDelayMs);
+			boolean result = this.invalidationRecordDAO.markFailed(conn, invalidationRecord.getUid(),
+					invalidationRecord.getCacheKey(), invalidationRecord.getErrorMessage(),
+					invalidationRecord.getNextExecutionTime());
+			log.info("markFailed conn uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+					invalidationRecord.getCacheKey());
+			return result;
+		}
+		return false;
 	}
 
-	private boolean markCompleted(String uid, String cacheKey) {
-		return this.transactionTemplate.execute(status -> {
-			try {
+	public boolean markCompleted(Connection conn, InvalidationRecord invalidationRecord) {
+
+		if (conn == null && invalidationRecord.isTransactionEnabled()) {
+			return this.transactionTemplate.execute(status -> {
+				try {
+					Connection newConn = DataSourceUtils.getConnection(dataSource);
+					boolean result = this.invalidationRecordDAO.markCompleted(newConn, invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey());
+					log.info("markCompleted uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey());
+					return result;
+				}
+				catch (Throwable t) {
+					status.setRollbackOnly();
+					log.error("markCompleted uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+							invalidationRecord.getCacheKey(), t);
+				}
+				return false;
+			});
+		}
+		else if (conn != null) {
+			boolean result = this.invalidationRecordDAO.markCompleted(conn, invalidationRecord.getUid(),
+					invalidationRecord.getCacheKey());
+			log.info("markCompleted conn uid:{}, cacheKey:{}", invalidationRecord.getUid(),
+					invalidationRecord.getCacheKey());
+			return result;
+		}
+		return false;
+	}
+
+	public int getQueueSize() {
+		return this.invalidationRecords.size();
+	}
+
+	public List<InvalidationRecord> getPendingRecords(int maxRetryCount, int limit) {
+		if (dataSource == null || invalidationRecordDAO == null) {
+			return List.of();
+		}
+		try {
+			return this.transactionTemplate.execute(status -> {
 				Connection conn = DataSourceUtils.getConnection(dataSource);
-				boolean result = this.invalidationRecordDAO.markCompleted(conn, uid, cacheKey);
-				log.info("markCompleted uid:{}, cacheKey:{}", uid, cacheKey);
-				return result;
-			}
-			catch (Throwable t) {
-				status.setRollbackOnly();
-				log.error("markCompleted uid:{}, cacheKey:{}", uid, cacheKey, t);
-			}
-			return false;
-		});
+				return invalidationRecordDAO.findPendingRecords(conn, maxRetryCount, limit);
+			});
+		}
+		catch (Exception e) {
+			log.error("getPendingRecords error", e);
+			return List.of();
+		}
+	}
+
+	public void processRecord(InvalidationRecord record) {
+		if (record.isTransactionEnabled()) {
+			doClean(null, record);
+		}
+	}
+
+	public long getPendingRecordCount(DataSource ds) {
+		if (ds == null) {
+			return 0;
+		}
+		try (Connection conn = ds.getConnection()) {
+			return invalidationRecordDAO.getPendingCount(conn);
+		}
+		catch (SQLException e) {
+			log.error("getPendingRecordCount error", e);
+			return 0;
+		}
 	}
 
 }

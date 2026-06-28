@@ -11,9 +11,10 @@ CREATE TABLE `invalidation_record` (
   `error_message` text COMMENT '失败时的错误信息',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `next_execution_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '下一次执行时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_uid` (`uid`),
-  KEY `idx_status_create_time` (`status`, `create_time`),
+  KEY `idx_status_execution_time` (`status`, `next_execution_time`),
   KEY `idx_node_id` (`node_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缓存失效消息表（事务发件箱模式）';
 

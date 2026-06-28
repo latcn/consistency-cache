@@ -2,7 +2,7 @@ package io.github.latcn.cache.core.executor;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.handler.MultiLevelCachePipeLine;
+import io.github.latcn.cache.core.handler.MultiLevelCacheHandlerChain;
 import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
 import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
@@ -25,7 +25,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
 
 	private final CacheExecutorConfig cacheExecutorConfig;
 
-	private MultiLevelCachePipeLine multiLevelCachePipeLine;
+	private MultiLevelCacheHandlerChain multiLevelCacheHandlerChain;
 
 	public DefaultCacheExecutor(LocalCacheManager localCacheManager, DistributedCacheManager distributedCacheManager,
 			LocalCacheMarkerManager localCacheMarkerManager, WriteHotspotDetector writeHotspotDetector,
@@ -49,7 +49,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
 
 	public void setBroadcaster(Broadcaster broadcaster) {
 		this.broadcaster = broadcaster;
-		this.multiLevelCachePipeLine = new MultiLevelCachePipeLine(this.cacheExecutorConfig, broadcaster);
+		this.multiLevelCacheHandlerChain = new MultiLevelCacheHandlerChain(this.cacheExecutorConfig, broadcaster);
 	}
 
 	/**
@@ -58,7 +58,7 @@ public class DefaultCacheExecutor implements CacheExecutor {
 	 */
 	@Override
 	public void evict(CacheKey cacheKey) {
-		multiLevelCachePipeLine.evict(cacheKey);
+		multiLevelCacheHandlerChain.evict(cacheKey);
 	}
 
 	@Override
@@ -76,17 +76,17 @@ public class DefaultCacheExecutor implements CacheExecutor {
 
 	@Override
 	public CacheValue get(CacheKey cacheKey, Function doSingleFlightFun) {
-		return multiLevelCachePipeLine.get(cacheKey, doSingleFlightFun);
+		return multiLevelCacheHandlerChain.get(cacheKey, doSingleFlightFun);
 	}
 
 	@Override
 	public CompletableFuture<Boolean> evictAsync(CacheKey cacheKey) {
-		return multiLevelCachePipeLine.evictAsync(cacheKey);
+		return multiLevelCacheHandlerChain.evictAsync(cacheKey);
 	}
 
 	@Override
 	public CompletableFuture<CacheValue> getAsync(CacheKey cacheKey, Function doSingleFlightFun) {
-		return multiLevelCachePipeLine.getAsync(cacheKey, doSingleFlightFun);
+		return multiLevelCacheHandlerChain.getAsync(cacheKey, doSingleFlightFun);
 	}
 
 }

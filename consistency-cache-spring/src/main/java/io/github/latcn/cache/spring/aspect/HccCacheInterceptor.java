@@ -145,7 +145,8 @@ public class HccCacheInterceptor extends CacheInterceptor {
 		invalidationRecord.setNodeId(NodeInstanceHolder.getNodeId());
 		invalidationRecord.setOperationType(InvalidationRecord.OperationType.DELETE.toString());
 		invalidationRecord.setCreateTime(currentTime);
-		invalidationRecord.setCreateTime(currentTime);
+		invalidationRecord.setUpdateTime(currentTime);
+		invalidationRecord.setEvictPolicy(cacheableOperationExt.getEvictPolicy());
 		Object result = null;
 		try {
 			result = cacheEvictHandler.startInvalidate(invalidationRecord, () -> invocation.proceed());

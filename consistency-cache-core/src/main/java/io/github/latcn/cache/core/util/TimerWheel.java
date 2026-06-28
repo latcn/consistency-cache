@@ -133,6 +133,9 @@ public class TimerWheel {
 	}
 
 	public void processTask(TimerWheel timerWheel) {
+		if (timerWheel.executor == null) {
+			return;
+		}
 		long nextCurrentTime = timerWheel.currentTime + interval;
 		int nextIndex = (int) ((nextCurrentTime - createTime) / interval) % num;
 		timerWheel.currentTime = nextCurrentTime;
@@ -155,9 +158,13 @@ public class TimerWheel {
 		long calCurrentTime = currentTime;
 		long execTime = timerTask.getExecTime() - timerTask.getExecTime() % interval;
 		if (execTime <= calCurrentTime) {
-			// exec now
-			executor.submit(timerTask);
-			return;
+			if (executor != null) {
+				executor.submit(timerTask);
+				return;
+			}
+			else {
+				execTime = calCurrentTime;
+			}
 		}
 		int wheelsIndex = (int) (execTime - calCurrentTime) / interval;
 		int currentIndex = (int) ((calCurrentTime - createTime) / interval) % num;

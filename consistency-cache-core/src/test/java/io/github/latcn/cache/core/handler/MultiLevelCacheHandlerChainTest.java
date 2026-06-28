@@ -27,7 +27,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 @DisplayName("多级缓存管道测试")
-class MultiLevelCachePipeLineTest {
+class MultiLevelCacheHandlerChainTest {
 
 	@Mock
 	private LocalCacheManager localCacheManager;
@@ -55,7 +55,7 @@ class MultiLevelCachePipeLineTest {
 
 	private CacheExecutorConfig config;
 
-	private MultiLevelCachePipeLine pipeLine;
+	private MultiLevelCacheHandlerChain pipeLine;
 
 	@BeforeEach
 	void setUp(TestInfo testInfo) {
@@ -71,7 +71,7 @@ class MultiLevelCachePipeLineTest {
 			.cacheBloomFilter(bloomFilter)
 			.build();
 
-		pipeLine = new MultiLevelCachePipeLine(config, broadcaster);
+		pipeLine = new MultiLevelCacheHandlerChain(config, broadcaster);
 
 		when(circuitBreaker.execute(any())).thenAnswer(invocation -> {
 			java.util.function.Supplier<?> supplier = invocation.getArgument(0);

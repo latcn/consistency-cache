@@ -3,6 +3,7 @@ package io.github.latcn.cache.spring.aspect;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.core.model.InvalidationRecord;
 import io.github.latcn.cache.spring.annotation.HccCacheEvict;
 import io.github.latcn.cache.spring.annotation.HccCacheable;
 import java.lang.annotation.Annotation;
@@ -103,6 +104,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 			.broadcastEnabled(hccCacheEvict.broadcastEnabled())
 			.bloomFilterEnabled(hccCacheEvict.bloomFilterEnabled())
 			.bloomFilterName(hccCacheEvict.bloomFilterName())
+			.evictPolicy(hccCacheEvict.evictPolicy())
 			.build();
 		return op;
 	}
@@ -133,6 +135,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 
 		private String bloomFilterName;
 
+		private InvalidationRecord.EvictPolicy evictPolicy;
+
 		public CacheableOperationExt() {
 			super(new CacheableOperation.Builder());
 		}
@@ -160,6 +164,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 			private boolean broadcastEnabled;
 
 			private String bloomFilterName;
+
+			private InvalidationRecord.EvictPolicy evictPolicy;
 
 			public Builder() {
 			}
@@ -219,6 +225,11 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				return this;
 			}
 
+			public Builder evictPolicy(InvalidationRecord.EvictPolicy evictPolicy) {
+				this.evictPolicy = evictPolicy;
+				return this;
+			}
+
 			@Override
 			public CacheableOperationExt build() {
 				CacheableOperationExt cacheableOperationExt = new CacheableOperationExt();
@@ -233,6 +244,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				cacheableOperationExt.setCacheNullValues(this.cacheNullValues);
 				cacheableOperationExt.setBroadcastEnabled(this.broadcastEnabled);
 				cacheableOperationExt.setBloomFilterName(this.bloomFilterName);
+				cacheableOperationExt.setEvictPolicy(this.evictPolicy);
 				return cacheableOperationExt;
 			}
 

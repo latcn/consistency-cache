@@ -46,6 +46,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			ps.setString(6, record.getNodeId());
 			ps.setTimestamp(7, now);
 			ps.setTimestamp(8, now);
+			ps.setTimestamp(9, new Timestamp(now.getTime() + 1000));
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLIntegrityConstraintViolationException e) {
@@ -63,17 +64,18 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 	}
 
 	@Override
-	public List<InvalidationRecord> findPendingRecordsOlderThan(Connection conn, int thresholdSeconds, int limit) {
+	public List<InvalidationRecord> findPendingRecords(Connection conn, int maxRetryCount, int limit) {
 		PreparedStatement ps = null;
 		ResultSet rs = null;
 		List<InvalidationRecord> list = new ArrayList<>();
 		try {
-			Timestamp createTimeParam = new Timestamp(System.currentTimeMillis() - thresholdSeconds * 1000);
-			String sql = InvalidationRecordSqls.getLimitQuerySQL("findPendingRecordsOlderThan", DEFAULT_LOG_TABLE_NAME,
-					isOracle(conn));
+			Timestamp now = new Timestamp(System.currentTimeMillis());
+			String sql = InvalidationRecordSqls.getLimitQuerySQL(InvalidationRecordSqls.SqlNames.FIND_PENDING_RECORDS,
+					DEFAULT_LOG_TABLE_NAME, isOracle(conn), true);
 			ps = conn.prepareStatement(sql);
-			ps.setTimestamp(1, createTimeParam);
-			ps.setInt(2, limit);
+			ps.setTimestamp(1, now);
+			ps.setInt(2, maxRetryCount);
+			ps.setInt(3, limit);
 			rs = ps.executeQuery();
 			while (rs.next()) {
 				InvalidationRecord invalidationRecord = convert(rs);
@@ -81,41 +83,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			}
 		}
 		catch (SQLException e) {
-			log.error("findPendingRecordsOlderThan error", e);
-			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
-		}
-		finally {
-			IOUtil.close(rs, ps);
-		}
-		return list;
-	}
-
-	/**
-	 * findByUidAndCacheKey
-	 * @param conn
-	 * @param uid
-	 * @param cacheKey
-	 * @return
-	 */
-	@Override
-	public List<InvalidationRecord> findByUidAndCacheKey(Connection conn, String uid, String cacheKey) {
-		PreparedStatement ps = null;
-		ResultSet rs = null;
-		List<InvalidationRecord> list = new ArrayList<>();
-		try {
-			String sql = InvalidationRecordSqls.getLimitQuerySQL(
-					InvalidationRecordSqls.SqlNames.FIND_BY_UID_AND_CACHE_KEY, DEFAULT_LOG_TABLE_NAME, isOracle(conn));
-			ps = conn.prepareStatement(sql);
-			ps.setString(1, uid);
-			ps.setString(2, cacheKey);
-			rs = ps.executeQuery();
-			while (rs.next()) {
-				InvalidationRecord invalidationRecord = convert(rs);
-				list.add(invalidationRecord);
-			}
-		}
-		catch (SQLException e) {
-			log.error("findByUidAndCacheKey error", e);
+			log.error("findPendingRecordsByUpdateTime error", e);
 			throw CacheException.wrap(e, CacheError.DB_QUERY_FAILED);
 		}
 		finally {
@@ -147,7 +115,8 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 	}
 
 	@Override
-	public boolean markFailed(Connection conn, String uid, String cacheKey, String errorMessage) {
+	public boolean markFailed(Connection conn, String uid, String cacheKey, String errorMessage,
+			Timestamp nextExecutionTime) {
 		PreparedStatement ps = null;
 		try {
 			Timestamp now = new Timestamp(System.currentTimeMillis());
@@ -156,8 +125,9 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, errorMessage);
 			ps.setTimestamp(2, now);
-			ps.setString(3, uid);
-			ps.setString(4, cacheKey);
+			ps.setTimestamp(3, nextExecutionTime);
+			ps.setString(4, uid);
+			ps.setString(5, cacheKey);
 			return ps.executeUpdate() > 0;
 		}
 		catch (SQLException e) {
@@ -245,6 +215,7 @@ public class InvalidationRecordDAO implements InvalidationRecordRepository {
 			invalidationRecord.setNodeId(rs.getString("node_id"));
 			invalidationRecord.setCreateTime(rs.getTimestamp("create_time"));
 			invalidationRecord.setUpdateTime(rs.getTimestamp("update_time"));
+			invalidationRecord.setNextExecutionTime(rs.getTimestamp("next_execution_time"));
 			return invalidationRecord;
 		}
 		catch (SQLException e) {

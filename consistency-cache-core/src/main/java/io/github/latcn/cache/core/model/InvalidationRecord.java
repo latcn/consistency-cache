@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Cache invalidation message entity for transactional outbox pattern.
@@ -14,6 +15,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class InvalidationRecord implements Serializable {
 
 	private static final long serialVersionUID = 1L;
@@ -38,6 +40,8 @@ public class InvalidationRecord implements Serializable {
 	private String consistencyLevel;
 
 	private boolean transactionEnabled;
+
+	private EvictPolicy evictPolicy = EvictPolicy.DELAYED;
 
 	/**
 	 * Operation type: DELETE, UPDATE
@@ -76,6 +80,13 @@ public class InvalidationRecord implements Serializable {
 	private Timestamp updateTime;
 
 	/**
+	 * Next execution time for exponential backoff scheduling.
+	 */
+	private Timestamp nextExecutionTime;
+
+	private static final long MAX_DELAY_MS = 24 * 60 * 60 * 1000L;
+
+	/**
 	 * Check if this record is old enough to be processed by compensation task.
 	 * @param thresholdSeconds age threshold in seconds
 	 * @return true if older than threshold
@@ -100,6 +111,17 @@ public class InvalidationRecord implements Serializable {
 	}
 
 	/**
+	 * Check if record is ready for execution based on nextExecutionTime.
+	 * @return true if current time >= nextExecutionTime or nextExecutionTime is null
+	 */
+	public boolean isReadyForExecution() {
+		if (nextExecutionTime == null) {
+			return true;
+		}
+		return System.currentTimeMillis() >= nextExecutionTime.getTime();
+	}
+
+	/**
 	 * Mark record as completed.
 	 */
 	public void markCompleted() {
@@ -108,14 +130,35 @@ public class InvalidationRecord implements Serializable {
 	}
 
 	/**
-	 * Mark record as failed with error message.
+	 * Calculate and set next execution time using exponential backoff. Initial delay is
+	 * baseDelayMs, then doubles on each failure, max 24 hours.
+	 * @param baseDelayMs base delay in milliseconds, default 1000
 	 */
-	public void markFailed(String error) {
+	public void calculateNextExecutionTime(long baseDelayMs) {
+		long now = System.currentTimeMillis();
+		if (this.nextExecutionTime == null) {
+			this.nextExecutionTime = new Timestamp(now + baseDelayMs);
+		}
+		else {
+			long newDelay = Math.min(baseDelayMs << this.retryCount, MAX_DELAY_MS);
+			if (newDelay <= 0) {
+				log.error("markFailed uid:{}, cacheKey:{}", uid, cacheKey);
+			}
+			this.nextExecutionTime = new Timestamp(now + newDelay);
+		}
+	}
+
+	/**
+	 * Mark record as failed with error message and update next execution time.
+	 * @param error error message
+	 * @param baseDelayMs base delay for calculating next execution time
+	 */
+	public void markFailed(String error, long baseDelayMs) {
 		this.retryCount = (this.retryCount != null ? this.retryCount : 0) + 1;
 		this.errorMessage = error;
 		this.updateTime = new Timestamp(System.currentTimeMillis());
+		calculateNextExecutionTime(baseDelayMs);
 
-		// Mark as permanently failed after too many retries
 		if (this.retryCount >= 5) {
 			this.status = 2;
 		}
@@ -140,6 +183,12 @@ public class InvalidationRecord implements Serializable {
 		public int getStatus() {
 			return status;
 		}
+
+	}
+
+	public enum EvictPolicy {
+
+		DELAYED, IMMEDIATE
 
 	}
 

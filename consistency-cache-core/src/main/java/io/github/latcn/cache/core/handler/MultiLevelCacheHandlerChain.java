@@ -12,17 +12,17 @@ import lombok.extern.slf4j.Slf4j;
  * 多级缓存处理
  */
 @Slf4j
-public class MultiLevelCachePipeLine {
+public class MultiLevelCacheHandlerChain {
 
 	private final BaseCacheHandler firstHandler;
 
 	private final CacheMetricsRecorder metricsRecorder;
 
-	public MultiLevelCachePipeLine(CacheExecutorConfig cacheExecutorConfig, Broadcaster broadcaster) {
+	public MultiLevelCacheHandlerChain(CacheExecutorConfig cacheExecutorConfig, Broadcaster broadcaster) {
 		this(cacheExecutorConfig, broadcaster, CacheMetricsRecorder.of(cacheExecutorConfig.getMeterRegistry()));
 	}
 
-	public MultiLevelCachePipeLine(CacheExecutorConfig cacheExecutorConfig, Broadcaster broadcaster,
+	public MultiLevelCacheHandlerChain(CacheExecutorConfig cacheExecutorConfig, Broadcaster broadcaster,
 			CacheMetricsRecorder metricsRecorder) {
 		this.metricsRecorder = metricsRecorder != null ? metricsRecorder : CacheMetricsRecorder.noOp();
 		DbHandler dbHandler = new DbHandler(null, cacheExecutorConfig);

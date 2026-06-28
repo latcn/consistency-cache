@@ -72,7 +72,7 @@ public class HccCacheAutoConfiguration {
 			LocalCacheFactory.registerCacheType(LocalCacheType.CAFFEINE.name(), CaffeineCacheAdapter.class);
 		}
 		else if (LocalCacheType.GUAVA.name().equals(properties.getLocal().getCacheType())) {
-			LocalCacheFactory.registerCacheType(properties.getLocal().getCacheType(), GuavaCacheAdapter.class);
+			LocalCacheFactory.registerCacheType(LocalCacheType.GUAVA.name(), GuavaCacheAdapter.class);
 		}
 		return new LocalCacheManager(properties.getLocal());
 	}
@@ -160,10 +160,11 @@ public class HccCacheAutoConfiguration {
 	 * @return
 	 */
 	@Bean
-	public SpringCacheEvictHandler cacheEvictHandler(CacheExecutor cacheExecutor,
+	public SpringCacheEvictHandler cacheEvictHandler(CacheExecutor cacheExecutor, HccProperties properties,
 			@Autowired(required = false) DataSource dataSource,
 			@Autowired(required = false) PlatformTransactionManager platformTransactionManager) {
-		return new SpringCacheEvictHandler(cacheExecutor, dataSource, platformTransactionManager);
+		return new SpringCacheEvictHandler(cacheExecutor, properties.getCacheEvict(), dataSource,
+				platformTransactionManager);
 	}
 
 	/**

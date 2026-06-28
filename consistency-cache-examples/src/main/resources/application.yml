@@ -21,6 +21,8 @@ spring:
         readHotKeyThreshold: 80.1
       circuitBreaker:
         failureThreshold: 10
+      cacheEvict:
+        compensationPeriodSeconds: 1
   redis:
     #redisson:
     #  file: classpath:redisson-config.yml

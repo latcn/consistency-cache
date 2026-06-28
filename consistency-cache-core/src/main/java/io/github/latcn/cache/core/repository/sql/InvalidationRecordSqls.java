@@ -21,13 +21,13 @@ public class InvalidationRecordSqls {
 	 */
 	private static final String NONE_ORACLE_QUERY_LIMIT = " limit ? ";
 
+	private static final String QUERY_FOR_UPDATE = " FOR UPDATE SKIP LOCKED ";
+
 	public static class SqlNames {
 
 		public final static String INSERT = "insert";
 
-		public final static String FIND_BY_UID_AND_CACHE_KEY = "findByUidAndCacheKey";
-
-		public final static String FIND_PENDING_RECORDS_OLDER_THAN = "findPendingRecordsOlderThan";
+		public final static String FIND_PENDING_RECORDS = "findPendingRecords";
 
 		public final static String MARK_COMPLETED = "markCompleted";
 
@@ -47,19 +47,18 @@ public class InvalidationRecordSqls {
 
 	private static final Map<String, String> sqlMap = Map.ofEntries(entry(SqlNames.INSERT, "insert into "
 			+ INVALIDATION_RECORD_REPLACE
-			+ " (uid, cache_key, cache_level, consistency_level, operation_type, node_id, create_time, update_time) "
-			+ " values (?, ?, ?, ?, ?, ?, ?, ?) "),
-			entry(SqlNames.FIND_BY_UID_AND_CACHE_KEY,
-					"SELECT * FROM " + INVALIDATION_RECORD_REPLACE + " WHERE uid = ? and cache_key= ? for update"),
-			entry(SqlNames.FIND_PENDING_RECORDS_OLDER_THAN,
+			+ " (uid, cache_key, cache_level, consistency_level, operation_type, node_id, create_time, update_time, next_execution_time) "
+			+ " values (?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+			entry(SqlNames.FIND_PENDING_RECORDS,
 					"SELECT * FROM " + INVALIDATION_RECORD_REPLACE + " WHERE "
-							+ " status = 0 AND create_time < ? ORDER BY create_time ASC"),
+							+ " status IN (0, 2) AND next_execution_time <= ? AND retry_count < ? "
+							+ " ORDER BY next_execution_time ASC "),
 			entry(SqlNames.MARK_COMPLETED,
 					"UPDATE " + INVALIDATION_RECORD_REPLACE
 							+ " SET status = 1, update_time = ? WHERE uid = ? and cache_key = ?"),
-			entry(SqlNames.MARK_FAILED,
-					"UPDATE " + INVALIDATION_RECORD_REPLACE + "  SET retry_count = retry_count + 1, "
-							+ " error_message = ?, update_time = ? WHERE uid = ? and cache_key = ?"),
+			entry(SqlNames.MARK_FAILED, "UPDATE " + INVALIDATION_RECORD_REPLACE
+					+ "  SET retry_count = retry_count + 1, "
+					+ " error_message = ?, update_time = ?, next_execution_time = ? WHERE uid = ? and cache_key = ?"),
 			entry(SqlNames.DELETE_OLD_COMPLETED_RECORDS,
 					"DELETE FROM " + INVALIDATION_RECORD_REPLACE + " WHERE status = 1 AND create_time < ?"),
 			entry(SqlNames.GET_PENDING_COUNT,
@@ -75,7 +74,7 @@ public class InvalidationRecordSqls {
 		return sql.replace(INVALIDATION_RECORD_REPLACE, recordTable);
 	}
 
-	public static String getLimitQuerySQL(String methodName, String recordTable, boolean isOracle) {
+	public static String getLimitQuerySQL(String methodName, String recordTable, boolean isOracle, boolean forUpdate) {
 		String sql = getSQL(methodName, recordTable);
 		if (StringUtil.isNullOrEmpty(sql)) {
 			return sql;
@@ -86,6 +85,9 @@ public class InvalidationRecordSqls {
 		}
 		else {
 			sqlBuilder.append(NONE_ORACLE_QUERY_LIMIT);
+		}
+		if (forUpdate) {
+			sqlBuilder.append(QUERY_FOR_UPDATE);
 		}
 		return sqlBuilder.toString();
 	}

@@ -16,12 +16,15 @@ public class HccProperties {
 
 	private MonitorProperties monitor;
 
+	private CacheEvictProperties cacheEvict;
+
 	public HccProperties() {
 		this.local = new LocalCacheProperties();
 		this.distributed = new DistributedProperties();
 		this.hotspot = new HotspotProperties();
 		this.circuitBreaker = new CircuitBreakerProperties();
 		this.monitor = new MonitorProperties();
+		this.cacheEvict = new CacheEvictProperties();
 	}
 
 	@Data
@@ -134,6 +137,24 @@ public class HccProperties {
 		private int memoryCheckIntervalSeconds = 30;
 
 		private double memoryWarningThreshold = 0.8;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	public static class CacheEvictProperties {
+
+		private int invalidationQueueCapacity = 1000;
+
+		private long baseDelayMs = 1000;
+
+		private int compensationBatchSize = 50;
+
+		private int maxRetryCount = 5;
+
+		private int cleanCachePeriodSeconds = 1;
+
+		private int compensationPeriodSeconds = 10;
 
 	}
 
