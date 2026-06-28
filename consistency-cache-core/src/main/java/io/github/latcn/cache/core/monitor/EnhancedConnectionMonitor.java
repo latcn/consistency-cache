@@ -140,7 +140,7 @@ public class EnhancedConnectionMonitor {
 			switch (consistencyLevel) {
 				case HIGH:
 					log.warn("Cache '{}' (HIGH consistency): Clearing L1 cache on disconnect", consistencyLevel);
-					localCache.cleanUp();
+					localCache.invalidateAll();
 					break;
 
 				case AVAILABLE:

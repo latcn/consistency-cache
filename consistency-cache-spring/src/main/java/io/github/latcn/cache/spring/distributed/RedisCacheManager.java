@@ -56,7 +56,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	@Override
 	public boolean isHealthy() {
-		return RedissonClusterHealthCheck.checkClusterHealth(redissonClient);
+		return RedisHealthCheck.checkHealth(redissonClient);
 	}
 
 	@Override
