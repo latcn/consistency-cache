@@ -156,7 +156,7 @@ public class EnhancedConnectionMonitor {
 			switch (consistencyLevel) {
 				case HIGH:
 					log.warn("Cache '{}' (HIGH consistency): Clearing L1 cache on reconnect", consistencyLevel);
-					localCache.cleanUp();
+					localCache.invalidateAll();
 					break;
 
 				case AVAILABLE:
