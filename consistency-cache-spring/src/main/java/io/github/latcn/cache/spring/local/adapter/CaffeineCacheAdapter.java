@@ -89,11 +89,4 @@ public class CaffeineCacheAdapter<K, V extends CacheValue> implements LocalCache
 
 	}
 
-	public static void main(String[] args) {
-		HccProperties.LocalCacheProperties localCacheProperties = new HccProperties.LocalCacheProperties();
-		CaffeineCacheAdapter<String, CacheValue<String>> caffeineCacheAdapter = new CaffeineCacheAdapter(
-				localCacheProperties);
-		// caffeineCacheAdapter.put("123", "321");
-	}
-
 }

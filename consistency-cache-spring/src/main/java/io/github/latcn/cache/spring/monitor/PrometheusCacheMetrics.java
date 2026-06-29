@@ -2,8 +2,7 @@ package io.github.latcn.cache.spring.monitor;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.monitor.CacheMetricsManager;
 import io.micrometer.prometheus.PrometheusConfig;
@@ -72,8 +71,8 @@ public class PrometheusCacheMetrics {
 	 * @param writeHotspotDetector 写热点检测器，用于绑定写热点指标
 	 */
 	public PrometheusCacheMetrics(LocalCacheManager localCacheManager, DistributedCacheManager distributedCacheManager,
-			CacheCircuitBreaker circuitBreaker, ReadHotspotDetector readHotspotDetector,
-			WriteHotspotDetector writeHotspotDetector) {
+			CacheCircuitBreaker circuitBreaker, HotspotDetector readHotspotDetector,
+			HotspotDetector writeHotspotDetector) {
 
 		// Configure Prometheus registry
 		this.prometheusMeterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);

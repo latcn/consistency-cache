@@ -2,7 +2,7 @@ package io.github.latcn.cache.spring.performance;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.latcn.cache.core.hotspot.reads.DefaultReadHotspotDetector;
+import io.github.latcn.cache.core.hotspot.DefaultHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.manager.SingleFlightExecutor;
@@ -30,10 +30,9 @@ class ConcurrentPerformanceTest {
 
 	@BeforeEach
 	void setUp() {
-		LocalCacheFactory.registerCacheType(LocalCacheType.CAFFEINE.name(), CaffeineCacheAdapter.class);
+		LocalCacheFactory.registerCacheType(LocalCacheType.CAFFEINE.name(), CaffeineCacheAdapter.class.getName());
 		HccProperties.LocalCacheProperties properties = new HccProperties.LocalCacheProperties();
 		properties.setMaximumSize(10000);
-		properties.setExpireAfterWrite(300);
 		localCacheManager = new LocalCacheManager(properties);
 		executorService = Executors.newFixedThreadPool(20);
 	}
@@ -203,7 +202,6 @@ class ConcurrentPerformanceTest {
 	void testEvictionPerformance() throws InterruptedException {
 		HccProperties.LocalCacheProperties props = new HccProperties.LocalCacheProperties();
 		props.setMaximumSize(1000);
-		props.setExpireAfterWrite(1000);
 		LocalCacheManager smallCache = new LocalCacheManager(props);
 
 		int insertCount = 5000;
@@ -242,6 +240,7 @@ class ConcurrentPerformanceTest {
 		log.info("Duration: {} ms", duration);
 		log.info("Insertions/sec: {}", (insertCount * 1000 / duration));
 
+		smallCache.clear();
 		assertTrue(smallCache.getSize() <= 1000, "Cache should respect max size limit");
 		assertTrue(duration < 10000, "Should complete within reasonable time");
 	}
@@ -249,7 +248,7 @@ class ConcurrentPerformanceTest {
 	@Test
 	@DisplayName("Hotspot detection accuracy under load")
 	void testHotspotDetectionAccuracy() throws InterruptedException {
-		DefaultReadHotspotDetector statistics = new DefaultReadHotspotDetector(100.0);
+		DefaultHotspotDetector statistics = new DefaultHotspotDetector(100, 10000);
 		String hotKey = "hot-key";
 		String coldKey = "cold-key";
 
@@ -262,10 +261,10 @@ class ConcurrentPerformanceTest {
 					hotLatch.await();
 
 					for (int j = 0; j < 50; j++) {
-						statistics.recordRead(hotKey);
+						statistics.record(hotKey);
 					}
 
-					statistics.recordRead(coldKey);
+					statistics.record(coldKey);
 				}
 				catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
@@ -282,8 +281,8 @@ class ConcurrentPerformanceTest {
 		assertTrue(statistics.isHotKey(hotKey), "Should detect hot key accurately");
 		assertFalse(statistics.isHotKey(coldKey), "Should not flag cold key as hot");
 
-		double hotKeyQps = statistics.getQps(hotKey);
-		double coldKeyQps = statistics.getQps(coldKey);
+		double hotKeyQps = statistics.getHotKeyQps(hotKey);
+		double coldKeyQps = statistics.getHotKeyQps(coldKey);
 
 		log.info("Hot key QPS: {}", hotKeyQps);
 		log.info("Cold key QPS: {}", coldKeyQps);

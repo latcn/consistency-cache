@@ -1,4 +1,4 @@
-package io.github.latcn.cache.core.handler;
+package io.github.latcn.cache.core.monitor;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -131,7 +131,7 @@ enum NoOpCacheMetricsRecorder implements CacheMetricsRecorder {
  * 线程安全：此类是线程安全的，所有计数器和计时器都是线程安全的Micrometer组件。
  * </p>
  */
-class MicrometerCacheMetricsRecorder implements CacheMetricsRecorder {
+public class MicrometerCacheMetricsRecorder implements CacheMetricsRecorder {
 
 	/** Micrometer注册表，用于注册和管理所有监控指标 */
 	private final MeterRegistry registry;
@@ -183,7 +183,7 @@ class MicrometerCacheMetricsRecorder implements CacheMetricsRecorder {
 	 * </p>
 	 * @param registry Micrometer注册表，用于注册和管理监控指标
 	 */
-	MicrometerCacheMetricsRecorder(MeterRegistry registry) {
+	public MicrometerCacheMetricsRecorder(MeterRegistry registry) {
 		this.registry = registry;
 		this.l1RequestsCounter = Counter.builder("hcc_cache_requests_total")
 			.description("Total number of L1 cache requests")

@@ -266,4 +266,18 @@ public class ClassUtil {
 		return (clz.getModifiers() & Modifier.ABSTRACT) != 0;
 	}
 
+	public static Class getClzByClassName(String clzName) {
+		if (StringUtil.isNullOrEmpty(clzName)) {
+			return null;
+		}
+		Class clz = null;
+		try {
+			clz = Class.forName(clzName);
+		}
+		catch (ClassNotFoundException e) {
+			log.error("getClzByClassName ex", e);
+		}
+		return clz;
+	}
+
 }

@@ -21,10 +21,9 @@ class LocalCacheStressTest {
 
 	@BeforeEach
 	void setUp() {
-		LocalCacheFactory.registerCacheType("CAFFEINE", CaffeineCacheAdapter.class);
+		LocalCacheFactory.registerCacheType("CAFFEINE", CaffeineCacheAdapter.class.getName());
 		HccProperties.LocalCacheProperties properties = new HccProperties.LocalCacheProperties();
 		properties.setMaximumSize(100000);
-		properties.setExpireAfterWrite(300);
 		localCacheManager = new LocalCacheManager(properties);
 	}
 
@@ -203,7 +202,6 @@ class LocalCacheStressTest {
 	void testLocalCacheEvictionPerformance() throws InterruptedException {
 		HccProperties.LocalCacheProperties smallProps = new HccProperties.LocalCacheProperties();
 		smallProps.setMaximumSize(1000);
-		smallProps.setExpireAfterWrite(300);
 		LocalCacheManager smallCache = new LocalCacheManager(smallProps);
 
 		int insertCount = 50000;

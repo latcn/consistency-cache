@@ -2,10 +2,10 @@ package io.github.latcn.cache.core.monitor;
 
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheManager;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -60,16 +60,12 @@ public class EnhancedConnectionMonitor {
 		this.checkIntervalSeconds = checkIntervalSeconds;
 		this.meterRegistry = meterRegistry;
 		this.enabled = enabled;
-		this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-			Thread t = new Thread(r, "enhanced-connection-monitor");
-			t.setDaemon(true);
-			return t;
-		});
-		initMetrics();
+		this.scheduler = ThreadUtils.getScheduledThreadPoolExecutor(1, "enhanced-connection-monitor");
 		this.scheduler.scheduleAtFixedRate(this::checkConnection, checkIntervalSeconds, checkIntervalSeconds,
 				TimeUnit.SECONDS);
 		log.info("Initialized EnhancedConnectionMonitor with check interval: {}s, enabled: {}", checkIntervalSeconds,
 				enabled);
+		initMetrics();
 	}
 
 	private void initMetrics() {

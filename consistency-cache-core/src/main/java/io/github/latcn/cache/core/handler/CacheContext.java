@@ -1,6 +1,7 @@
 package io.github.latcn.cache.core.handler;
 
 import io.github.latcn.cache.core.model.CacheKey;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.AllArgsConstructor;

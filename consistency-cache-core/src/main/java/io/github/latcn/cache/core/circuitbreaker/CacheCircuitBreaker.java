@@ -5,7 +5,6 @@ import io.github.latcn.cache.core.exception.CacheException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,9 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CacheCircuitBreaker {
 
-	private static final int DEFAULT_FAILURE_THRESHOLD = 5;
-
-	private static final int DEFAULT_SUCCESS_THRESHOLD = 3;
+	private static final double DEFAULT_FAILURE_RATIO = 0.5;
 
 	private static final long DEFAULT_TIMEOUT_MS = 30000;
 
@@ -27,15 +24,11 @@ public class CacheCircuitBreaker {
 	private static final Set<Class<? extends Exception>> NON_RETRYABLE_EXCEPTIONS = Set
 		.of(IllegalArgumentException.class, NullPointerException.class, IllegalStateException.class);
 
-	private final int failureThreshold;
-
-	private final int successThreshold;
+	private final double failRatio;
 
 	private final long timeoutMs;
 
 	private final AtomicReference<CircuitBreakerState> state = new AtomicReference<>(CircuitBreakerState.CLOSED);
-
-	private final AtomicBoolean halfOpenProbeLock = new AtomicBoolean(false);
 
 	private final AtomicInteger failureCount = new AtomicInteger(0);
 
@@ -48,30 +41,33 @@ public class CacheCircuitBreaker {
 	private final AtomicInteger rejectedCalls = new AtomicInteger(0);
 
 	public CacheCircuitBreaker(Set<Class<? extends Exception>> customExceptions) {
-		this(DEFAULT_FAILURE_THRESHOLD, DEFAULT_SUCCESS_THRESHOLD, DEFAULT_TIMEOUT_MS, customExceptions);
+		this(DEFAULT_FAILURE_RATIO, DEFAULT_TIMEOUT_MS, customExceptions);
 	}
 
-	public CacheCircuitBreaker(int failureThreshold, int successThreshold, long timeoutMs,
-			Set<Class<? extends Exception>> customExceptions) {
-		this.failureThreshold = failureThreshold;
-		this.successThreshold = successThreshold;
+	public CacheCircuitBreaker(double failRatio, long timeoutMs, Set<Class<? extends Exception>> customExceptions) {
+		this.failRatio = failRatio;
 		this.timeoutMs = timeoutMs;
 		if (customExceptions != null && !customExceptions.isEmpty()) {
 			this.RETRYABLE_EXCEPTIONS.addAll(customExceptions);
 		}
-		log.info("Initialized CacheCircuitBreaker: failureThreshold={}, successThreshold={}, timeout={}ms",
-				failureThreshold, successThreshold, timeoutMs);
+		log.info("Initialized CacheCircuitBreaker: failRatio={}, timeout={}ms", failRatio, timeoutMs);
 	}
 
+	/**
+	 * 熔断三个状态转换： closed：初始状态 或 由halfOpen转换 open: 失败比率大于预计值，则打开熔断器，拒绝服务； 由closed/halfOpen转换
+	 * halfOpen: open状态 超过一段时间改成halfOpen状态; 进行检测,一次失败则变成open；halfOpen一次检测成功则转换成 closed
+	 * @param supplier
+	 * @return
+	 * @param <T>
+	 * @throws CacheException
+	 */
 	public <T> T execute(Supplier<T> supplier) throws CacheException {
 		totalCalls.incrementAndGet();
 
 		CircuitBreakerState currentState = state.get();
 		if (currentState == CircuitBreakerState.OPEN) {
 			if (shouldTryHalfOpen()) {
-				if (halfOpenProbeLock.compareAndSet(false, true)) {
-					state.compareAndSet(CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN);
-				}
+				state.compareAndSet(CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN);
 			}
 			if (state.get() == CircuitBreakerState.OPEN) {
 				rejectedCalls.incrementAndGet();
@@ -83,9 +79,6 @@ public class CacheCircuitBreaker {
 			T result = supplier.get();
 			recordSuccess();
 			return result;
-		}
-		catch (CacheException e) {
-			throw e;
 		}
 		catch (Exception e) {
 			if (isRetryable(e)) {
@@ -103,29 +96,35 @@ public class CacheCircuitBreaker {
 	}
 
 	private void recordSuccess() {
+		successCount.incrementAndGet();
 		if (state.get() == CircuitBreakerState.HALF_OPEN) {
-			int count = successCount.incrementAndGet();
-			if (count >= successThreshold) {
-				transitionToClosed();
-			}
-		}
-		else if (state.get() == CircuitBreakerState.CLOSED) {
-			failureCount.set(0);
+			// half open 条件下， 探测成功，则直接关闭熔断
+			transitionToClosed();
 		}
 	}
 
 	private void recordFailure() {
 		lastFailureTime.set(System.currentTimeMillis());
-
-		if (state.compareAndSet(CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN)) {
-			return;
+		failureCount.incrementAndGet();
+		if (state.get() == CircuitBreakerState.HALF_OPEN) {
+			// halfOpen 状态下，失败直接关闭，只重试一次
+			forceOpen();
 		}
+		else if (shouldTryOpen()) {
+			// closed 状态下，需要根据比例进行判断
+			forceOpen();
+		}
+	}
 
-		if (state.get() == CircuitBreakerState.CLOSED) {
-			int count = failureCount.incrementAndGet();
-			if (count >= failureThreshold) {
-				state.compareAndSet(CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN);
-			}
+	private boolean shouldTryOpen() {
+		int curSuccessCount = successCount.get();
+		int curFailureCount = failureCount.get();
+		int totalCount = curSuccessCount + curFailureCount;
+		if (totalCount == 0) {
+			return false;
+		}
+		else {
+			return curFailureCount * 1.0 / totalCount >= this.failRatio;
 		}
 	}
 
@@ -136,7 +135,6 @@ public class CacheCircuitBreaker {
 
 	private void transitionToClosed() {
 		state.set(CircuitBreakerState.CLOSED);
-		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
 
@@ -157,7 +155,6 @@ public class CacheCircuitBreaker {
 
 	public void reset() {
 		state.set(CircuitBreakerState.CLOSED);
-		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
 		lastFailureTime.set(0);
@@ -167,19 +164,10 @@ public class CacheCircuitBreaker {
 
 	public void forceOpen() {
 		state.set(CircuitBreakerState.OPEN);
-		halfOpenProbeLock.set(false);
 		failureCount.set(0);
 		successCount.set(0);
 
 		log.warn("Circuit breaker force to OPEN");
-	}
-
-	public static class CircuitBreakerOpenException extends RuntimeException {
-
-		public CircuitBreakerOpenException(String message) {
-			super(message);
-		}
-
 	}
 
 }

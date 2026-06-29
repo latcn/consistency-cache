@@ -1,5 +1,6 @@
 package io.github.latcn.cache.core.pubsub;
 
+import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,14 +37,9 @@ public abstract class Broadcaster<T, S extends BroadcasterListener> {
 		this.listeners = listeners;
 		this.batchSize = batchSize;
 		this.maxWaitSeconds = maxWaitSeconds;
-		this.scheduledExecutor = new ScheduledThreadPoolExecutor(1, r -> {
-			Thread thread = new Thread(r);
-			thread.setDaemon(true);
-			thread.setName("Broadcaster-ScheduledExecutor-Thread");
-			return thread;
-		});
+		this.scheduledExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1, "Broadcaster-ScheduledExecutor-Thread");
 		// 定时扫描
-		scheduledExecutor.scheduleWithFixedDelay(this::publish, this.maxWaitSeconds, this.maxWaitSeconds,
+		scheduledExecutor.scheduleAtFixedRate(this::publish, this.maxWaitSeconds, this.maxWaitSeconds,
 				TimeUnit.SECONDS);
 		init();
 	}

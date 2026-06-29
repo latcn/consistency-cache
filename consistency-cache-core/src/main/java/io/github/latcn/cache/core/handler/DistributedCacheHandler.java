@@ -1,8 +1,8 @@
 package io.github.latcn.cache.core.handler;
 
-import static io.github.latcn.cache.core.handler.CacheMetricsConstants.L2OperationType.DELETE;
-import static io.github.latcn.cache.core.handler.CacheMetricsConstants.L2OperationType.GET;
-import static io.github.latcn.cache.core.handler.CacheMetricsConstants.SingleFlightDeduplicationType.CACHE;
+import static io.github.latcn.cache.core.monitor.CacheMetricsConstants.L2OperationType.DELETE;
+import static io.github.latcn.cache.core.monitor.CacheMetricsConstants.L2OperationType.GET;
+import static io.github.latcn.cache.core.monitor.CacheMetricsConstants.SingleFlightDeduplicationType.CACHE;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
@@ -13,6 +13,7 @@ import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.NodeInstanceHolder;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import io.github.latcn.cache.core.pubsub.Broadcaster;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -132,7 +133,7 @@ public class DistributedCacheHandler extends BaseCacheHandler {
 			return;
 		}
 		cacheExecutorConfig.getLocalCacheManager().remove(cacheKey);
-		cacheExecutorConfig.getWriteHotspotDetector().recordInvalidation(cacheKey.getKey());
+		cacheExecutorConfig.getWriteHotspotDetector().record(cacheKey.getKey());
 		if (cacheKey.isBroadcastEnabled()) {
 			List<String> nodeIds = cacheExecutorConfig.getLocalCacheMarkerManager()
 				.getActiveNodes(cacheKey.getKey().toString());

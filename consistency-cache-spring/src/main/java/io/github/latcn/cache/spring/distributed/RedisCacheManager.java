@@ -28,7 +28,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	private final int maxBatchSize;
 
-	private final int maxWaitInMs;
+	private final int maxWaitMs;
 
 	private final ScheduledExecutorService scheduledExecutorService;
 
@@ -40,7 +40,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	private final AtomicInteger batchExecCount = new AtomicInteger(0);
 
-	public RedisCacheManager(RedissonClient redissonClient, int maxBatchSize, int maxWaitInMs) {
+	public RedisCacheManager(RedissonClient redissonClient, int maxBatchSize, int maxWaitMs) {
 		this.redissonClient = redissonClient;
 		this.scheduledExecutorService = new ScheduledThreadPoolExecutor(SCHEDULED_THREAD_POOL_SIZE, r -> {
 			Thread thread = new Thread(r);
@@ -49,8 +49,8 @@ public class RedisCacheManager implements DistributedCacheManager {
 			return thread;
 		});
 		this.maxBatchSize = maxBatchSize;
-		this.maxWaitInMs = maxWaitInMs;
-		this.scheduledExecutorService.scheduleAtFixedRate(this::batchExecute, maxWaitInMs, maxWaitInMs,
+		this.maxWaitMs = maxWaitMs;
+		this.scheduledExecutorService.scheduleAtFixedRate(this::batchExecute, maxWaitMs, maxWaitMs,
 				TimeUnit.MILLISECONDS);
 	}
 
@@ -144,7 +144,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 			BatchOptions options = BatchOptions.defaults();
 			RBatch batch = redissonClient.createBatch(options);
 
-			while (maxBatchSize > batchOperations.size() && (TimeUtil.currentNanoToMil() - startTime) < maxWaitInMs) {
+			while (maxBatchSize > batchOperations.size() && (TimeUtil.currentNanoToMil() - startTime) < maxWaitMs) {
 				List<CacheOperation> operations = cacheOperations.drain(maxBatchSize - batchOperations.size());
 				if (operations == null || operations.size() == 0) {
 					Thread.sleep(EMPTY_POLL_SLEEP_MILLISECONDS);

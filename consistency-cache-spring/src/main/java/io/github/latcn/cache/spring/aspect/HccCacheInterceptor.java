@@ -176,7 +176,7 @@ public class HccCacheInterceptor extends CacheInterceptor {
 		}
 		return CacheKey.builder()
 			.key(actualKey)
-			.expireTimeMs(cacheableOperationExt.getExpireTime())
+			.ttlMs(cacheableOperationExt.getTtlMs())
 			.consistencyLevel(cacheableOperationExt.getConsistencyLevel())
 			.cacheLevel(cacheableOperationExt.getCacheLevel())
 			.bloomFilterEnabled(cacheableOperationExt.isBloomFilterEnabled())

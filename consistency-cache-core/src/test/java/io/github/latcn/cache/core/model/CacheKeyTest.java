@@ -17,14 +17,14 @@ class CacheKeyTest {
 		// When
 		CacheKey<String> cacheKey = CacheKey.<String>builder()
 			.key("test-key")
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.build();
 
 		// Then
 		assertEquals("test-key", cacheKey.getKey());
-		assertEquals(60000, cacheKey.getExpireTimeMs());
+		assertEquals(60000, cacheKey.getTtlMs());
 		assertEquals(CacheLevel.LOCAL_CACHE, cacheKey.getCacheLevel());
 		assertEquals(ConsistencyLevel.HIGH, cacheKey.getConsistencyLevel());
 	}
@@ -37,7 +37,7 @@ class CacheKeyTest {
 
 		// Then
 		assertEquals("test-key", cacheKey.getKey());
-		assertEquals(0, cacheKey.getExpireTimeMs());
+		assertEquals(0, cacheKey.getTtlMs());
 		assertEquals(CacheLevel.ADAPTIVE_CACHE, cacheKey.getCacheLevel());
 		assertEquals(ConsistencyLevel.HIGH, cacheKey.getConsistencyLevel());
 	}
@@ -64,14 +64,14 @@ class CacheKeyTest {
 		// Given
 		CacheKey<String> key1 = CacheKey.<String>builder()
 			.key("same")
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.build();
 
 		CacheKey<String> key2 = CacheKey.<String>builder()
 			.key("same")
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.build();
@@ -87,7 +87,7 @@ class CacheKeyTest {
 		// Given
 		CacheKey<String> cacheKey = CacheKey.<String>builder()
 			.key("test")
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.cacheLevel(CacheLevel.LOCAL_CACHE)
 			.consistencyLevel(ConsistencyLevel.HIGH)
 			.build();
@@ -97,7 +97,7 @@ class CacheKeyTest {
 
 		// Then
 		assertTrue(str.contains("key=test"));
-		assertTrue(str.contains("expireTimeMs=60000"));
+		assertTrue(str.contains("ttlMs=60000"));
 		assertTrue(str.contains("cacheLevel=LOCAL_CACHE"));
 		assertTrue(str.contains("consistencyLevel=HIGH"));
 	}

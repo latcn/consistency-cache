@@ -13,14 +13,14 @@ spring:
   hcc:
     cache:
       enabled: true
-      metrics:
+      monitor:
         enabled: true
       local:
         initialCapacity: 1000
       hotspot:
-        readHotKeyThreshold: 80.1
+        readHotKeyThreshold: 80
       circuitBreaker:
-        failureThreshold: 10
+        failRatio: 0.5
       cacheEvict:
         compensationPeriodSeconds: 1
   redis:

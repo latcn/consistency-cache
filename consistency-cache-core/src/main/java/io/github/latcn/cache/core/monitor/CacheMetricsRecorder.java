@@ -1,4 +1,4 @@
-package io.github.latcn.cache.core.handler;
+package io.github.latcn.cache.core.monitor;
 
 public interface CacheMetricsRecorder {
 

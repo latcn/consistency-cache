@@ -25,7 +25,7 @@ class LocalCacheManagerTest {
 	@BeforeEach
 	void setUp() {
 		properties = new HccProperties.LocalCacheProperties();
-		LocalCacheFactory.registerCacheType(LocalCacheType.CAFFEINE.name(), CaffeineCacheAdapter.class);
+		LocalCacheFactory.registerCacheType(LocalCacheType.CAFFEINE.name(), CaffeineCacheAdapter.class.getName());
 		localCacheManager = new LocalCacheManager(properties);
 	}
 

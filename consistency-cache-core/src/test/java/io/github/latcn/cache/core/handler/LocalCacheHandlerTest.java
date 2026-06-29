@@ -8,14 +8,14 @@ import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import io.github.latcn.cache.core.pubsub.Broadcaster;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
@@ -41,10 +41,10 @@ class LocalCacheHandlerTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheBloomFilter bloomFilter;
@@ -125,7 +125,7 @@ class LocalCacheHandlerTest {
 		CacheContext context = createCacheContext(cacheKey);
 
 		when(localCacheManager.get(cacheKey)).thenReturn(cacheValue);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		CacheValue result = localCacheHandler.get(context);
 
@@ -144,7 +144,7 @@ class LocalCacheHandlerTest {
 		CacheContext context = createCacheContext(cacheKey);
 
 		when(localCacheManager.get(cacheKey)).thenReturn(createCacheValue("local-value"));
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(true);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(true);
 		when(nextHandler.get(context)).thenReturn(nextValue);
 
 		CacheValue result = localCacheHandler.get(context);
@@ -184,7 +184,7 @@ class LocalCacheHandlerTest {
 		localCacheHandler.evict(context);
 
 		verify(localCacheManager).remove(cacheKey);
-		verify(writeHotspotDetector).recordInvalidation(any());
+		verify(writeHotspotDetector).record(any());
 		verify(nextHandler, never()).evict(any());
 	}
 
@@ -194,12 +194,12 @@ class LocalCacheHandlerTest {
 		CacheKey cacheKey = createCacheKeyWithBroadcast(CacheLevel.ADAPTIVE_CACHE, "test-key");
 		CacheContext context = createCacheContext(cacheKey);
 
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(localCacheMarkerManager.getActiveNodes(any())).thenReturn(Arrays.asList("1", "2"));
 		localCacheHandler.evict(context);
 
 		verify(localCacheManager).remove(cacheKey);
-		verify(writeHotspotDetector).recordInvalidation(any());
+		verify(writeHotspotDetector).record(any());
 		verify(broadcaster).addKey(cacheKey);
 	}
 
@@ -209,12 +209,12 @@ class LocalCacheHandlerTest {
 		CacheKey cacheKey = createCacheKeyWithBroadcast(CacheLevel.ADAPTIVE_CACHE, "test-key");
 		CacheContext context = createCacheContext(cacheKey);
 
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(true);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(true);
 
 		localCacheHandler.evict(context);
 
 		verify(localCacheManager).remove(cacheKey);
-		verify(writeHotspotDetector).recordInvalidation(any());
+		verify(writeHotspotDetector).record(any());
 		verify(broadcaster, never()).addKey(any());
 	}
 
@@ -242,7 +242,7 @@ class LocalCacheHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 
@@ -254,7 +254,7 @@ class LocalCacheHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(true)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 

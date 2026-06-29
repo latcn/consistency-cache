@@ -3,8 +3,7 @@ package io.github.latcn.cache.spring.performance;
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.executor.CacheExecutor;
 import io.github.latcn.cache.core.executor.DefaultCacheExecutor;
-import io.github.latcn.cache.core.hotspot.reads.DefaultReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.DefaultWriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.DefaultHotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheFactory;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
@@ -45,7 +44,7 @@ class FullStackIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
-		LocalCacheFactory.registerCacheType("CAFFEINE", CaffeineCacheAdapter.class);
+		LocalCacheFactory.registerCacheType("CAFFEINE", CaffeineCacheAdapter.class.getName());
 
 		Config config = new Config();
 		config.setCodec(new org.redisson.codec.JsonJacksonCodec());
@@ -57,19 +56,17 @@ class FullStackIntegrationTest {
 
 		HccProperties properties = new HccProperties();
 		properties.getLocal().setMaximumSize(100000);
-		properties.getLocal().setExpireAfterWrite(300);
-		properties.getLocal().setChannelNames("hcc-cache-channel");
+		properties.getCacheEvict().setChannelNames("hcc-cache-channel");
 
 		localCacheManager = new LocalCacheManager(properties.getLocal());
 		LocalCacheMarkerManager markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 200, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultWriteHotspotDetector writeHotspotDetector = new DefaultWriteHotspotDetector(1000, 60000, 2.0, 300000,
-				1000);
-		DefaultReadHotspotDetector readHotspotDetector = new DefaultReadHotspotDetector(100.0);
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(1000, 60000);
+		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(100, 20000);
 
-		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50, 10, 30000,
+		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(0.5, 30000,
 				Set.of(org.redisson.client.RedisConnectionException.class));
 
 		cacheExecutor = new DefaultCacheExecutor(localCacheManager, distributedCacheManager, markerManager,
@@ -77,7 +74,7 @@ class FullStackIntegrationTest {
 
 		BroadcastPublisher publisher = new RTopicPublisher(redissonClient);
 		BroadcastSubscriber subscriber = new RTopicSubscriber(redissonClient);
-		Set<String> channelNames = Set.of(properties.getLocal().getChannelNames().split(","));
+		Set<String> channelNames = Set.of(properties.getCacheEvict().getChannelNames().split(","));
 		InvalidationListener listener = new InvalidationListener(NodeInstanceHolder.getNodeId(),
 				new ArrayList<>(channelNames), cacheExecutor);
 

@@ -6,15 +6,22 @@ import io.github.latcn.cache.core.model.ConsistencyLevel;
 import io.github.latcn.cache.core.model.HccProperties;
 import io.github.latcn.cache.core.util.ClassUtil;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class LocalCacheFactory {
 
 	private static final ConcurrentHashMap<String, Class<? extends LocalCache>> cacheClzMap = new ConcurrentHashMap<>();
 
 	private static final ConcurrentHashMap<String, LocalCache> cacheInstanceMap = new ConcurrentHashMap<>();
 
-	public static void registerCacheType(String cacheType, Class<? extends LocalCache> cacheClz) {
-		cacheClzMap.putIfAbsent(cacheType, cacheClz);
+	public static void registerCacheType(String cacheType, String cacheClz) {
+		Class clz = ClassUtil.getClzByClassName(cacheClz);
+		if (clz == null || !LocalCache.class.isAssignableFrom(clz)) {
+			log.error("registerCacheType cacheType:{} cacheClz:{}", cacheType, cacheClz);
+			return;
+		}
+		cacheClzMap.putIfAbsent(cacheType, clz);
 	}
 
 	public static void removeByCacheType(String cacheType) {

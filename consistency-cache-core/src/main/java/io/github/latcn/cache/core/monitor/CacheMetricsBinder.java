@@ -3,8 +3,7 @@ package io.github.latcn.cache.core.monitor;
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.circuitbreaker.CircuitBreakerState;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -47,10 +46,10 @@ public class CacheMetricsBinder implements MeterBinder {
 	private final CacheCircuitBreaker circuitBreaker;
 
 	/** 读热点检测器，用于获取读热点key的数量 */
-	private final ReadHotspotDetector readHotspotDetector;
+	private final HotspotDetector readHotspotDetector;
 
 	/** 写热点检测器，用于获取写热点key的数量 */
-	private final WriteHotspotDetector writeHotspotDetector;
+	private final HotspotDetector writeHotspotDetector;
 
 	/** Micrometer注册表，用于注册指标 */
 	private MeterRegistry meterRegistry;
@@ -68,8 +67,8 @@ public class CacheMetricsBinder implements MeterBinder {
 	 * @param writeHotspotDetector 写热点检测器，用于绑定写热点指标，可为null
 	 */
 	public CacheMetricsBinder(LocalCacheManager localCacheManager, DistributedCacheManager distributedCacheManager,
-			CacheCircuitBreaker circuitBreaker, ReadHotspotDetector readHotspotDetector,
-			WriteHotspotDetector writeHotspotDetector) {
+			CacheCircuitBreaker circuitBreaker, HotspotDetector readHotspotDetector,
+			HotspotDetector writeHotspotDetector) {
 		this.localCacheManager = localCacheManager;
 		this.distributedCacheManager = distributedCacheManager;
 		this.circuitBreaker = circuitBreaker;
@@ -250,7 +249,7 @@ public class CacheMetricsBinder implements MeterBinder {
 	 */
 	private void bindSystemPerformanceMetrics() {
 		if (readHotspotDetector != null) {
-			Gauge.builder("hcc_hotspot_read_hotkeys_count", readHotspotDetector, readKey -> readKey.readHotKeyCount())
+			Gauge.builder("hcc_hotspot_read_hotkeys_count", readHotspotDetector, readKey -> readKey.getHotKeyCount())
 				.description("Number of read hotspot keys detected")
 				.tag("hotspot_type", "read")
 				.baseUnit("keys")
@@ -258,8 +257,7 @@ public class CacheMetricsBinder implements MeterBinder {
 		}
 		if (writeHotspotDetector != null) {
 			Gauge
-				.builder("hcc_hotspot_write_hotkeys_count", writeHotspotDetector,
-						writeKey -> writeKey.writeHotKeyCount())
+				.builder("hcc_hotspot_write_hotkeys_count", writeHotspotDetector, writeKey -> writeKey.getHotKeyCount())
 				.description("Number of write hotspot keys detected")
 				.tag("hotspot_type", "write")
 				.baseUnit("keys")

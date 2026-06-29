@@ -48,7 +48,7 @@ public class PreCheckHandler extends BaseCacheHandler {
 	private boolean checkAndRecord(CacheKey cacheKey) {
 		CacheKey.check(cacheKey);
 		// read record
-		cacheExecutorConfig.getReadStatistics().recordRead(cacheKey.getKey());
+		cacheExecutorConfig.getReadStatistics().record(cacheKey.getKey());
 		// 布隆过滤器校验
 		return existsInBloomFilter(cacheKey);
 	}

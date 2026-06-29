@@ -1,6 +1,6 @@
 package io.github.latcn.cache.core.handler;
 
-import static io.github.latcn.cache.core.handler.CacheMetricsConstants.SingleFlightDeduplicationType.DB;
+import static io.github.latcn.cache.core.monitor.CacheMetricsConstants.SingleFlightDeduplicationType.DB;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
@@ -10,6 +10,7 @@ import io.github.latcn.cache.core.manager.SingleFlightResult;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -72,8 +73,8 @@ public class DbHandler extends BaseCacheHandler {
 				}
 			}
 			CacheValue cacheValue = CacheValue.builder().value(dbResult).createdAt(System.currentTimeMillis()).build();
-			if (cacheKey.getExpireTimeMs() > 0) {
-				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getExpireTimeMs());
+			if (cacheKey.getTtlMs() > 0) {
+				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getTtlMs());
 			}
 			if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
 				cacheExecutorConfig.getLocalCacheManager().put(k, cacheValue);
@@ -106,8 +107,8 @@ public class DbHandler extends BaseCacheHandler {
 				}
 			}
 			CacheValue cacheValue = CacheValue.builder().value(r).createdAt(System.currentTimeMillis()).build();
-			if (cacheKey.getExpireTimeMs() > 0) {
-				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getExpireTimeMs());
+			if (cacheKey.getTtlMs() > 0) {
+				cacheValue.setExpireTime(System.currentTimeMillis() + cacheKey.getTtlMs());
 			}
 			if (cacheKey.getCacheLevel() == CacheLevel.LOCAL_CACHE) {
 				cacheExecutorConfig.getLocalCacheManager().put(cacheKey, cacheValue);

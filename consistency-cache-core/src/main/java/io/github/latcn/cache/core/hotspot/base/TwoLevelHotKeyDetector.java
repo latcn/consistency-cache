@@ -1,4 +1,4 @@
-package io.github.latcn.cache.core.hotspot;
+package io.github.latcn.cache.core.hotspot.base;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
@@ -101,17 +101,23 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 	private volatile boolean closed = false;
 
 	// ========== 监控指标 ==========
-	private final AtomicLong promotedCount = new AtomicLong(0); // 晋升到精确层的 key 数量
+	// 晋升到精确层的 key 数量
+	private final AtomicLong promotedCount = new AtomicLong(0);
 
-	private final AtomicLong evictedCount = new AtomicLong(0); // 被强制淘汰的 key 数量
+	// 被强制淘汰的 key 数量
+	private final AtomicLong evictedCount = new AtomicLong(0);
 
-	private final AtomicLong hotHitCount = new AtomicLong(0); // isHotKey 返回 true 的次数
+	// isHotKey 返回 true 的次数
+	private final AtomicLong hotHitCount = new AtomicLong(0);
 
-	private final AtomicLong hotMissCount = new AtomicLong(0); // isHotKey 返回 false 的次数
+	// isHotKey 返回 false 的次数
+	private final AtomicLong hotMissCount = new AtomicLong(0);
 
-	private final AtomicLong forceCleanupCount = new AtomicLong(0); // 强制清理执行次数
+	// 强制清理执行次数
+	private final AtomicLong forceCleanupCount = new AtomicLong(0);
 
-	private final AtomicLong forceCleanupSkipCooldown = new AtomicLong(0); // 因冷却而跳过的强制清理次数
+	// 因冷却而跳过的强制清理次数
+	private final AtomicLong forceCleanupSkipCooldown = new AtomicLong(0);
 
 	// ===================== Builder =====================
 	/**
@@ -327,7 +333,7 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 					return; // 容量仍然满，放弃晋升
 				}
 			}
-			KeyStats newStats = new KeyStats(0, nowNano);
+			KeyStats newStats = new KeyStats(0, 0, nowNano, nowNano);
 			KeyStats existing = exactCounter.putIfAbsent(key, newStats);
 			if (existing == null) {
 				// 成功放入，计入本次访问
@@ -363,6 +369,14 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 		else
 			hotMissCount.incrementAndGet();
 		return hot;
+	}
+
+	public double getQps(String key) {
+		KeyStats stats = exactCounter.get(key);
+		if (stats == null) {
+			return 0.0;
+		}
+		return stats.getHotKeyQps();
 	}
 
 	// ========== 监控指标 ==========
@@ -537,12 +551,18 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 
 		private static class State {
 
+			final long actualCount;
+
 			final double count;
+
+			final long firstVisitNano;
 
 			final long lastDecayNano;
 
-			State(double count, long nano) {
+			State(long actualCount, double count, long firstVisitNano, long nano) {
+				this.actualCount = actualCount;
 				this.count = count;
+				this.firstVisitNano = firstVisitNano;
 				this.lastDecayNano = nano;
 			}
 
@@ -550,8 +570,8 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 
 		private final AtomicReference<State> stateRef;
 
-		KeyStats(double initialCount, long nowNano) {
-			this.stateRef = new AtomicReference<>(new State(initialCount, nowNano));
+		KeyStats(long initialActualCount, double initialCount, long firstVisitNano, long nowNano) {
+			this.stateRef = new AtomicReference<>(new State(initialActualCount, initialCount, firstVisitNano, nowNano));
 		}
 
 		/**
@@ -576,8 +596,10 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 				else {
 					factor = Math.pow(1 - decayRate, seconds);
 				}
+				long actualCount = old.actualCount + 1;
+				long firstVisitNano = old.firstVisitNano;
 				double newCount = old.count * factor + 1.0;
-				State newState = new State(newCount, nowNano);
+				State newState = new State(actualCount, newCount, firstVisitNano, nowNano);
 				if (stateRef.compareAndSet(old, newState))
 					return;
 			}
@@ -610,6 +632,16 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 
 		long getLastAccessNano() {
 			return stateRef.get().lastDecayNano;
+		}
+
+		double getHotKeyQps() {
+			State state = stateRef.get();
+			long actualCount = state.actualCount;
+			double durationSeconds = (System.nanoTime() - state.firstVisitNano) / 1000_000.0;
+			if (durationSeconds < 1) {
+				return 0;
+			}
+			return actualCount / durationSeconds;
 		}
 
 	}

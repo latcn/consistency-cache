@@ -3,6 +3,7 @@ package io.github.latcn.cache.core.hotspot;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.latcn.cache.core.exception.CacheException;
+import io.github.latcn.cache.core.hotspot.base.CMSHotKeyDetector;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

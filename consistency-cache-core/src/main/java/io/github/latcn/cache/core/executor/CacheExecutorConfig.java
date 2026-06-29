@@ -2,8 +2,7 @@ package io.github.latcn.cache.core.executor;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -23,9 +22,9 @@ public class CacheExecutorConfig {
 
 	private final LocalCacheMarkerManager localCacheMarkerManager;
 
-	private final WriteHotspotDetector writeHotspotDetector;
+	private final HotspotDetector writeHotspotDetector;
 
-	private final ReadHotspotDetector readStatistics;
+	private final HotspotDetector readStatistics;
 
 	private final CacheCircuitBreaker cacheCircuitBreaker;
 

@@ -119,8 +119,8 @@ class EnhancedConnectionMonitorTest {
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
 		monitor.checkConnection();
 
-		verify(highCache, atLeastOnce()).cleanUp();
-		verify(availableCache, never()).cleanUp();
+		verify(highCache, atLeastOnce()).invalidateAll();
+		verify(availableCache, never()).invalidateAll();
 	}
 
 	@Test
@@ -135,7 +135,7 @@ class EnhancedConnectionMonitorTest {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
 		monitor.checkConnection();
 
-		verify(highCache, atLeast(2)).cleanUp();
+		verify(highCache, atLeast(2)).invalidateAll();
 	}
 
 	@Test
@@ -148,7 +148,8 @@ class EnhancedConnectionMonitorTest {
 		monitor.checkConnection();
 
 		assertFalse(monitor.isWasConnected());
-		verify(highCache, atLeastOnce()).cleanUp();
+
+		verify(highCache, atLeastOnce()).invalidateAll();
 	}
 
 	@Test

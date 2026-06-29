@@ -2,7 +2,9 @@ package io.github.latcn.cache.core.util;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class ThreadUtils {
 
 	private static final int DEFAULT_CORE_POOL_SIZE = 1;
@@ -23,6 +25,16 @@ public class ThreadUtils {
 						return thread;
 					}
 				}, new ThreadPoolExecutor.CallerRunsPolicy());
+	}
+
+	public static ScheduledThreadPoolExecutor getScheduledThreadPoolExecutor(int corePoolSize, String scheduledName) {
+		return new ScheduledThreadPoolExecutor(corePoolSize, r -> {
+			Thread thread = new Thread(r);
+			thread.setDaemon(true);
+			thread.setName(scheduledName);
+			thread.setUncaughtExceptionHandler((t, ex) -> log.error("{} ScheduledThread died", scheduledName, ex));
+			return thread;
+		});
 	}
 
 }

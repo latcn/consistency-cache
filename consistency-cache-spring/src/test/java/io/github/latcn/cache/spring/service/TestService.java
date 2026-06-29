@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TestService {
 
-	@HccCacheable(key = "#id", expireTime = 300)
+	@HccCacheable(key = "#id", ttl = 300)
 	public String getDataWithCache(Long id) {
 		return "actual-data-" + id;
 	}
@@ -20,12 +20,12 @@ public class TestService {
 		return "deleted-" + id;
 	}
 
-	@HccCacheable(key = "#userId", expireTime = 600)
+	@HccCacheable(key = "#userId", ttl = 600)
 	public String getUserById(Long userId) {
 		return "user-" + userId;
 	}
 
-	@HccCacheable(key = "#type + '-' + #id", expireTime = 300)
+	@HccCacheable(key = "#type + '-' + #id", ttl = 300)
 	public String getCompositeData(String type, Long id) {
 		return type + "-data-" + id;
 	}
@@ -34,7 +34,7 @@ public class TestService {
 		return param + "-result";
 	}
 
-	@HccCacheable(key = "'nullable'", expireTime = 60)
+	@HccCacheable(key = "'nullable'", ttl = 60)
 	public String getNullableData(String data) {
 		return data;
 	}

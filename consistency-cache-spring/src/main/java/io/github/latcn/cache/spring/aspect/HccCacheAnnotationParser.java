@@ -84,11 +84,11 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 			.bloomFilterEnabled(hccCacheable.bloomFilterEnabled())
 			.bloomFilterName(hccCacheable.bloomFilterName())
 			.build();
-		if (hccCacheable.expireTime() == EXPIRE_TIME_ZERO_VALUE) {
-			op.setExpireTime(CacheValue.MAX_EXPIRE_TIME);
+		if (hccCacheable.ttl() == EXPIRE_TIME_ZERO_VALUE) {
+			op.setTtlMs(CacheValue.MAX_EXPIRE_TIME);
 		}
 		else {
-			op.setExpireTime(hccCacheable.expireTime() * SECONDS_TO_MILLISECONDS_MULTIPLIER);
+			op.setTtlMs(hccCacheable.ttl() * SECONDS_TO_MILLISECONDS_MULTIPLIER);
 		}
 		return op;
 	}
@@ -117,7 +117,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 
 		private String key;
 
-		private long expireTime;
+		private long ttlMs;
 
 		private ConsistencyLevel consistencyLevel;
 
@@ -147,7 +147,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 
 			private String key;
 
-			private long expireTime;
+			private long ttlMs;
 
 			private ConsistencyLevel consistencyLevel;
 
@@ -180,8 +180,8 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				return this;
 			}
 
-			public Builder expireTime(long expireTime) {
-				this.expireTime = expireTime;
+			public Builder ttlMs(long ttlMs) {
+				this.ttlMs = ttlMs;
 				return this;
 			}
 
@@ -239,7 +239,7 @@ public class HccCacheAnnotationParser implements CacheAnnotationParser {
 				cacheableOperationExt.setConsistencyLevel(this.consistencyLevel);
 				cacheableOperationExt.setTransactionEnabled(this.transactionEnabled);
 				cacheableOperationExt.setFallbackExecActual(this.fallbackExecActual);
-				cacheableOperationExt.setExpireTime(this.expireTime);
+				cacheableOperationExt.setTtlMs(this.ttlMs);
 				cacheableOperationExt.setBloomFilterEnabled(this.bloomFilterEnabled);
 				cacheableOperationExt.setCacheNullValues(this.cacheNullValues);
 				cacheableOperationExt.setBroadcastEnabled(this.broadcastEnabled);

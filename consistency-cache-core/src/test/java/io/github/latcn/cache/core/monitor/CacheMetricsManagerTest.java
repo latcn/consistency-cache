@@ -7,8 +7,7 @@ import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.circuitbreaker.CircuitBreakerState;
 import io.github.latcn.cache.core.circuitbreaker.CircuitBreakerStats;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheStats;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -33,10 +32,10 @@ class CacheMetricsManagerTest {
 	private CacheCircuitBreaker circuitBreaker;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
 	private LocalCacheStats localCacheStats;
@@ -68,8 +67,8 @@ class CacheMetricsManagerTest {
 		when(circuitBreakerStats.getFailureCount()).thenReturn(0L);
 		when(circuitBreakerStats.getSuccessCount()).thenReturn(10L);
 
-		when(readHotspotDetector.readHotKeyCount()).thenReturn(5L);
-		when(writeHotspotDetector.writeHotKeyCount()).thenReturn(2L);
+		when(readHotspotDetector.getHotKeyCount()).thenReturn(5L);
+		when(writeHotspotDetector.getHotKeyCount()).thenReturn(2L);
 	}
 
 	@AfterEach

@@ -2,8 +2,7 @@ package io.github.latcn.cache.starter.autoconfigure;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.model.HccProperties;
 import io.github.latcn.cache.core.monitor.CacheMetricsManager;
@@ -39,7 +38,7 @@ public class CacheMetricsAutoConfiguration {
 			matchIfMissing = true)
 	public PrometheusCacheMetrics prometheusCacheMetrics(LocalCacheManager localCacheManager,
 			DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
-			ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
+			HotspotDetector readHotspotDetector, HotspotDetector writeHotspotDetector) {
 		log.info("Initializing Prometheus Cache Metrics...");
 		return new PrometheusCacheMetrics(localCacheManager, distributedCacheManager, circuitBreaker,
 				readHotspotDetector, writeHotspotDetector);

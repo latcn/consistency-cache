@@ -3,8 +3,7 @@ package io.github.latcn.cache.core.executor;
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.handler.MultiLevelCacheHandlerChain;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
@@ -28,8 +27,8 @@ public class DefaultCacheExecutor implements CacheExecutor {
 	private MultiLevelCacheHandlerChain multiLevelCacheHandlerChain;
 
 	public DefaultCacheExecutor(LocalCacheManager localCacheManager, DistributedCacheManager distributedCacheManager,
-			LocalCacheMarkerManager localCacheMarkerManager, WriteHotspotDetector writeHotspotDetector,
-			ReadHotspotDetector readStatistics, CacheCircuitBreaker cacheCircuitBreaker,
+			LocalCacheMarkerManager localCacheMarkerManager, HotspotDetector writeHotspotDetector,
+			HotspotDetector readStatistics, CacheCircuitBreaker cacheCircuitBreaker,
 			CacheBloomFilter cacheBloomFilter) {
 		this(CacheExecutorConfig.builder()
 			.localCacheManager(localCacheManager)

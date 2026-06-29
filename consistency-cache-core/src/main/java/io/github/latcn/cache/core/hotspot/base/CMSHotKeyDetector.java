@@ -1,9 +1,9 @@
-package io.github.latcn.cache.core.hotspot;
+package io.github.latcn.cache.core.hotspot.base;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.util.NumberUtil;
-import java.util.concurrent.Executors;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -91,15 +91,20 @@ public class CMSHotKeyDetector implements AutoCloseable {
 	private volatile int currentSegment = 0;
 
 	// ========== 监控指标 ==========
-	private final AtomicLong decayRunCount = new AtomicLong(0); // 成功衰减次数
+	// 成功衰减次数
+	private final AtomicLong decayRunCount = new AtomicLong(0);
 
-	private final AtomicLong decaySkipCount = new AtomicLong(0); // 因并发而跳过的衰减次数
+	// 因并发而跳过的衰减次数
+	private final AtomicLong decaySkipCount = new AtomicLong(0);
 
-	private final AtomicLong totalDecayTimeMs = new AtomicLong(0); // 累计衰减耗时（毫秒）
+	// 累计衰减耗时（毫秒）
+	private final AtomicLong totalDecayTimeMs = new AtomicLong(0);
 
-	private final AtomicLong totalDecayItems = new AtomicLong(0); // 累计衰减的桶数（仅非零）
+	// 累计衰减的桶数（仅非零）
+	private final AtomicLong totalDecayItems = new AtomicLong(0);
 
-	private final AtomicLong warnCount = new AtomicLong(0); // 超时警告计数
+	// 超时警告计数
+	private final AtomicLong warnCount = new AtomicLong(0);
 
 	/**
 	 * 构造 CMS 热点检测器（分片衰减）。
@@ -129,13 +134,7 @@ public class CMSHotKeyDetector implements AutoCloseable {
 		}
 
 		// 启动单个后台线程定时衰减
-		this.decayExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-			Thread t = new Thread(r);
-			t.setDaemon(true);
-			t.setName(DECAY_THREAD_NAME);
-			t.setUncaughtExceptionHandler((thread, ex) -> log.error("CMS decay thread died", ex));
-			return t;
-		});
+		this.decayExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1, DECAY_THREAD_NAME);
 		this.decayExecutor.scheduleAtFixedRate(this::safeDecay, decayIntervalMs, decayIntervalMs,
 				TimeUnit.MILLISECONDS);
 	}

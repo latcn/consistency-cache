@@ -2,8 +2,8 @@ package io.github.latcn.cache.core.local;
 
 import io.github.latcn.cache.core.model.NodeInstanceHolder;
 import io.github.latcn.cache.core.util.SafeFifoQueue;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,11 +26,8 @@ public abstract class LocalCacheMarkerManager {
 
 	public LocalCacheMarkerManager(int cleanInterval) {
 		this.nodeId = NodeInstanceHolder.getNodeId();
-		this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-			Thread thread = new Thread(r, "LocalCacheMarkerManager-Clean-scheduledExecutor");
-			thread.setDaemon(true);
-			return thread;
-		});
+		this.scheduledExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1,
+				"LocalCacheMarkerManager-Clean-scheduledExecutor");
 		if (cleanInterval <= 0) {
 			cleanInterval = CACHE_MARKER_INTERVAL_SECOND;
 		}

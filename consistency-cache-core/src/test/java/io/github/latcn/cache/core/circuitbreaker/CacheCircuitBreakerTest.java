@@ -22,7 +22,7 @@ class CacheCircuitBreakerTest {
 	void setUp(TestInfo testInfo) {
 		Set<Class<? extends Exception>> customExceptions = new HashSet<>();
 		customExceptions.add(SocketTimeoutException.class);
-		circuitBreaker = new CacheCircuitBreaker(5, 3, 30000, customExceptions);
+		circuitBreaker = new CacheCircuitBreaker(0.5, 30000, customExceptions);
 		System.out.println("执行测试: " + testInfo.getDisplayName());
 	}
 
@@ -77,7 +77,7 @@ class CacheCircuitBreakerTest {
 	@Test
 	@DisplayName("CB-004: 超时后自动进入半开状态")
 	void testTimeoutAutoHalfOpen() throws InterruptedException {
-		circuitBreaker = new CacheCircuitBreaker(5, 3, 1000, null);
+		circuitBreaker = new CacheCircuitBreaker(0.5, 1000, null);
 		circuitBreaker.forceOpen();
 
 		TimeUnit.MILLISECONDS.sleep(1100);
@@ -92,7 +92,7 @@ class CacheCircuitBreakerTest {
 	@Test
 	@DisplayName("CB-005: 半开状态成功恢复")
 	void testHalfOpenSuccessRecovery() throws InterruptedException {
-		circuitBreaker = new CacheCircuitBreaker(5, 3, 1000, null);
+		circuitBreaker = new CacheCircuitBreaker(0.5, 1000, null);
 		circuitBreaker.forceOpen();
 
 		TimeUnit.MILLISECONDS.sleep(1100);
@@ -110,7 +110,7 @@ class CacheCircuitBreakerTest {
 	@Test
 	@DisplayName("CB-006: 半开状态失败重回熔断")
 	void testHalfOpenFailureReopensCircuitBreaker() throws InterruptedException {
-		circuitBreaker = new CacheCircuitBreaker(5, 3, 1000, null);
+		circuitBreaker = new CacheCircuitBreaker(0.5, 1000, null);
 		circuitBreaker.forceOpen();
 
 		TimeUnit.MILLISECONDS.sleep(1100);
@@ -151,6 +151,12 @@ class CacheCircuitBreakerTest {
 		long initialFailureCount = circuitBreaker.getStats().getFailureCount();
 
 		try {
+			circuitBreaker.execute(() -> {
+				return 1 / 2;
+			});
+			circuitBreaker.execute(() -> {
+				return 1 / 2;
+			});
 			circuitBreaker.execute(() -> {
 				throw new RuntimeException(new SocketTimeoutException("timeout"));
 			});

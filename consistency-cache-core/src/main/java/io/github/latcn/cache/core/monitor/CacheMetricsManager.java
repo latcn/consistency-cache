@@ -2,8 +2,7 @@ package io.github.latcn.cache.core.monitor;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +52,7 @@ public class CacheMetricsManager {
 	 */
 	public CacheMetricsManager(MeterRegistry meterRegistry, LocalCacheManager localCacheManager,
 			DistributedCacheManager distributedCacheManager, CacheCircuitBreaker circuitBreaker,
-			ReadHotspotDetector readHotspotDetector, WriteHotspotDetector writeHotspotDetector) {
+			HotspotDetector readHotspotDetector, HotspotDetector writeHotspotDetector) {
 		this.meterRegistry = meterRegistry;
 
 		this.metricsBinder = new CacheMetricsBinder(localCacheManager, distributedCacheManager, circuitBreaker,

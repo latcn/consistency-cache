@@ -74,10 +74,10 @@ public class LocalCacheHandler extends BaseCacheHandler {
 
 	private void evictLocalCache(CacheKey cacheKey) {
 		cacheExecutorConfig.getLocalCacheManager().remove(cacheKey);
-		cacheExecutorConfig.getWriteHotspotDetector().recordInvalidation(cacheKey.getKey());
+		cacheExecutorConfig.getWriteHotspotDetector().record(cacheKey.getKey());
 		if (cacheKey.isBroadcastEnabled()) {
 			if (cacheKey.getConsistencyLevel() == ConsistencyLevel.HIGH
-					|| !cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey())) {
+					|| !cacheExecutorConfig.getWriteHotspotDetector().isHotKey(cacheKey.getKey())) {
 				this.broadcaster.addKey(cacheKey);
 			}
 		}
@@ -99,7 +99,7 @@ public class LocalCacheHandler extends BaseCacheHandler {
 		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheValue cacheValue = null;
-		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey());
+		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().isHotKey(cacheKey.getKey());
 		setIsWriteHotKey(cacheContext, isWriteHotKey);
 		if (!isWriteHotKey) {
 			cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheKey);
@@ -117,7 +117,7 @@ public class LocalCacheHandler extends BaseCacheHandler {
 		cacheContext.getMetricsRecorder().recordL1Request();
 		CacheKey cacheKey = cacheContext.getCacheKey();
 		CacheValue cacheValue = null;
-		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().shouldBypassL1(cacheKey.getKey());
+		boolean isWriteHotKey = cacheExecutorConfig.getWriteHotspotDetector().isHotKey(cacheKey.getKey());
 		setIsWriteHotKey(cacheContext, isWriteHotKey);
 		if (!isWriteHotKey) {
 			cacheValue = cacheExecutorConfig.getLocalCacheManager().get(cacheKey);

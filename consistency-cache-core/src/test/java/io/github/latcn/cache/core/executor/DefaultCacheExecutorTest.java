@@ -6,8 +6,7 @@ import static org.mockito.Mockito.*;
 
 import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
@@ -37,10 +36,10 @@ class DefaultCacheExecutorTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheCircuitBreaker circuitBreaker;
@@ -139,7 +138,7 @@ class DefaultCacheExecutorTest {
 		when(localCacheManager.get(cacheKey)).thenReturn(null);
 		when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
 		when(bloomFilter.exists(any(), any())).thenReturn(true);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		Function<Object, Object> loader = key -> "loaded-value";
@@ -173,7 +172,7 @@ class DefaultCacheExecutorTest {
 		when(localCacheManager.get(cacheKey)).thenReturn(null);
 		when(distributedCacheManager.getInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(cacheValue));
 		when(bloomFilter.exists(any(), any())).thenReturn(true);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		Function<Object, Object> loader = key -> "loaded-value";
@@ -228,7 +227,7 @@ class DefaultCacheExecutorTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 

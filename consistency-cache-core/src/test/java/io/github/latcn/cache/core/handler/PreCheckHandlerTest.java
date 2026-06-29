@@ -8,14 +8,14 @@ import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,10 +38,10 @@ class PreCheckHandlerTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheCircuitBreaker circuitBreaker;
@@ -89,7 +89,7 @@ class PreCheckHandlerTest {
 
 		assertNotNull(result);
 		assertEquals("next-value", result.getValue());
-		verify(readHotspotDetector).recordRead(any());
+		verify(readHotspotDetector).record(any());
 		verify(nextHandler).get(context);
 	}
 
@@ -104,7 +104,7 @@ class PreCheckHandlerTest {
 		CacheValue result = preCheckHandler.get(context);
 
 		assertNull(result);
-		verify(readHotspotDetector).recordRead(any());
+		verify(readHotspotDetector).record(any());
 		verify(nextHandler, never()).get(any());
 	}
 
@@ -130,7 +130,7 @@ class PreCheckHandlerTest {
 
 		preCheckHandler.get(context);
 
-		verify(readHotspotDetector).recordRead(cacheKey.getKey());
+		verify(readHotspotDetector).record(cacheKey.getKey());
 	}
 
 	@Test
@@ -164,7 +164,7 @@ class PreCheckHandlerTest {
 
 		assertNotNull(future);
 		assertTrue(future.isDone());
-		verify(readHotspotDetector).recordRead(any());
+		verify(readHotspotDetector).record(any());
 		verify(nextHandler).getAsync(context);
 	}
 
@@ -219,7 +219,7 @@ class PreCheckHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 
@@ -232,7 +232,7 @@ class PreCheckHandlerTest {
 			.bloomFilterName("default-filter")
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 

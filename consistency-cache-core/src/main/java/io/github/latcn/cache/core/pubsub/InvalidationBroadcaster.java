@@ -2,7 +2,8 @@ package io.github.latcn.cache.core.pubsub;
 
 import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
-import io.github.latcn.cache.core.handler.CacheMetricsRecorder;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,12 +24,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 
 	private final ConcurrentLinkedQueue<Object> sendKeys = new ConcurrentLinkedQueue<>();
 
-	private final ScheduledExecutorService retryExecutor = Executors.newScheduledThreadPool(1, r -> {
-		Thread thread = new Thread(r);
-		thread.setDaemon(true);
-		thread.setName("InvalidationBroadcaster-RetryExecutor-Thread");
-		return thread;
-	});
+	private final ScheduledExecutorService retryExecutor;
 
 	private final CacheMetricsRecorder metricsRecorder;
 
@@ -43,6 +39,7 @@ public class InvalidationBroadcaster<T, S extends BroadcasterListener> extends B
 		super(publisher, subscriber, listeners, batchSize, maxWaitSeconds);
 		this.channelNames = channelNames;
 		this.metricsRecorder = metricsRecorder != null ? metricsRecorder : CacheMetricsRecorder.noOp();
+		this.retryExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1, "InvalidationBroadcaster-RetryExecutor");
 	}
 
 	@Override

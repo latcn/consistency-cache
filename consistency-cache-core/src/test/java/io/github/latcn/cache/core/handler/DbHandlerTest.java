@@ -10,14 +10,14 @@ import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,10 +40,10 @@ class DbHandlerTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheCircuitBreaker circuitBreaker;
@@ -234,7 +234,7 @@ class DbHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 
@@ -246,7 +246,7 @@ class DbHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(true)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 
@@ -258,7 +258,7 @@ class DbHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(expireTimeMs)
+			.ttlMs(expireTimeMs)
 			.build();
 	}
 

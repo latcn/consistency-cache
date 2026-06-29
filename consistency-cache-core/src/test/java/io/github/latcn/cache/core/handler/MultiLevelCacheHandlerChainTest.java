@@ -8,8 +8,7 @@ import io.github.latcn.cache.core.circuitbreaker.CacheCircuitBreaker;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
@@ -39,10 +38,10 @@ class MultiLevelCacheHandlerChainTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheCircuitBreaker circuitBreaker;
@@ -108,7 +107,7 @@ class MultiLevelCacheHandlerChainTest {
 		when(localCacheManager.get(cacheKey)).thenReturn(null);
 		when(distributedCacheManager.get(cacheKey)).thenReturn(distributedValue);
 		when(bloomFilter.exists(any(), any())).thenReturn(true);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		Function<Object, Object> loader = key -> "loaded-value";
@@ -128,7 +127,7 @@ class MultiLevelCacheHandlerChainTest {
 		when(localCacheManager.get(cacheKey)).thenReturn(null);
 		when(distributedCacheManager.get(cacheKey)).thenReturn(null);
 		when(bloomFilter.exists(any(), any())).thenReturn(true);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		Function<Object, Object> loader = key -> "db-loaded-value";
@@ -150,7 +149,7 @@ class MultiLevelCacheHandlerChainTest {
 		when(localCacheManager.get(cacheKey)).thenReturn(null);
 		when(distributedCacheManager.getInBatch(cacheKey)).thenReturn(CompletableFuture.completedFuture(cacheValue));
 		when(bloomFilter.exists(any(), any())).thenReturn(true);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		Function<Object, Object> loader = key -> "loaded-value";
@@ -240,7 +239,7 @@ class MultiLevelCacheHandlerChainTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 

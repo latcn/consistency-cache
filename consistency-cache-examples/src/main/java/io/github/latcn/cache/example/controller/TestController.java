@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class TestController {
 
 	@GetMapping("/{itemId}")
-	@HccCacheable(key = "#itemId", expireTime = 100, fallbackExecActual = true)
+	@HccCacheable(key = "#itemId", ttl = 100, fallbackExecActual = true)
 	public TestDTO getItem(@PathVariable Long itemId) {
 		TestDTO testDTO = new TestDTO();
 		testDTO.setId(itemId);

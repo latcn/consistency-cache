@@ -21,7 +21,7 @@ public class CacheKey<K> {
 	/**
 	 * 过期时间 毫秒
 	 */
-	private long expireTimeMs;
+	private long ttlMs;
 
 	/**
 	 * 缓存级别

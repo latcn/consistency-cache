@@ -10,14 +10,14 @@ import io.github.latcn.cache.core.exception.CacheError;
 import io.github.latcn.cache.core.exception.CacheException;
 import io.github.latcn.cache.core.executor.CacheBloomFilter;
 import io.github.latcn.cache.core.executor.CacheExecutorConfig;
-import io.github.latcn.cache.core.hotspot.reads.ReadHotspotDetector;
-import io.github.latcn.cache.core.hotspot.writes.WriteHotspotDetector;
+import io.github.latcn.cache.core.hotspot.HotspotDetector;
 import io.github.latcn.cache.core.local.LocalCacheManager;
 import io.github.latcn.cache.core.local.LocalCacheMarkerManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheLevel;
 import io.github.latcn.cache.core.model.CacheValue;
 import io.github.latcn.cache.core.model.ConsistencyLevel;
+import io.github.latcn.cache.core.monitor.CacheMetricsRecorder;
 import io.github.latcn.cache.core.pubsub.Broadcaster;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,10 +42,10 @@ class DistributedCacheHandlerTest {
 	private LocalCacheMarkerManager localCacheMarkerManager;
 
 	@Mock
-	private WriteHotspotDetector writeHotspotDetector;
+	private HotspotDetector writeHotspotDetector;
 
 	@Mock
-	private ReadHotspotDetector readHotspotDetector;
+	private HotspotDetector readHotspotDetector;
 
 	@Mock
 	private CacheCircuitBreaker circuitBreaker;
@@ -94,7 +94,7 @@ class DistributedCacheHandlerTest {
 			return supplier.get();
 		});
 		when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		CacheValue result = distributedCacheHandler.get(context);
@@ -118,7 +118,7 @@ class DistributedCacheHandlerTest {
 		});
 		when(distributedCacheManager.get(cacheKey)).thenReturn(null);
 		when(nextHandler.get(context)).thenReturn(dbValue);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(false);
 
 		CacheValue result = distributedCacheHandler.get(context);
@@ -142,7 +142,7 @@ class DistributedCacheHandlerTest {
 		});
 		when(distributedCacheManager.get(cacheKey)).thenReturn(null);
 		when(nextHandler.get(context)).thenReturn(cacheValue);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(false);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(false);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(true);
 
 		CacheValue result = distributedCacheHandler.get(context);
@@ -165,7 +165,7 @@ class DistributedCacheHandlerTest {
 			return supplier.get();
 		});
 		when(distributedCacheManager.get(cacheKey)).thenReturn(cacheValue);
-		when(writeHotspotDetector.shouldBypassL1(any())).thenReturn(true);
+		when(writeHotspotDetector.isHotKey(any())).thenReturn(true);
 		when(readHotspotDetector.isHotKey(any())).thenReturn(true);
 
 		CacheValue result = distributedCacheHandler.get(context);
@@ -223,7 +223,7 @@ class DistributedCacheHandlerTest {
 
 		verify(distributedCacheManager).remove(cacheKey);
 		verify(localCacheManager).remove(cacheKey);
-		verify(writeHotspotDetector).recordInvalidation(any());
+		verify(writeHotspotDetector).record(any());
 	}
 
 	@Test
@@ -269,7 +269,7 @@ class DistributedCacheHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(false)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 
@@ -281,7 +281,7 @@ class DistributedCacheHandlerTest {
 			.bloomFilterEnabled(false)
 			.broadcastEnabled(true)
 			.cacheNullValues(false)
-			.expireTimeMs(60000)
+			.ttlMs(60000)
 			.build();
 	}
 

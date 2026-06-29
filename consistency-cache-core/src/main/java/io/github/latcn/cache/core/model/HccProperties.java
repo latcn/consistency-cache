@@ -36,6 +36,8 @@ public class HccProperties {
 		 */
 		private String cacheType = LocalCacheType.CAFFEINE.name();
 
+		private String cacheClz = "io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter";
+
 		/**
 		 * 初始容量
 		 */
@@ -44,36 +46,12 @@ public class HccProperties {
 		/**
 		 * 最大容量
 		 */
-		private long maximumSize = 1000;
-
-		/**
-		 * 写入后过期时间（秒）
-		 */
-		private long expireAfterWrite = 600;
-
-		/**
-		 * 访问后过期时间（秒）
-		 */
-		private long expireAfterAccess = 600;
+		private long maximumSize = 100000;
 
 		/**
 		 * 漂移
 		 */
 		private long bufferTimeMs = 1000;
-
-		/**
-		 * 缓存失效广播topic
-		 */
-		private String channelNames = "hcc_cache_evict";
-
-		private int batchSize = 100;
-
-		private int maxWaitSeconds = 5;
-
-		/**
-		 * 自定义本地缓存类
-		 */
-		private String customCacheClz;
 
 	}
 
@@ -83,7 +61,7 @@ public class HccProperties {
 
 		private int maxBatchSize = 100;
 
-		private int maxWaitInMs = 10;
+		private int maxWaitMs = 10;
 
 	}
 
@@ -94,20 +72,22 @@ public class HccProperties {
 		/**
 		 * 读热点检测
 		 */
-		private double readHotKeyThreshold = 100.0;
+		private int readHotKeyThreshold = 100;
+
+		/**
+		 * 读热点key最大数量， 实际热点数小于此值
+		 */
+		private int readHotKeyMaxSize = 10000;
 
 		/**
 		 * 写热点检测
 		 */
-		private int writeInvalidationThreshold = 10;
+		private int writeHotKeyThreshold = 10;
 
-		private long writeBaseBlacklistTtl = 10 * 1000;
-
-		private double writeBackoffMultiplier = 2;
-
-		private long writeMaxBlacklistTime = 100 * 1000;
-
-		private int blacklistMaxSize = 10 * 1000;
+		/**
+		 * 写热点key最大数量， 实际热点数小于此值
+		 */
+		private int writeHotKeyMaxSize = 10000;
 
 	}
 
@@ -115,11 +95,7 @@ public class HccProperties {
 	@NoArgsConstructor
 	public static class CircuitBreakerProperties {
 
-		// failures before opening
-		private int failureThreshold = 5;
-
-		// successes before closing
-		private int successThreshold = 3;
+		private double failRatio = 0.5;
 
 		// timeout before half-open
 		private int timeoutMs = 30000;
@@ -144,17 +120,26 @@ public class HccProperties {
 	@NoArgsConstructor
 	public static class CacheEvictProperties {
 
+		/**
+		 * 缓存失效广播topic
+		 */
+		private String channelNames = "hcc_cache_evict";
+
+		private int batchSize = 100;
+
+		private int maxWaitSeconds = 5;
+
 		private int invalidationQueueCapacity = 1000;
+
+		private int cleanCachePeriodSeconds = 1;
 
 		private long baseDelayMs = 1000;
 
 		private int compensationBatchSize = 50;
 
-		private int maxRetryCount = 5;
-
-		private int cleanCachePeriodSeconds = 1;
-
 		private int compensationPeriodSeconds = 10;
+
+		private int maxRetryCount = 5;
 
 	}
 

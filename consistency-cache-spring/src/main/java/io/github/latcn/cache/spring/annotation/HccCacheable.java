@@ -15,7 +15,7 @@ public @interface HccCacheable {
 	 * seconds
 	 * @return
 	 */
-	long expireTime() default 0;
+	long ttl() default 0;
 
 	CacheLevel cacheLevel() default CacheLevel.ADAPTIVE_CACHE;
 
