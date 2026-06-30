@@ -2,301 +2,349 @@ package io.github.latcn.cache.core.util;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.latcn.cache.core.exception.CacheException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
 
-@DisplayName("并发FIFO列表测试")
+@DisplayName("ConcurrentFifoList 测试")
 class ConcurrentFifoListTest {
 
 	private ConcurrentFifoList<String> list;
 
 	@BeforeEach
-	void setUp(TestInfo testInfo) {
-		list = new ConcurrentFifoList<>(10);
-		System.out.println("执行测试: " + testInfo.getDisplayName());
+	void setUp() {
+		list = new ConcurrentFifoList<>(5, ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
 	}
 
 	@Test
-	@DisplayName("CF-001: 插入新元素")
-	void testInsertNewElement() {
-		list.put("element1");
+	@DisplayName("CFL-001: 构造函数-正常参数")
+	void testConstructorNormalParameters() {
+		ConcurrentFifoList<Integer> boundedList = new ConcurrentFifoList<>(10,
+				ConcurrentFifoList.OverflowStrategy.REJECT);
+		assertEquals(0, boundedList.size());
 
-		assertEquals(1, list.size());
-		assertTrue(list.getMap().containsKey("element1"));
-		assertTrue(list.getInsertionOrder().contains("element1"));
+		ConcurrentFifoList<Integer> unboundedList = new ConcurrentFifoList<>(0,
+				ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
+		assertEquals(0, unboundedList.size());
+
+		ConcurrentFifoList<Integer> defaultList = new ConcurrentFifoList<>();
+		assertEquals(0, defaultList.size());
 	}
 
 	@Test
-	@DisplayName("CF-002: 插入重复元素")
-	void testInsertDuplicateElement() {
-		list.put("element1");
-		String oldValue = list.put("element1");
-
-		assertEquals("element1", oldValue);
-		assertEquals(1, list.size());
-	}
-
-	@Test
-	@DisplayName("CF-003: 达到容量后插入")
-	void testInsertWhenCapacityReached() {
-		for (int i = 0; i < 10; i++) {
-			list.put("element-" + i);
-		}
-
-		assertEquals(10, list.size());
-
-		assertThrows(CacheException.class, () -> {
-			list.put("element-11");
+	@DisplayName("CFL-002: 构造函数-负容量参数异常")
+	void testConstructorNegativeCapacity() {
+		assertThrows(IllegalArgumentException.class, () -> {
+			new ConcurrentFifoList<>(-1, ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
 		});
 	}
 
 	@Test
-	@DisplayName("CF-004: 批量取出元素")
-	void testDrainAllElements() {
-		for (int i = 0; i < 5; i++) {
-			list.put("element-" + i);
-		}
+	@DisplayName("CFL-003: put-正常插入新元素")
+	void testPutNewElement() {
+		String result = list.put("A");
+		assertNull(result);
+		assertEquals(1, list.size());
+		assertTrue(list.contains("A"));
+	}
 
-		List<String> elements = list.drainAll(3);
+	@Test
+	@DisplayName("CFL-004: put-重复插入返回旧值")
+	void testPutDuplicateElement() {
+		list.put("A");
+		String result = list.put("A");
+		assertEquals("A", result);
+		assertEquals(1, list.size());
+	}
 
-		assertNotNull(elements);
-		assertEquals(3, elements.size());
+	@Test
+	@DisplayName("CFL-005: put-null参数异常")
+	void testPutNullValue() {
+		assertThrows(NullPointerException.class, () -> {
+			list.put(null);
+		});
+	}
+
+	@Test
+	@DisplayName("CFL-006: REMOVE_OLDEST策略-容量满时自动淘汰")
+	void testRemoveOldestStrategyOverflow() {
+		list.put("A");
+		list.put("B");
+		list.put("C");
+		list.put("D");
+		list.put("E");
+		assertEquals(5, list.size());
+
+		list.put("F");
+		assertEquals(5, list.size());
+		assertFalse(list.contains("A"));
+		assertTrue(list.contains("F"));
+
+		List<String> values = list.values();
+		assertEquals(List.of("B", "C", "D", "E", "F"), values);
+	}
+
+	@Test
+	@DisplayName("CFL-007: REJECT策略-容量满时拒绝插入")
+	void testRejectStrategyOverflow() {
+		ConcurrentFifoList<String> rejectList = new ConcurrentFifoList<>(3, ConcurrentFifoList.OverflowStrategy.REJECT);
+
+		rejectList.put("A");
+		rejectList.put("B");
+		rejectList.put("C");
+		assertEquals(3, rejectList.size());
+
+		assertThrows(IllegalStateException.class, () -> {
+			rejectList.put("D");
+		});
+
+		assertEquals(3, rejectList.size());
+		assertFalse(rejectList.contains("D"));
+	}
+
+	@Test
+	@DisplayName("CFL-008: getKey-获取存在的键")
+	void testGetKeyExists() {
+		String obj1 = new String("A");
+		String obj2 = new String("A");
+		list.put(obj1);
+
+		String result = list.getKey(obj2);
+		assertSame(obj1, result);
+	}
+
+	@Test
+	@DisplayName("CFL-009: getKey-获取不存在的键")
+	void testGetKeyNotExists() {
+		assertNull(list.getKey("A"));
+	}
+
+	@Test
+	@DisplayName("CFL-010: getKey-null参数")
+	void testGetKeyNull() {
+		assertNull(list.getKey(null));
+	}
+
+	@Test
+	@DisplayName("CFL-011: remove-移除存在的元素")
+	void testRemoveExists() {
+		list.put("A");
+		list.put("B");
 		assertEquals(2, list.size());
+
+		assertTrue(list.remove("A"));
+		assertEquals(1, list.size());
+		assertFalse(list.contains("A"));
+		assertTrue(list.contains("B"));
 	}
 
 	@Test
-	@DisplayName("CF-005: 获取列表大小")
-	void testGetListSize() {
-		assertEquals(0, list.size());
-
-		list.put("element1");
+	@DisplayName("CFL-012: remove-移除不存在的元素")
+	void testRemoveNotExists() {
+		list.put("A");
 		assertEquals(1, list.size());
 
-		list.put("element2");
+		assertFalse(list.remove("B"));
+		assertEquals(1, list.size());
+	}
+
+	@Test
+	@DisplayName("CFL-013: remove-null参数异常")
+	void testRemoveNull() {
+		assertThrows(NullPointerException.class, () -> {
+			list.remove(null);
+		});
+	}
+
+	@Test
+	@DisplayName("CFL-014: drain-正常批量取出")
+	void testDrainNormal() {
+		list.put("A");
+		list.put("B");
+		list.put("C");
+		assertEquals(3, list.size());
+
+		List<String> drained = list.drain(2);
+		assertEquals(2, drained.size());
+		assertEquals(List.of("A", "B"), drained);
+		assertEquals(1, list.size());
+		assertFalse(list.contains("A"));
+		assertFalse(list.contains("B"));
+		assertTrue(list.contains("C"));
+	}
+
+	@Test
+	@DisplayName("CFL-015: drain-取出数量大于实际数量")
+	void testDrainMoreThanSize() {
+		list.put("A");
+		list.put("B");
 		assertEquals(2, list.size());
-	}
 
-	@Test
-	@DisplayName("CF-006: 非法容量参数")
-	void testInvalidCapacityParameter() {
-		assertThrows(CacheException.class, () -> {
-			new ConcurrentFifoList<>(0);
-		});
-
-		assertThrows(CacheException.class, () -> {
-			new ConcurrentFifoList<>(-1);
-		});
-	}
-
-	@Test
-	@DisplayName("CF-007: drainAll空列表返回null")
-	void testDrainAllEmptyList() {
-		List<String> elements = list.drainAll(5);
-
-		assertNull(elements);
+		List<String> drained = list.drain(10);
+		assertEquals(2, drained.size());
+		assertEquals(List.of("A", "B"), drained);
 		assertEquals(0, list.size());
 	}
 
 	@Test
-	@DisplayName("CF-008: drainAll数量大于列表大小")
-	void testDrainAllMoreThanListSize() {
-		for (int i = 0; i < 3; i++) {
-			list.put("element-" + i);
+	@DisplayName("CFL-016: drain-空列表")
+	void testDrainEmpty() {
+		List<String> drained = list.drain(5);
+		assertTrue(drained.isEmpty());
+		assertEquals(0, list.size());
+	}
+
+	@Test
+	@DisplayName("CFL-017: drain-无效参数")
+	void testDrainInvalidParameter() {
+		list.put("A");
+		assertEquals(1, list.size());
+
+		List<String> drained = list.drain(0);
+		assertTrue(drained.isEmpty());
+		assertEquals(1, list.size());
+
+		drained = list.drain(-5);
+		assertTrue(drained.isEmpty());
+		assertEquals(1, list.size());
+	}
+
+	@Test
+	@DisplayName("CFL-018: size-无锁读取")
+	void testSizeLockFree() {
+		assertEquals(0, list.size());
+
+		list.put("A");
+		assertEquals(1, list.size());
+
+		list.put("B");
+		assertEquals(2, list.size());
+
+		list.remove("A");
+		assertEquals(1, list.size());
+
+		list.clear();
+		assertEquals(0, list.size());
+	}
+
+	@Test
+	@DisplayName("CFL-019: contains-检查存在")
+	void testContainsExists() {
+		list.put("A");
+		assertTrue(list.contains("A"));
+		assertFalse(list.contains("B"));
+	}
+
+	@Test
+	@DisplayName("CFL-020: contains-null参数")
+	void testContainsNull() {
+		assertFalse(list.contains(null));
+	}
+
+	@Test
+	@DisplayName("CFL-021: clear-清空列表")
+	void testClear() {
+		list.put("A");
+		list.put("B");
+		list.put("C");
+		assertEquals(3, list.size());
+
+		list.clear();
+		assertEquals(0, list.size());
+		assertFalse(list.contains("A"));
+		assertFalse(list.contains("B"));
+		assertFalse(list.contains("C"));
+	}
+
+	@Test
+	@DisplayName("CFL-022: values-返回FIFO顺序快照")
+	void testValuesSnapshot() {
+		list.put("A");
+		list.put("B");
+		list.put("C");
+
+		List<String> values = list.values();
+		assertEquals(List.of("A", "B", "C"), values);
+
+		List<String> values2 = list.values();
+		assertNotSame(values, values2);
+
+		values.add("D");
+		assertEquals(3, list.size());
+	}
+
+	@Test
+	@DisplayName("CFL-023: 无限容量模式-不淘汰")
+	void testUnboundedCapacity() {
+		ConcurrentFifoList<String> unboundedList = new ConcurrentFifoList<>(0,
+				ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
+
+		for (int i = 0; i < 100; i++) {
+			unboundedList.put("Item" + i);
 		}
 
-		List<String> elements = list.drainAll(10);
-
-		assertNotNull(elements);
-		assertEquals(3, elements.size());
-		assertEquals(0, list.size());
+		assertEquals(100, unboundedList.size());
+		for (int i = 0; i < 100; i++) {
+			assertTrue(unboundedList.contains("Item" + i));
+		}
 	}
 
 	@Test
-	@DisplayName("CF-009: FIFO顺序验证")
-	void testFIFOOrder() {
-		list.put("element1");
-		list.put("element2");
-		list.put("element3");
+	@DisplayName("CFL-024: 并发写入测试")
+	void testConcurrentWrites() throws InterruptedException {
+		ConcurrentFifoList<String> concurrentList = new ConcurrentFifoList<>(100,
+				ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
+		int threadCount = 10;
+		int itemsPerThread = 10;
+		CountDownLatch latch = new CountDownLatch(threadCount);
 
-		List<String> elements = list.drainAll(3);
+		for (int t = 0; t < threadCount; t++) {
+			final int threadIndex = t;
+			new Thread(() -> {
+				for (int i = 0; i < itemsPerThread; i++) {
+					concurrentList.put("Thread" + threadIndex + "-Item" + i);
+				}
+				latch.countDown();
+			}).start();
+		}
 
-		assertNotNull(elements);
-		assertEquals("element1", elements.get(0));
-		assertEquals("element2", elements.get(1));
-		assertEquals("element3", elements.get(2));
+		assertTrue(latch.await(5, TimeUnit.SECONDS));
+		assertTrue(concurrentList.size() <= 100);
 	}
 
 	@Test
-	@DisplayName("CF-010: 重复元素更新位置")
-	void testDuplicateElementUpdatePosition() {
-		list.put("element1");
-		list.put("element2");
-		list.put("element1");
-
-		List<String> elements = list.drainAll(2);
-
-		assertNotNull(elements);
-		assertEquals("element2", elements.get(0));
-		assertEquals("element1", elements.get(1));
-	}
-
-	@Test
-	@DisplayName("CF-011: 并发插入测试")
-	void testConcurrentInsert() throws InterruptedException {
+	@DisplayName("CFL-025: 并发读写测试")
+	void testConcurrentReadWrite() throws InterruptedException {
+		ConcurrentFifoList<String> concurrentList = new ConcurrentFifoList<>(100,
+				ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
 		int threadCount = 5;
-		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-		CountDownLatch latch = new CountDownLatch(threadCount);
-		AtomicInteger successCount = new AtomicInteger(0);
+		CountDownLatch latch = new CountDownLatch(threadCount * 2);
+		AtomicInteger readCount = new AtomicInteger(0);
 
-		for (int i = 0; i < threadCount; i++) {
-			final int index = i;
-			executor.submit(() -> {
-				try {
-					list.put("element-" + index);
-					successCount.incrementAndGet();
+		for (int t = 0; t < threadCount; t++) {
+			new Thread(() -> {
+				for (int i = 0; i < 20; i++) {
+					concurrentList.put("Write-Item" + i);
 				}
-				finally {
-					latch.countDown();
+				latch.countDown();
+			}).start();
+
+			new Thread(() -> {
+				for (int i = 0; i < 50; i++) {
+					concurrentList.contains("Read-Item" + i);
+					concurrentList.size();
+					readCount.incrementAndGet();
 				}
-			});
+				latch.countDown();
+			}).start();
 		}
 
-		latch.await(5, TimeUnit.SECONDS);
-		executor.shutdown();
-
-		assertEquals(threadCount, successCount.get());
-		assertEquals(threadCount, list.size());
-	}
-
-	@Test
-	@DisplayName("CF-012: 并发取出测试")
-	void testConcurrentDrainAll() throws InterruptedException {
-		for (int i = 0; i < 10; i++) {
-			list.put("element-" + i);
-		}
-
-		int threadCount = 3;
-		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-		CountDownLatch latch = new CountDownLatch(threadCount);
-		AtomicInteger totalDrained = new AtomicInteger(0);
-
-		for (int i = 0; i < threadCount; i++) {
-			executor.submit(() -> {
-				try {
-					List<String> elements = list.drainAll(3);
-					if (elements != null) {
-						totalDrained.addAndGet(elements.size());
-					}
-				}
-				finally {
-					latch.countDown();
-				}
-			});
-		}
-
-		latch.await(5, TimeUnit.SECONDS);
-		executor.shutdown();
-
-		assertTrue(totalDrained.get() <= 10);
-		assertEquals(1, list.size());
-	}
-
-	@Test
-	@DisplayName("CF-013: 统计计数器测试")
-	void testCounterStatistics() {
-		for (int i = 0; i < 5; i++) {
-			list.put("element-" + i);
-		}
-
-		assertEquals(5, list.getAddCounter());
-
-		list.drainAll(3);
-
-		assertEquals(3, list.getRemoveCounter());
-	}
-
-	@Test
-	@DisplayName("CF-014: 容量边界测试")
-	void testCapacityBoundary() {
-		ConcurrentFifoList<String> smallList = new ConcurrentFifoList<>(1);
-
-		smallList.put("element1");
-		assertEquals(1, smallList.size());
-
-		assertThrows(CacheException.class, () -> {
-			smallList.put("element2");
-		});
-	}
-
-	@Test
-	@DisplayName("CF-015: 部分drainAll测试")
-	void testPartialDrainAll() {
-		for (int i = 0; i < 10; i++) {
-			list.put("element-" + i);
-		}
-
-		List<String> firstBatch = list.drainAll(5);
-		List<String> secondBatch = list.drainAll(5);
-
-		assertNotNull(firstBatch);
-		assertNotNull(secondBatch);
-		assertEquals(5, firstBatch.size());
-		assertEquals(5, secondBatch.size());
-		assertEquals(0, list.size());
-	}
-
-	@Test
-	@DisplayName("CF-016: Map和Queue一致性测试")
-	void testMapQueueConsistency() {
-		list.put("element1");
-		list.put("element2");
-		list.put("element3");
-
-		assertEquals(list.getMap().size(), list.getInsertionOrder().size());
-		assertEquals(3, list.getMap().size());
-		assertEquals(3, list.getInsertionOrder().size());
-
-		assertTrue(list.getMap().containsKey("element1"));
-		assertTrue(list.getMap().containsKey("element2"));
-		assertTrue(list.getMap().containsKey("element3"));
-
-		assertTrue(list.getInsertionOrder().contains("element1"));
-		assertTrue(list.getInsertionOrder().contains("element2"));
-		assertTrue(list.getInsertionOrder().contains("element3"));
-	}
-
-	@Test
-	@DisplayName("CF-017: 删除后一致性测试")
-	void testConsistencyAfterDrain() {
-		for (int i = 0; i < 5; i++) {
-			list.put("element-" + i);
-		}
-
-		list.drainAll(3);
-
-		assertEquals(list.getMap().size(), list.getInsertionOrder().size());
-		assertEquals(2, list.getMap().size());
-		assertEquals(2, list.getInsertionOrder().size());
-	}
-
-	@Test
-	@DisplayName("CF-018: 重复元素计数测试")
-	void testDuplicateElementCount() {
-		list.put("element1");
-		list.put("element1");
-		list.put("element2");
-
-		assertEquals(2, list.size());
-		assertEquals(3, list.getAddCounter());
+		assertTrue(latch.await(5, TimeUnit.SECONDS));
+		assertTrue(readCount.get() >= threadCount * 50);
 	}
 
 }

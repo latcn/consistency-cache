@@ -70,14 +70,15 @@ public class HccCacheAutoConfiguration {
 	@ConditionalOnMissingBean
 	@Bean
 	public LocalCacheMarkerManager localCacheMarkerManager(RedissonClient redissonClient, HccProperties properties) {
-		return new LocalCacheMarkerManagerImpl(redissonClient, properties.getLocal().getBufferTimeMs());
+		return new LocalCacheMarkerManagerImpl(redissonClient, properties.getLocal().getCleanPeriodSeconds(),
+				properties.getLocal().getMarkerMaxSize(), properties.getLocal().getBufferTimeMs());
 	}
 
 	@ConditionalOnMissingBean
 	@Bean
 	public DistributedCacheManager distributedCacheManager(RedissonClient redissonClient, HccProperties properties) {
-		return new RedisCacheManager(redissonClient, properties.getDistributed().getMaxBatchSize(),
-				properties.getDistributed().getMaxWaitMs());
+		return new RedisCacheManager(redissonClient, properties.getDistributed().getCacheOperationSize(),
+				properties.getDistributed().getMaxBatchSize(), properties.getDistributed().getMaxWaitMs());
 	}
 
 	@ConditionalOnMissingBean

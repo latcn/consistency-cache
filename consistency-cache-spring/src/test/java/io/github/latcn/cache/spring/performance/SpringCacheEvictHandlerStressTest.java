@@ -141,7 +141,7 @@ class SpringCacheEvictHandlerStressTest {
 			}
 		};
 
-		LocalCacheMarkerManager mockMarkerManager = new LocalCacheMarkerManager(5) {
+		LocalCacheMarkerManager mockMarkerManager = new LocalCacheMarkerManager(5, 100) {
 			@Override
 			public void markLocalCacheUsage(String cacheKey, long expireTime) {
 			}

@@ -1,7 +1,7 @@
 package io.github.latcn.cache.core.local;
 
 import io.github.latcn.cache.core.model.NodeInstanceHolder;
-import io.github.latcn.cache.core.util.SafeFifoQueue;
+import io.github.latcn.cache.core.util.ConcurrentFifoList;
 import io.github.latcn.cache.core.util.ThreadUtils;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -18,20 +18,22 @@ public abstract class LocalCacheMarkerManager {
 
 	protected final String nodeId;
 
-	protected final SafeFifoQueue<String> useLocalCacheKey = new SafeFifoQueue<>();
+	protected final ConcurrentFifoList<String> useLocalCacheKey;
 
 	private final ScheduledExecutorService scheduledExecutor;
 
 	private final AtomicBoolean isExecClean = new AtomicBoolean(false);
 
-	public LocalCacheMarkerManager(int cleanInterval) {
+	public LocalCacheMarkerManager(int cleanPeriodSeconds, int markerMaxSize) {
 		this.nodeId = NodeInstanceHolder.getNodeId();
+		this.useLocalCacheKey = new ConcurrentFifoList<>(markerMaxSize,
+				ConcurrentFifoList.OverflowStrategy.REMOVE_OLDEST);
 		this.scheduledExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1,
 				"LocalCacheMarkerManager-Clean-scheduledExecutor");
-		if (cleanInterval <= 0) {
-			cleanInterval = CACHE_MARKER_INTERVAL_SECOND;
+		if (cleanPeriodSeconds <= 0) {
+			cleanPeriodSeconds = CACHE_MARKER_INTERVAL_SECOND;
 		}
-		this.scheduledExecutor.scheduleAtFixedRate(this::cleanupExpiredMarkers, cleanInterval, cleanInterval,
+		this.scheduledExecutor.scheduleAtFixedRate(this::cleanupExpiredMarkers, cleanPeriodSeconds, cleanPeriodSeconds,
 				TimeUnit.SECONDS);
 	}
 

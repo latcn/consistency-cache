@@ -27,7 +27,7 @@ class RedisMarkerStressTest {
 					"redis://127.0.0.1:7003", "redis://127.0.0.1:7004", "redis://127.0.0.1:7005",
 					"redis://127.0.0.1:7006"));
 		redissonClient = Redisson.create(config);
-		markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
+		markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 1, 1000, 10000);
 	}
 
 	@DisplayName("Redis marker concurrent mark test")
@@ -127,7 +127,8 @@ class RedisMarkerStressTest {
 			final int finalNodeId = nodeId;
 			executor.submit(() -> {
 				try {
-					LocalCacheMarkerManagerImpl nodeMarker = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
+					LocalCacheMarkerManagerImpl nodeMarker = new LocalCacheMarkerManagerImpl(redissonClient, 1, 1000,
+							100);
 					for (int j = 0; j < operationsPerNode; j++) {
 						int keyIdx = j % keyCount;
 						String cacheKey = "multi-node-key-" + keyIdx;

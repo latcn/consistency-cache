@@ -5,7 +5,8 @@ import io.github.latcn.cache.core.distributed.CacheOperationType;
 import io.github.latcn.cache.core.distributed.DistributedCacheManager;
 import io.github.latcn.cache.core.model.CacheKey;
 import io.github.latcn.cache.core.model.CacheValue;
-import io.github.latcn.cache.core.util.SafeFifoQueue;
+import io.github.latcn.cache.core.util.ConcurrentFifoList;
+import io.github.latcn.cache.core.util.ThreadUtils;
 import io.github.latcn.cache.core.util.TimeUtil;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -32,7 +33,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	private final ScheduledExecutorService scheduledExecutorService;
 
-	private final SafeFifoQueue<CacheOperation> cacheOperations = new SafeFifoQueue();
+	private final ConcurrentFifoList<CacheOperation> cacheOperations;
 
 	private final AtomicBoolean batchExecuteIsRunning = new AtomicBoolean(false);
 
@@ -40,16 +41,13 @@ public class RedisCacheManager implements DistributedCacheManager {
 
 	private final AtomicInteger batchExecCount = new AtomicInteger(0);
 
-	public RedisCacheManager(RedissonClient redissonClient, int maxBatchSize, int maxWaitMs) {
+	public RedisCacheManager(RedissonClient redissonClient, int cacheOperationSize, int maxBatchSize, int maxWaitMs) {
 		this.redissonClient = redissonClient;
-		this.scheduledExecutorService = new ScheduledThreadPoolExecutor(SCHEDULED_THREAD_POOL_SIZE, r -> {
-			Thread thread = new Thread(r);
-			thread.setName("RedisCacheManager Bulk Operation Thread");
-			thread.setDaemon(true);
-			return thread;
-		});
+		this.scheduledExecutorService = ThreadUtils.getScheduledThreadPoolExecutor(1,
+				"RedisCacheManagerBulkOperationThread");
 		this.maxBatchSize = maxBatchSize;
 		this.maxWaitMs = maxWaitMs;
+		this.cacheOperations = new ConcurrentFifoList(cacheOperationSize, ConcurrentFifoList.OverflowStrategy.REJECT);
 		this.scheduledExecutorService.scheduleAtFixedRate(this::batchExecute, maxWaitMs, maxWaitMs,
 				TimeUnit.MILLISECONDS);
 	}
@@ -180,9 +178,7 @@ public class RedisCacheManager implements DistributedCacheManager {
 				}
 			}
 			if (batchOperations.size() > 0) {
-				log.debug("============batchExecute-{}  batch-size {} , totalAdd: {}, totalRemove:{}",
-						batchExecCount.get(), batchOperations.size(), cacheOperations.getAddCounter(),
-						cacheOperations.getRemoveCounter());
+				log.debug("============batchExecute-{}  batch-size {}", batchExecCount.get(), batchOperations.size());
 				BatchResult<?> batchResult = batch.execute();
 				List<?> responses = batchResult.getResponses();
 				log.debug("============batchExecute-{} responses {}", batchExecCount.get(), responses.size());

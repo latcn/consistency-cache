@@ -16,12 +16,7 @@ import org.redisson.client.codec.StringCodec;
 @Slf4j
 public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 
-	// 缓冲时间（毫秒），防止时钟偏移，建议 5-10 秒
-	private static final long DEFAULT_BUFFER_TIME_MS = 10_000;
-
 	private static final int MAX_EXPECTED_SIZE = 1000;
-
-	private static final int INITIAL_CAPACITY = 0;
 
 	private static final int MAX_ACTIVE_NODES_TO_QUERY = 1;
 
@@ -33,17 +28,13 @@ public class LocalCacheMarkerManagerImpl extends LocalCacheMarkerManager {
 
 	private final long bufferTimeMs;
 
-	public LocalCacheMarkerManagerImpl(RedissonClient redissonClient, long bufferTimeMs) {
-		super(INITIAL_CAPACITY);
+	public LocalCacheMarkerManagerImpl(RedissonClient redissonClient, int cleanPeriodSeconds, int markerMaxSize,
+			long bufferTimeMs) {
+		super(cleanPeriodSeconds, markerMaxSize);
 		this.redissonClient = redissonClient;
 		this.rScript = this.redissonClient.getScript(StringCodec.INSTANCE);
 		this.redisScriptCache = new RedisScriptCache(this.rScript);
-		if (bufferTimeMs <= 0) {
-			this.bufferTimeMs = DEFAULT_BUFFER_TIME_MS;
-		}
-		else {
-			this.bufferTimeMs = bufferTimeMs;
-		}
+		this.bufferTimeMs = bufferTimeMs;
 		init();
 	}
 

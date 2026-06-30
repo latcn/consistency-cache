@@ -53,11 +53,17 @@ public class HccProperties {
 		 */
 		private long bufferTimeMs = 1000;
 
+		private int cleanPeriodSeconds = 5;
+
+		private int markerMaxSize = 100000;
+
 	}
 
 	@Data
 	@NoArgsConstructor
 	public static class DistributedProperties {
+
+		private int cacheOperationSize = 1000;
 
 		private int maxBatchSize = 100;
 

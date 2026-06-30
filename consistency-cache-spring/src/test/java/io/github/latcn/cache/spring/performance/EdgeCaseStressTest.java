@@ -61,8 +61,8 @@ class EdgeCaseStressTest {
 		properties.getCacheEvict().setChannelNames("hcc-cache-channel");
 
 		localCacheManager = new LocalCacheManager(properties.getLocal());
-		LocalCacheMarkerManager markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 10000);
-		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 100, 10);
+		LocalCacheMarkerManager markerManager = new LocalCacheMarkerManagerImpl(redissonClient, 1, 1000, 100);
+		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 1000, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
 		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(1000, 60000);
