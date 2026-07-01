@@ -229,14 +229,27 @@ spring:
 | max-batch-size | int | 100 | 最大批量操作大小 |
 | max-wait-ms | int | 10 | 最大等待时间（毫秒） |
 
-#### 热点检测配置 (hotspot)
+#### 读热点检测配置 (read-hot)
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| read-hot-key-threshold | int | 100 | 读热点检测阈值 |
-| read-hot-key-max-size | int | 10000 | 读热点 key 最大数量 |
-| write-hot-key-threshold | int | 10 | 写热点检测阈值 |
-| write-hot-key-max-size | int | 10000 | 写热点 key 最大数量 |
+| total-qps | long | 10000 | 系统预估的总请求量（每秒总请求数），系统峰值平均QPS |
+| hot-qps | int | 100 | 业务上定义的热点阈值（每秒请求数），例如"每秒超过100次访问即视为热点" |
+| promotion-ratio | double | 0.7 | 晋升阈值占热点阈值的比例（0~1） |
+| max-exact-size | int | 2000 | 精确层最大容量（允许跟踪的key数量上限），建议设置为热点key预估数量 × (2 ~ 3) |
+| expiration-time-ms | long | 30000 | key在精确层的过期时间（毫秒）。若key最后一次访问距今超过该时间，且当前计数值低于hotQps，则在常规清理中被淘汰 |
+| cleanup-interval-ms | long | 5000 | 常规清理任务执行间隔（毫秒）。后台线程定期遍历精确层，淘汰过期且计数低于阈值的key |
+
+#### 写热点检测配置 (write-hot)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| total-qps | long | 10000 | 系统预估的总写入请求量（每秒总请求数） |
+| hot-qps | int | 100 | 业务上定义的写热点阈值（每秒请求数） |
+| promotion-ratio | double | 0.7 | 晋升阈值占热点阈值的比例（0~1） |
+| max-exact-size | int | 2000 | 精确层最大容量 |
+| expiration-time-ms | long | 30000 | key在精确层的过期时间（毫秒） |
+| cleanup-interval-ms | long | 5000 | 常规清理任务执行间隔（毫秒） |
 
 #### 熔断器配置 (circuit-breaker)
 
@@ -501,24 +514,25 @@ public class CacheMonitorController {
 ### 数据库初始化
 
 ```sql
-CREATE TABLE `hcc_cache_message` (
+CREATE TABLE `invalidation_record` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `uid` varchar(64) NOT NULL COMMENT '唯一标识符 (Snowflake ID)',
-  `cache_key` varchar(255) NOT NULL COMMENT '缓存键',
+  `cache_key` varchar(255) NOT NULL COMMENT '需要失效的缓存 Key，格式：cacheName:key',
   `cache_level` varchar(32) DEFAULT NULL COMMENT '缓存级别 (L1/L2/ALL)',
-  `consistency_level` varchar(32) DEFAULT NULL COMMENT '一致性级别',
+  `consistency_level` varchar(32) DEFAULT NULL COMMENT '一致性级别 (HIGH/AVAILABLE)',
   `operation_type` varchar(32) NOT NULL COMMENT '操作类型 (DELETE/UPDATE)',
-  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态: 0=待处理, 1=已完成, 2=失败',
+  `node_id` varchar(128) DEFAULT NULL COMMENT '创建记录的节点 ID (hostname-pid)',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '状态：0=PENDING, 1=COMPLETED, 2=FAILED',
   `retry_count` int(11) DEFAULT '0' COMMENT '重试次数',
-  `error_message` text COMMENT '错误信息',
-  `node_id` varchar(128) DEFAULT NULL COMMENT '创建此记录的节点ID',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `error_message` text COMMENT '失败时的错误信息',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `next_execution_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '下一次执行时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_uid` (`uid`),
-  KEY `idx_status_create_time` (`status`, `create_time`),
+  KEY `idx_status_execution_time` (`status`, `next_execution_time`),
   KEY `idx_node_id` (`node_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缓存失效消息表（事务发件箱模式）';
 ```
 
 ### 灰度发布策略

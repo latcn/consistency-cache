@@ -514,24 +514,25 @@ public class CacheMonitorController {
 ### Database Initialization
 
 ```sql
-CREATE TABLE `hcc_cache_message` (
+CREATE TABLE `invalidation_record` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `uid` varchar(64) NOT NULL COMMENT 'Unique identifier (Snowflake ID)',
-  `cache_key` varchar(255) NOT NULL COMMENT 'Cache key to invalidate',
+  `cache_key` varchar(255) NOT NULL COMMENT 'Cache key to invalidate, format: cacheName:key',
   `cache_level` varchar(32) DEFAULT NULL COMMENT 'Cache level (L1/L2/ALL)',
-  `consistency_level` varchar(32) DEFAULT NULL COMMENT 'Consistency level',
+  `consistency_level` varchar(32) DEFAULT NULL COMMENT 'Consistency level (HIGH/AVAILABLE)',
   `operation_type` varchar(32) NOT NULL COMMENT 'Operation type (DELETE/UPDATE)',
+  `node_id` varchar(128) DEFAULT NULL COMMENT 'Node ID that created this record (hostname-pid)',
   `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Status: 0=PENDING, 1=COMPLETED, 2=FAILED',
   `retry_count` int(11) DEFAULT '0' COMMENT 'Retry count',
   `error_message` text COMMENT 'Error message on failure',
-  `node_id` varchar(128) DEFAULT NULL COMMENT 'Node ID that created this record',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
+  `update_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
+  `next_execution_time` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT 'Next execution time',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_uid` (`uid`),
-  KEY `idx_status_create_time` (`status`, `create_time`),
+  KEY `idx_status_execution_time` (`status`, `next_execution_time`),
   KEY `idx_node_id` (`node_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Cache invalidation message table (Transactional Outbox Pattern)';
 ```
 
 ### Gray Release Strategy
