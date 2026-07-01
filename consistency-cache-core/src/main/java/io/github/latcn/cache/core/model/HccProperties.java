@@ -10,7 +10,9 @@ public class HccProperties {
 
 	private DistributedProperties distributed;
 
-	private HotspotProperties hotspot;
+	private HotspotProperties readHot;
+
+	private HotspotProperties writeHot;
 
 	private CircuitBreakerProperties circuitBreaker;
 
@@ -21,7 +23,8 @@ public class HccProperties {
 	public HccProperties() {
 		this.local = new LocalCacheProperties();
 		this.distributed = new DistributedProperties();
-		this.hotspot = new HotspotProperties();
+		this.readHot = new HotspotProperties();
+		this.writeHot = new HotspotProperties();
 		this.circuitBreaker = new CircuitBreakerProperties();
 		this.monitor = new MonitorProperties();
 		this.cacheEvict = new CacheEvictProperties();
@@ -75,25 +78,23 @@ public class HccProperties {
 	@NoArgsConstructor
 	public static class HotspotProperties {
 
-		/**
-		 * 读热点检测
-		 */
-		private int readHotKeyThreshold = 100;
+		// 系统预估的总请求量（每秒总请求数）系统峰值平均QPS（如日高峰时段的平均值）
+		private long totalQps = 10000;
 
-		/**
-		 * 读热点key最大数量， 实际热点数小于此值
-		 */
-		private int readHotKeyMaxSize = 10000;
+		// 业务上定义的热点阈值（每秒请求数），例如“每秒超过100次访问即视为热点”
+		private int hotQps = 100;
 
-		/**
-		 * 写热点检测
-		 */
-		private int writeHotKeyThreshold = 10;
+		// 晋升阈值占热点阈值的比例（0~1）
+		private double promotionRatio = 0.7;
 
-		/**
-		 * 写热点key最大数量， 实际热点数小于此值
-		 */
-		private int writeHotKeyMaxSize = 10000;
+		// 精确层最大容量（允许跟踪的key数量上限）热点key预估数量 × (2 ~ 3)
+		private int maxExactSize = 2000;
+
+		// key在精确层的过期时间（毫秒）。若 key 最后一次访问距今超过该时间，且当前计数值低于 hotKeyThreshold，则在常规清理中被淘汰
+		private long expirationTimeMs = 30_000;
+
+		// 常规清理任务执行间隔（毫秒）。后台线程定期遍历精确层，淘汰过期且计数低于阈值的key
+		private long cleanupIntervalMs = 5000;
 
 	}
 

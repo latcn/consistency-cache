@@ -61,8 +61,8 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should initialize with default check interval")
 	void testDefaultConstructor() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
-		assertEquals(3, monitor.getCheckIntervalSeconds());
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 10);
+		assertEquals(10, monitor.getCheckIntervalSeconds());
 		assertTrue(monitor.isWasConnected());
 	}
 
@@ -70,7 +70,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should initialize with custom check interval")
 	void testCustomConstructor() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 10);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 10);
 		assertEquals(10, monitor.getCheckIntervalSeconds());
 		assertTrue(monitor.isWasConnected());
 	}
@@ -79,7 +79,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should initialize with MeterRegistry")
 	void testConstructorWithMeterRegistry() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 3, meterRegistry);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		assertNotNull(meterRegistry.find("hcc_connection_status").gauge());
 		assertNotNull(meterRegistry.find("hcc_connection_disconnections_total").counter());
@@ -90,7 +90,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should return connected status when distributed cache is healthy")
 	void testIsConnectedHealthy() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 		assertTrue(monitor.isConnected());
 	}
 
@@ -98,7 +98,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should return disconnected status when distributed cache is unhealthy")
 	void testIsConnectedUnhealthy() {
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 		assertFalse(monitor.isConnected());
 	}
 
@@ -106,7 +106,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should return disconnected when health check throws exception")
 	void testIsConnectedException() {
 		when(distributedCacheManager.isHealthy()).thenThrow(new RuntimeException("Connection failed"));
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 		assertFalse(monitor.isConnected());
 	}
 
@@ -114,7 +114,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should clear HIGH consistency cache on disconnection")
 	void testHandleDisconnectionHighConsistency() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 100);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
 		monitor.checkConnection();
@@ -127,7 +127,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should clear HIGH consistency cache on reconnection")
 	void testHandleReconnectionHighConsistency() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 100);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
 		monitor.checkConnection();
@@ -142,7 +142,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should handle exception during connection check gracefully")
 	void testCheckConnectionException() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 100);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		when(distributedCacheManager.isHealthy()).thenThrow(new RuntimeException("Check failed"));
 		monitor.checkConnection();
@@ -156,7 +156,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should record disconnection metrics")
 	void testDisconnectionMetrics() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 100, meterRegistry);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
 		monitor.checkConnection();
@@ -169,7 +169,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should record reconnection metrics")
 	void testReconnectionMetrics() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, 100, meterRegistry);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		when(distributedCacheManager.isHealthy()).thenReturn(false);
 		monitor.checkConnection();
@@ -185,7 +185,7 @@ class EnhancedConnectionMonitorTest {
 	@DisplayName("Should shutdown gracefully")
 	void testShutdown() {
 		when(distributedCacheManager.isHealthy()).thenReturn(true);
-		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager);
+		monitor = new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry, 3);
 
 		assertDoesNotThrow(() -> monitor.shutdown());
 	}
@@ -193,13 +193,15 @@ class EnhancedConnectionMonitorTest {
 	@Test
 	@DisplayName("Should handle null distributed cache manager")
 	void testNullDistributedCacheManager() {
-		assertThrows(NullPointerException.class, () -> new EnhancedConnectionMonitor(null, localCacheManager));
+		assertThrows(NullPointerException.class,
+				() -> new EnhancedConnectionMonitor(null, localCacheManager, meterRegistry, 3));
 	}
 
 	@Test
 	@DisplayName("Should handle null local cache manager")
 	void testNullLocalCacheManager() {
-		assertThrows(NullPointerException.class, () -> new EnhancedConnectionMonitor(distributedCacheManager, null));
+		assertThrows(NullPointerException.class,
+				() -> new EnhancedConnectionMonitor(distributedCacheManager, null, meterRegistry, 3));
 	}
 
 }

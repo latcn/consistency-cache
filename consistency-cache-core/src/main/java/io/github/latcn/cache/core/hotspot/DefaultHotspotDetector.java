@@ -1,6 +1,7 @@
 package io.github.latcn.cache.core.hotspot;
 
 import io.github.latcn.cache.core.hotspot.base.TwoLevelHotKeyDetector;
+import io.github.latcn.cache.core.model.HccProperties;
 import io.github.latcn.cache.core.util.StringUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -9,13 +10,10 @@ public class DefaultHotspotDetector implements HotspotDetector, AutoCloseable {
 
 	private final TwoLevelHotKeyDetector hotKeyDetector;
 
-	public DefaultHotspotDetector(int hotKeyThreshold, int maxExactSize) {
-		this.hotKeyDetector = TwoLevelHotKeyDetector.Builder.forHighQps()
-			.hotKeyThreshold(hotKeyThreshold)
-			.promotionThreshold((long) (hotKeyThreshold * 0.7))
-			.maxExactSize(maxExactSize)
-			.build();
-		log.info("Initialized DefaultHotspotDetector: threshold={}, maxExactSize={}", hotKeyThreshold, maxExactSize);
+	public DefaultHotspotDetector(HccProperties.HotspotProperties hotspotProperties) {
+		this.hotKeyDetector = new TwoLevelHotKeyDetector(hotspotProperties.getTotalQps(), hotspotProperties.getHotQps(),
+				hotspotProperties.getPromotionRatio(), hotspotProperties.getMaxExactSize(),
+				hotspotProperties.getExpirationTimeMs(), hotspotProperties.getCleanupIntervalMs());
 	}
 
 	@Override
@@ -35,7 +33,7 @@ public class DefaultHotspotDetector implements HotspotDetector, AutoCloseable {
 
 	@Override
 	public <T> double getHotKeyQps(T key) {
-		return hotKeyDetector.getQps(StringUtil.toStringKey(key));
+		return hotKeyDetector.getCurrentQps(StringUtil.toStringKey(key));
 	}
 
 	@Override

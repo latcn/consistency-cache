@@ -248,7 +248,8 @@ class ConcurrentPerformanceTest {
 	@Test
 	@DisplayName("Hotspot detection accuracy under load")
 	void testHotspotDetectionAccuracy() throws InterruptedException {
-		DefaultHotspotDetector statistics = new DefaultHotspotDetector(100, 10000);
+		DefaultHotspotDetector statistics = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
+
 		String hotKey = "hot-key";
 		String coldKey = "cold-key";
 

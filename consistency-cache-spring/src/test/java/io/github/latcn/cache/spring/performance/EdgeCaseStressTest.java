@@ -65,8 +65,8 @@ class EdgeCaseStressTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 1000, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(1000, 60000);
-		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(100, 20000);
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
+		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(0.5, 30000,
 				Set.of(org.redisson.client.RedisConnectionException.class));
@@ -203,7 +203,7 @@ class EdgeCaseStressTest {
 	void testHotspotDetectionWithDataSkew() throws InterruptedException {
 		log.info("=== Hotspot Detection with Data Skew ===");
 
-		DefaultHotspotDetector hotspotDetector = new DefaultHotspotDetector(100, 10000);
+		DefaultHotspotDetector hotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
 		int totalRequests = 100000;
 		int hotKeyCount = 10;
 		int coldKeyCount = 990;

@@ -112,9 +112,9 @@ class SpringCacheEvictHandlerStressTest {
 		LocalCacheFactory.registerCacheType(localProps.getCacheType(), localProps.getCacheClz());
 		localCacheManager = new LocalCacheManager(localProps);
 
-		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(10, 10000);
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
 
-		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(100, 10000);
+		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(0.5, 30000, Set.of());
 

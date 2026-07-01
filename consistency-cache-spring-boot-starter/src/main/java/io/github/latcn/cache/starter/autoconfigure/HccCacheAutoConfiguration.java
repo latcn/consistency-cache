@@ -108,16 +108,14 @@ public class HccCacheAutoConfiguration {
 	@ConditionalOnMissingBean
 	@Bean
 	public HotspotDetector writeHotspotDetector(HccProperties properties) {
-		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(
-				properties.getHotspot().getWriteHotKeyThreshold(), properties.getHotspot().getWriteHotKeyMaxSize());
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(properties.getWriteHot());
 		return writeHotspotDetector;
 	}
 
 	@ConditionalOnMissingBean
 	@Bean
 	public HotspotDetector readHotspotDetector(HccProperties properties) {
-		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(
-				properties.getHotspot().getReadHotKeyThreshold(), properties.getHotspot().getReadHotKeyMaxSize());
+		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(properties.getReadHot());
 		return readHotspotDetector;
 	}
 

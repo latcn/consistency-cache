@@ -88,7 +88,8 @@ public class TestConfig {
 	@ConditionalOnMissingBean
 	@Bean
 	public LocalCacheMarkerManager localCacheMarkerManager(RedissonClient redissonClient, HccProperties properties) {
-		return new LocalCacheMarkerManagerImpl(redissonClient, properties.getLocal().getBufferTimeMs());
+		return new LocalCacheMarkerManagerImpl(redissonClient, properties.getLocal().getCleanPeriodSeconds(),
+				properties.getLocal().getMarkerMaxSize(), properties.getLocal().getBufferTimeMs());
 	}
 
 	@ConditionalOnMissingBean
@@ -127,10 +128,8 @@ public class TestConfig {
 			LocalCacheMarkerManager localCacheMarkerManager, DistributedCacheManager distributedCacheManager,
 			CacheBloomFilter cacheBloomFilter) {
 
-		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(
-				properties.getHotspot().getWriteHotKeyThreshold(), properties.getHotspot().getWriteHotKeyMaxSize());
-		DefaultHotspotDetector readStatistics = new DefaultHotspotDetector(
-				properties.getHotspot().getReadHotKeyThreshold(), properties.getHotspot().getReadHotKeyMaxSize());
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(properties.getWriteHot());
+		DefaultHotspotDetector readStatistics = new DefaultHotspotDetector(properties.getReadHot());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(properties.getCircuitBreaker().getFailRatio(),
 				properties.getCircuitBreaker().getTimeoutMs(),

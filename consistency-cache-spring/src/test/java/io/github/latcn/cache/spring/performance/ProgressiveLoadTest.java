@@ -66,8 +66,8 @@ class ProgressiveLoadTest {
 		RedisCacheManager distributedCacheManager = new RedisCacheManager(redissonClient, 1000, 100, 10);
 		EnhanceRCuckooFilter bloomFilter = new EnhanceRCuckooFilter(redissonClient);
 
-		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(1000, 10000);
-		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(100, 10000);
+		DefaultHotspotDetector writeHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
+		DefaultHotspotDetector readHotspotDetector = new DefaultHotspotDetector(new HccProperties.HotspotProperties());
 
 		CacheCircuitBreaker circuitBreaker = new CacheCircuitBreaker(50.0, 10,
 				Set.of(org.redisson.client.RedisConnectionException.class));

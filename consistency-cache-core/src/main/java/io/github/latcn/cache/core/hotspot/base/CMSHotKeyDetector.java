@@ -1,288 +1,288 @@
 package io.github.latcn.cache.core.hotspot.base;
 
-import io.github.latcn.cache.core.exception.CacheError;
-import io.github.latcn.cache.core.exception.CacheException;
-import io.github.latcn.cache.core.util.NumberUtil;
-import io.github.latcn.cache.core.util.ThreadUtils;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Count-Min Sketch 热点检测器（分片优化版）
- *
- * <h2>算法设计思路</h2> Count-Min Sketch (CMS) 是一种概率性数据结构，用于在有限内存下统计海量数据流中元素的频率。 核心思想：使用 d
- * 个独立的哈希函数，将每个元素映射到 d 个计数桶中，记录时所有对应桶 +1， 查询时取 d 个桶的最小值作为估计频率。
- *
- * <p>
- * 为什么取最小值？因为哈希碰撞只会导致计数偏高，取最小值能最大程度抵消碰撞影响。
- *
- * <p>
- * 本实现专为热点检测优化：
- * <ul>
- * <li><b>分片衰减</b>：将宽度分成 segmentCount 片，每次只衰减一片，降低单次 CPU 峰值。</li>
- * <li><b>惰性衰减</b>：由后台线程定时执行，不阻塞业务线程。</li>
- * <li><b>异常回滚</b>：若衰减失败，回滚时间戳和分片指针，保证一致性。</li>
- * <li><b>哈希优化</b>：采用乘法混合（与黄金分割常数相乘），大幅降低碰撞概率。</li>
- * </ul>
- *
- * <h2>参数计算与预估</h2>
- * <ul>
- * <li><b>宽度 (width)</b>：决定相对误差上限。误差率 ε = 1/width，因此 width = ceil(1/ε)。 若要求 1% 误差，width ≥
- * 1000,000。</li>
- * <li><b>深度 (depth)</b>：决定误差概率。单次查询误差超过 ε 的概率 ≤ e^{-depth}。 depth=3 时概率约 4.98%，depth=5 时约
- * 0.67%。</li>
- * <li><b>衰减率 (decayRate)</b>：每次衰减时，计数乘以 (1 - decayRate)。 若间隔为 interval (秒)，则半衰期 = -ln(2)
- * / ln(1 - decayRate) * interval。 建议 decayRate 0.1~0.2，使计数在几秒内遗忘旧数据。</li>
- * <li><b>衰减间隔 (decayIntervalMs)</b>：决定 CPU 开销与实时性。间隔越短，计数越实时但 CPU 越高。 典型值 100~500ms。</li>
- * </ul>
- *
- * <h2>调优建议</h2>
- * <ul>
- * <li>若 QPS 高、热 key 多，可增大 width 以降低误差，但内存线性增加。</li>
- * <li>若 CPU 紧张，可增大 decayIntervalMs 或减小 segmentCount（减少分片数）。</li>
- * <li>若业务对冷热判别敏感，可适当增大 depth 以降低误差概率。</li>
- * </ul>
+ * 基于惰性衰减的 Count-Min Sketch 热点检测器（无全局扫描，无后台线程）
  */
 @Slf4j
 public class CMSHotKeyDetector implements AutoCloseable {
 
-	private static final String DECAY_THREAD_NAME = "CMS-Decay";
+	private static final int DEFAULT_DEPTH = 4;
 
-	private static final int WARN_LOG_INTERVAL = 10;
+	private static final int MIN_SAMPLE_SIZE = 1024;
 
-	// 每行桶的数量（列数），决定相对误差上限 ε = 1/width
+	private static final int MAX_AUTO_WIDTH = 16384;
+
+	private static final double TARGET_ERROR_RATIO = 0.1;
+
+	private static final long GOLDEN_RATIO_64 = 0x9e3779b97f4a7c15L;
+
+	private static final long DEFAULT_WINDOW_NANOS = 500_000_000L;
+
+	private static final int MAX_SHIFT = 31;
+
+	// 窗口时长上下限（1ms ~ 1s）
+	private static final long MIN_WINDOW_NANOS = 1_000_000L; // 1ms
+
+	private static final long MAX_WINDOW_NANOS = 1_000_000_000L; // 1s
+
 	private final int width;
 
-	// 哈希函数数量（行数），决定误差概率 P ≤ e^{-depth}
+	private final int widthMask;
+
 	private final int depth;
 
-	// 二维计数器数组，每个元素为 AtomicLongArray，线程安全
-	private final AtomicLongArray[] counters;
+	private final int sampleSize;
 
-	// 每行独立的哈希种子，保证不同行使用不同哈希函数
-	private final int[] seeds;
+	private long windowNanos;
 
-	// 每次衰减的比率，值域 [0,1]，例如 0.15 表示衰减 15%
-	private final double decayRate;
+	private final long totalQps;
 
-	// 衰减执行间隔（毫秒），后台线程按此频率执行衰减
-	private final long decayIntervalMs;
+	private final double internalScale;
 
-	// 分片数量，宽度被分成 segmentCount 片，每次只衰减一片
-	private final int segmentCount;
+	private int[] seeds;
 
-	// 每个分片的列数（最后一片可能小于此值）
-	private final int segmentSize;
+	private AtomicLongArray[] counters;
 
-	// 上次成功衰减的纳秒时间戳，用于防重叠和异常回滚
-	private final AtomicLong lastDecayTime = new AtomicLong(System.nanoTime());
-
-	// 后台衰减调度器
-	private final ScheduledExecutorService decayExecutor;
-
-	// 关闭标志，防止关闭后继续操作
 	private volatile boolean closed = false;
 
-	// 当前正在衰减的分片索引（0 ~ segmentCount-1），volatile 保证可见性
-	private volatile int currentSegment = 0;
-
-	// ========== 监控指标 ==========
-	// 成功衰减次数
-	private final AtomicLong decayRunCount = new AtomicLong(0);
-
-	// 因并发而跳过的衰减次数
-	private final AtomicLong decaySkipCount = new AtomicLong(0);
-
-	// 累计衰减耗时（毫秒）
-	private final AtomicLong totalDecayTimeMs = new AtomicLong(0);
-
-	// 累计衰减的桶数（仅非零）
-	private final AtomicLong totalDecayItems = new AtomicLong(0);
-
-	// 超时警告计数
-	private final AtomicLong warnCount = new AtomicLong(0);
-
-	/**
-	 * 构造 CMS 热点检测器（分片衰减）。
-	 * @param widthInput 桶宽度（列数），建议 100,000 ~ 1,000,000
-	 * @param depth 哈希函数数量（行数），建议 3 ~ 5
-	 * @param decayRate 衰减率，建议 0.1 ~ 0.2
-	 * @param decayIntervalMs 衰减间隔（毫秒），建议 100 ~ 1000
-	 * @param segmentCount 分片数，建议 4 ~ 8（单次扫描量 = width/segmentCount）
-	 */
-	public CMSHotKeyDetector(int widthInput, int depth, double decayRate, long decayIntervalMs, int segmentCount) {
-		if (widthInput <= 0 || depth <= 0 || decayRate < 0 || decayRate > 1 || decayIntervalMs <= 0
-				|| segmentCount <= 0) {
-			throw new CacheException(CacheError.INVALID_PARAMETER, "CMSHotKeyDetector parameters invalid");
+	public CMSHotKeyDetector(long totalQps, int targetHotQps) {
+		if (totalQps <= 0 || targetHotQps <= 0) {
+			throw new IllegalArgumentException("totalQps and targetHotQps must be positive");
 		}
-		this.width = NumberUtil.nextPowerOfTwo(widthInput);
+		this.totalQps = totalQps;
+		this.depth = DEFAULT_DEPTH;
+
+		long rawSample = totalQps / 2;
+		if (rawSample < MIN_SAMPLE_SIZE)
+			rawSample = MIN_SAMPLE_SIZE;
+		if (rawSample > Integer.MAX_VALUE)
+			rawSample = Integer.MAX_VALUE;
+		this.sampleSize = (int) rawSample;
+
+		double maxAllowedError = Math.max(targetHotQps * TARGET_ERROR_RATIO, 1.0);
+		double widthDouble = Math.E * 2.0 * this.sampleSize / maxAllowedError;
+		int width = ceilNextPowerOfTwo((int) Math.ceil(widthDouble));
+		if (width < 1024)
+			width = 1024;
+		if (width > MAX_AUTO_WIDTH)
+			width = MAX_AUTO_WIDTH;
+		this.width = width;
+		this.widthMask = this.width - 1;
+
+		this.internalScale = 2.0 * this.sampleSize / (double) this.totalQps;
+		this.windowNanos = (long) ((double) this.sampleSize / (double) this.totalQps * 1_000_000_000L);
+		// 上下限保护
+		if (this.windowNanos > MAX_WINDOW_NANOS)
+			this.windowNanos = MAX_WINDOW_NANOS;
+		if (this.windowNanos < MIN_WINDOW_NANOS)
+			this.windowNanos = MIN_WINDOW_NANOS;
+
+		initSeedsAndCounters();
+
+		log.info(
+				"CMS auto-configured: totalQps={}, targetHotQps={}, sampleSize={}, width={}, depth={}, "
+						+ "windowNanos={}ns, internalScale={}",
+				totalQps, targetHotQps, sampleSize, width, depth, windowNanos, internalScale);
+	}
+
+	public CMSHotKeyDetector(int width, int depth, int sampleSize) {
+		if (width <= 0 || depth <= 0 || sampleSize <= 0) {
+			throw new IllegalArgumentException("width, depth and sampleSize must be positive");
+		}
+		if (width > (1 << 30)) {
+			throw new IllegalArgumentException("width too large (max 1<<30)");
+		}
+		this.totalQps = -1;
+		this.internalScale = 0.0;
+		this.sampleSize = Math.max(sampleSize, MIN_SAMPLE_SIZE);
+		this.width = ceilNextPowerOfTwo(width);
+		this.widthMask = this.width - 1;
 		this.depth = depth;
-		this.decayRate = decayRate;
-		this.decayIntervalMs = decayIntervalMs;
-		this.segmentCount = segmentCount;
-		this.segmentSize = (width + segmentCount - 1) / segmentCount;
+		// 手动构造也应用上下限
+		this.windowNanos = DEFAULT_WINDOW_NANOS;
+		if (this.windowNanos > MAX_WINDOW_NANOS)
+			this.windowNanos = MAX_WINDOW_NANOS;
+		if (this.windowNanos < MIN_WINDOW_NANOS)
+			this.windowNanos = MIN_WINDOW_NANOS;
+
+		initSeedsAndCounters();
+
+		double stableError = Math.E * 2L * this.sampleSize / (double) this.width;
+		log.info("CMS manual-configured: width={}, depth={}, sampleSize={}, windowNanos={}ns, stableMaxError≈{}",
+				this.width, this.depth, this.sampleSize, windowNanos, String.format("%.2f", stableError));
+	}
+
+	private void initSeedsAndCounters() {
+		this.seeds = new int[depth];
+		long seedBase = ThreadLocalRandom.current().nextLong();
+		for (int i = 0; i < depth; i++) {
+			this.seeds[i] = (int) (seedBase & 0xFFFFFFFFL);
+			seedBase += GOLDEN_RATIO_64;
+		}
 
 		this.counters = new AtomicLongArray[depth];
-		this.seeds = new int[depth];
 		for (int i = 0; i < depth; i++) {
-			counters[i] = new AtomicLongArray(width);
-			seeds[i] = ThreadLocalRandom.current().nextInt();
-		}
-
-		// 启动单个后台线程定时衰减
-		this.decayExecutor = ThreadUtils.getScheduledThreadPoolExecutor(1, DECAY_THREAD_NAME);
-		this.decayExecutor.scheduleAtFixedRate(this::safeDecay, decayIntervalMs, decayIntervalMs,
-				TimeUnit.MILLISECONDS);
-	}
-
-	/** 安全衰减入口，捕获所有异常防止线程中断 */
-	private void safeDecay() {
-		if (closed)
-			return;
-		try {
-			decayPartial();
-		}
-		catch (Throwable t) {
-			log.error("Decay task failed, will retry", t);
+			counters[i] = new AtomicLongArray(this.width);
 		}
 	}
 
-	/**
-	 * 执行一次分片衰减。 使用 CAS 尝试抢占衰减机会，若失败则跳过（说明其他线程已执行）。 若成功，则对当前分片进行衰减，并移动到下一个分片。
-	 * 若衰减过程异常，回滚时间戳和分片指针，以便下次重试。
-	 */
-	private void decayPartial() {
-		long nowNano = System.nanoTime();
-		long expected = lastDecayTime.get();
-		if (!lastDecayTime.compareAndSet(expected, nowNano)) {
-			decaySkipCount.incrementAndGet();
-			return; // 其他线程已更新，跳过本次
-		}
-
-		int seg = currentSegment;
-		try {
-			doDecaySegment(seg, nowNano);
-		}
-		catch (Throwable t) {
-			// 回滚时间戳和分片指针，保持一致性
-			lastDecayTime.set(expected);
-			currentSegment = seg;
-			log.error("Decay failed for segment {}", seg, t);
-			throw t;
-		}
-		currentSegment = (seg + 1) % segmentCount;
+	private static int mixHash(int base, int seed, int mask) {
+		long h = (base ^ seed) * GOLDEN_RATIO_64;
+		h ^= h >>> 32;
+		return (int) (h & mask);
 	}
 
-	/**
-	 * 衰减指定分片的所有桶。 只处理计数 > 0 的桶，减少无效操作。 记录耗时，若超过间隔则输出警告（每10次输出一次 Warn，其余 Fine）。
-	 */
-	private void doDecaySegment(int seg, long nowNano) {
-		int start = seg * segmentSize;
-		int end = Math.min(start + segmentSize, width);
-		long startMs = System.currentTimeMillis();
-		long itemCount = 0;
-		for (int i = 0; i < depth; i++) {
-			AtomicLongArray row = counters[i];
-			for (int col = start; col < end; col++) {
-				long current = row.get(col);
-				if (current > 0) {
-					long decayed = (long) (current * (1 - decayRate));
-					row.set(col, Math.max(0, decayed));
-					itemCount++;
-				}
-			}
-		}
-		long duration = System.currentTimeMillis() - startMs;
-		totalDecayTimeMs.addAndGet(duration);
-		decayRunCount.incrementAndGet();
-		totalDecayItems.addAndGet(itemCount);
-
-		if (duration > decayIntervalMs) {
-			long w = warnCount.incrementAndGet();
-			if (w % WARN_LOG_INTERVAL == 0) {
-				log.debug("Decay segment {} took {}ms, exceeding interval {}ms", seg, duration, decayIntervalMs);
-			}
-			else {
-				log.debug("Decay segment {} took {}ms (exceeded)", seg, duration);
-			}
-		}
-	}
-
-	/** 记录一次访问（增加计数） */
 	public void record(String key) {
-		if (closed)
-			throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "CMSHotKeyDetector already closed");
-		if (key == null)
-			throw new CacheException(CacheError.EMPTY_KEY, "key cannot be null");
-		int h = key.hashCode();
-		for (int i = 0; i < depth; i++) {
-			int col = NumberUtil.hash(h, seeds[i], width);
-			counters[i].getAndIncrement(col);
+		if (closed || key == null)
+			return;
+		record(key, System.nanoTime());
+	}
+
+	public void record(String key, long nowNanos) {
+		if (closed || key == null)
+			return;
+		final int hc = key.hashCode();
+		final long currentTick = nowNanos / windowNanos;
+		final long lowTick = currentTick & 0xFFFFFFFFL;
+
+		final int d = this.depth;
+		final AtomicLongArray[] cs = this.counters;
+		final int[] sds = this.seeds;
+		final int mask = this.widthMask;
+
+		for (int i = 0; i < d; i++) {
+			int idx = mixHash(hc, sds[i], mask);
+			updateSlot(cs[i], idx, lowTick);
 		}
 	}
 
-	/** 估算 key 的访问频率（取所有行对应桶的最小值） */
-	public long estimateCount(String key) {
-		if (closed)
-			throw new CacheException(CacheError.HOT_KEY_DETECTION_FAILED, "CMSHotKeyDetector already closed");
-		if (key == null)
-			throw new CacheException(CacheError.EMPTY_KEY, "key cannot be null");
-		int h = key.hashCode();
-		long min = Long.MAX_VALUE;
-		for (int i = 0; i < depth; i++) {
-			int col = NumberUtil.hash(h, seeds[i], width);
-			long v = counters[i].get(col);
-			if (v < min)
-				min = v;
+	private void updateSlot(AtomicLongArray row, int idx, long tick) {
+		while (true) {
+			long packed = row.get(idx);
+			long lastTick = packed >>> 32;
+			int count = (int) (packed & 0xFFFFFFFFL);
+
+			long elapsed = tick - lastTick;
+			if (elapsed < 0) {
+				long newPacked = (tick << 32) | 1L;
+				if (row.compareAndSet(idx, packed, newPacked)) {
+					return;
+				}
+				continue;
+			}
+			if (elapsed > MAX_SHIFT)
+				elapsed = MAX_SHIFT;
+
+			int decayed = (elapsed == 0) ? count : (count >>> (int) elapsed);
+			int newCount = decayed + 1;
+			long newPacked = (tick << 32) | (newCount & 0xFFFFFFFFL);
+
+			if (row.compareAndSet(idx, packed, newPacked)) {
+				return;
+			}
+		}
+	}
+
+	public int estimateCount(String key) {
+		if (closed || key == null)
+			return 0;
+		return estimateCount(key, System.nanoTime());
+	}
+
+	public int estimateCount(String key, long nowNanos) {
+		if (closed || key == null)
+			return 0;
+		final int hc = key.hashCode();
+		final long nowTick = (nowNanos / windowNanos) & 0xFFFFFFFFL;
+
+		int min = Integer.MAX_VALUE;
+		final int d = this.depth;
+		final AtomicLongArray[] cs = this.counters;
+		final int[] sds = this.seeds;
+		final int mask = this.widthMask;
+
+		for (int i = 0; i < d; i++) {
+			int idx = mixHash(hc, sds[i], mask);
+			long packed = cs[i].get(idx);
+			long lastTick = packed >>> 32;
+			int count = (int) (packed & 0xFFFFFFFFL);
+
+			long elapsed = nowTick - lastTick;
+			if (elapsed < 0)
+				elapsed = 0;
+			if (elapsed > MAX_SHIFT)
+				elapsed = MAX_SHIFT;
+
+			int decayed = (elapsed == 0) ? count : (count >>> (int) elapsed);
+			// 防止由于 count 溢出导致的负数
+			if (decayed < 0)
+				decayed = 0;
+			if (decayed < min)
+				min = decayed;
 		}
 		return min;
 	}
 
-	// ========== 监控指标 ==========
-	public long getDecayRunCount() {
-		return decayRunCount.get();
+	public boolean isHot(String key, int internalThreshold) {
+		return estimateCount(key) > internalThreshold;
 	}
 
-	public long getDecaySkipCount() {
-		return decaySkipCount.get();
+	public int convertQpsToInternal(int targetHotQps) {
+		if (totalQps <= 0) {
+			throw new UnsupportedOperationException("Manual mode does not support QPS conversion.");
+		}
+		return (int) Math.round(targetHotQps * internalScale);
 	}
 
-	public long getTotalDecayTimeMs() {
-		return totalDecayTimeMs.get();
+	public int convertInternalToQps(long internalValue) {
+		if (totalQps <= 0) {
+			throw new UnsupportedOperationException("Manual mode does not support QPS conversion.");
+		}
+		return (int) Math.round(internalValue / internalScale);
 	}
 
-	public long getTotalDecayItems() {
-		return totalDecayItems.get();
+	public double getInternalScale() {
+		if (totalQps <= 0) {
+			throw new UnsupportedOperationException("Manual mode has no internal scale.");
+		}
+		return internalScale;
 	}
 
-	public double getAvgDecayTimeMs() {
-		long runs = decayRunCount.get();
-		return runs == 0 ? 0 : totalDecayTimeMs.get() / (double) runs;
+	private static int ceilNextPowerOfTwo(int x) {
+		if (x < 2)
+			return 2;
+		if (x > (1 << 30))
+			return 1 << 30;
+		int highest = Integer.highestOneBit(x);
+		return (highest == x) ? x : highest << 1;
+	}
+
+	public int getWidth() {
+		return width;
+	}
+
+	public int getDepth() {
+		return depth;
+	}
+
+	public int getSampleSize() {
+		return sampleSize;
+	}
+
+	public long getTotalQps() {
+		return totalQps;
 	}
 
 	@Override
 	public void close() {
+		if (closed)
+			return;
 		closed = true;
-		decayExecutor.shutdown();
-		try {
-			if (!decayExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-				decayExecutor.shutdownNow();
-				if (!decayExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
-					log.warn("CMS decay executor did not terminate");
-				}
-			}
-		}
-		catch (InterruptedException e) {
-			decayExecutor.shutdownNow();
-			Thread.currentThread().interrupt();
-		}
-		// 释放数组引用，帮助 GC
-		for (int i = 0; i < depth; i++)
-			counters[i] = null;
+		log.info("CMSHotKeyDetector closed.");
 	}
 
 }

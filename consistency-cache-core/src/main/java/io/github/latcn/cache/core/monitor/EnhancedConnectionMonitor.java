@@ -32,22 +32,12 @@ public class EnhancedConnectionMonitor {
 	private Counter reconnectionCounter;
 
 	public EnhancedConnectionMonitor(DistributedCacheManager distributedCacheManager,
-			LocalCacheManager localCacheManager) {
-		this(distributedCacheManager, localCacheManager, 3, null, true);
+			LocalCacheManager localCacheManager, MeterRegistry meterRegistry, int checkIntervalSeconds) {
+		this(distributedCacheManager, localCacheManager, meterRegistry, checkIntervalSeconds, true);
 	}
 
 	public EnhancedConnectionMonitor(DistributedCacheManager distributedCacheManager,
-			LocalCacheManager localCacheManager, int checkIntervalSeconds) {
-		this(distributedCacheManager, localCacheManager, checkIntervalSeconds, null, true);
-	}
-
-	public EnhancedConnectionMonitor(DistributedCacheManager distributedCacheManager,
-			LocalCacheManager localCacheManager, int checkIntervalSeconds, MeterRegistry meterRegistry) {
-		this(distributedCacheManager, localCacheManager, checkIntervalSeconds, meterRegistry, true);
-	}
-
-	public EnhancedConnectionMonitor(DistributedCacheManager distributedCacheManager,
-			LocalCacheManager localCacheManager, int checkIntervalSeconds, MeterRegistry meterRegistry,
+			LocalCacheManager localCacheManager, MeterRegistry meterRegistry, int checkIntervalSeconds,
 			boolean enabled) {
 		if (distributedCacheManager == null) {
 			throw new NullPointerException("distributedCacheManager cannot be null");

@@ -32,22 +32,13 @@ public class MemoryProtectionMonitor {
 
 	private volatile double currentUsageRatio = 0.0;
 
-	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold) {
-		this(localCacheManager, maxSize, warningThreshold, 30, null, true);
+	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, MeterRegistry meterRegistry, long maxSize,
+			double warningThreshold, int checkIntervalSeconds) {
+		this(localCacheManager, meterRegistry, maxSize, warningThreshold, checkIntervalSeconds, true);
 	}
 
-	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
-			int checkIntervalSeconds) {
-		this(localCacheManager, maxSize, warningThreshold, checkIntervalSeconds, null, true);
-	}
-
-	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
-			int checkIntervalSeconds, MeterRegistry meterRegistry) {
-		this(localCacheManager, maxSize, warningThreshold, checkIntervalSeconds, meterRegistry, true);
-	}
-
-	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, long maxSize, double warningThreshold,
-			int checkIntervalSeconds, MeterRegistry meterRegistry, boolean enabled) {
+	public MemoryProtectionMonitor(LocalCacheManager localCacheManager, MeterRegistry meterRegistry, long maxSize,
+			double warningThreshold, int checkIntervalSeconds, boolean enabled) {
 		if (localCacheManager == null) {
 			throw new NullPointerException("localCacheManager cannot be null");
 		}

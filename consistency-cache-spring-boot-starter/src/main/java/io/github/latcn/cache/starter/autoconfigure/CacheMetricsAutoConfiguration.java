@@ -71,10 +71,10 @@ public class CacheMetricsAutoConfiguration {
 			havingValue = "true", matchIfMissing = true)
 	@ConditionalOnBean({ DistributedCacheManager.class, LocalCacheManager.class })
 	public EnhancedConnectionMonitor enhancedConnectionMonitor(DistributedCacheManager distributedCacheManager,
-			LocalCacheManager localCacheManager, HccProperties properties) {
+			LocalCacheManager localCacheManager, MeterRegistry meterRegistry, HccProperties properties) {
 		log.info("Initializing EnhancedConnectionMonitor with check interval: {}s",
 				properties.getMonitor().getConnectionCheckIntervalSeconds());
-		return new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager,
+		return new EnhancedConnectionMonitor(distributedCacheManager, localCacheManager, meterRegistry,
 				properties.getMonitor().getConnectionCheckIntervalSeconds());
 	}
 
@@ -87,12 +87,12 @@ public class CacheMetricsAutoConfiguration {
 			havingValue = "true", matchIfMissing = true)
 	@ConditionalOnBean(LocalCacheManager.class)
 	public MemoryProtectionMonitor memoryProtectionMonitor(LocalCacheManager localCacheManager,
-			HccProperties properties) {
+			MeterRegistry meterRegistry, HccProperties properties) {
 		log.info("Initializing MemoryProtectionMonitor with maxSize: {}, warningThreshold: {}%, interval: {}s",
 				properties.getLocal().getMaximumSize(),
 				(int) (properties.getMonitor().getMemoryWarningThreshold() * 100),
 				properties.getMonitor().getMemoryCheckIntervalSeconds());
-		return new MemoryProtectionMonitor(localCacheManager, properties.getLocal().getMaximumSize(),
+		return new MemoryProtectionMonitor(localCacheManager, meterRegistry, properties.getLocal().getMaximumSize(),
 				properties.getMonitor().getMemoryWarningThreshold(),
 				properties.getMonitor().getMemoryCheckIntervalSeconds());
 	}
