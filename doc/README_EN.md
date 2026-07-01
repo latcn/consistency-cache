@@ -83,14 +83,22 @@ CacheValue value = cacheExecutor.get(cacheKey, key -> {
 
 #### 2. CMSHotKeyDetector
 
-High-performance hot key detector based on Count-Min Sketch probabilistic data structure. Supports thread-safe operations, precision correction, and stable decay for real-time access frequency tracking.
+High-performance hot key detector based on lazy-decay Count-Min Sketch probabilistic data structure. No global scan, no background thread, supports thread-safe operations and stable decay for real-time access frequency tracking.
 
+**Auto-configuration Mode (Recommended)**：
 ```java
 CMSHotKeyDetector detector = new CMSHotKeyDetector(
-    10000,    // Width (number of buckets)
-    5,        // Depth (number of hash functions)
-    0.95f,    // Decay rate
-    100       // Hot key threshold
+    10000L,   // totalQps: Estimated total request volume (per second)
+    100       // targetHotQps: Hot key threshold (requests per second)
+);
+```
+
+**Manual Configuration Mode**：
+```java
+CMSHotKeyDetector detector = new CMSHotKeyDetector(
+    10000,    // width: Number of hash buckets
+    4,        // depth: Number of hash functions
+    5000      // sampleSize: Sample size
 );
 ```
 
@@ -122,13 +130,13 @@ Implements distributed invalidation notifications based on Redis Pub/Sub, suppor
 <dependency>
     <groupId>io.github.latcn</groupId>
     <artifactId>consistency-cache-spring-boot-starter</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 
 **Gradle**:
 ```gradle
-implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.4'
+implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.5'
 ```
 
 ### Basic Configuration
@@ -143,33 +151,40 @@ spring:
       # Local cache configuration
       local:
         cache-type: CAFFEINE
+        cache-clz: io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter
         initial-capacity: 100
-        maximum-size: 10000
-        expire-after-write: 600
-        expire-after-access: 600
+        maximum-size: 100000
         buffer-time-ms: 1000
-        channel-names: hcc_cache_evict
-        batch-size: 100
-        max-wait-seconds: 5
+        clean-period-seconds: 5
+        marker-max-size: 100000
 
       # Distributed cache configuration
       distributed:
+        cache-operation-size: 1000
         max-batch-size: 100
-        max-wait-in-ms: 10
+        max-wait-ms: 10
 
-      # Hotspot detection
-      hotspot:
-        read-hot-key-threshold: 100.0
-        write-invalidation-threshold: 10
-        write-base-blacklist-ttl: 10000
-        write-backoff-multiplier: 2.0
-        write-max-blacklist-time: 100000
-        blacklist-max-size: 10000
+      # Read hotspot detection configuration
+      read-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
+
+      # Write hotspot detection configuration
+      write-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
 
       # Circuit breaker
       circuit-breaker:
-        failure-threshold: 5
-        success-threshold: 3
+        fail-ratio: 0.5
         timeout-ms: 30000
 
       # Monitor configuration
@@ -178,7 +193,93 @@ spring:
         connection-check-interval-seconds: 3
         memory-check-interval-seconds: 30
         memory-warning-threshold: 0.8
+
+      # Cache eviction configuration
+      cache-evict:
+        channel-names: hcc_cache_evict
+        batch-size: 100
+        max-wait-seconds: 5
+        invalidation-queue-capacity: 1000
+        clean-cache-period-seconds: 1
+        base-delay-ms: 1000
+        compensation-batch-size: 50
+        compensation-period-seconds: 10
+        max-retry-count: 5
 ```
+
+### Configuration Parameter Description
+
+#### Local Cache Configuration (local)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| cache-type | String | CAFFEINE | Cache implementation type: GUAVA, CAFFEINE, CUSTOM |
+| cache-clz | String | CaffeineCacheAdapter | Fully qualified name of custom cache implementation class |
+| initial-capacity | int | 100 | Initial capacity |
+| maximum-size | long | 100000 | Maximum capacity |
+| buffer-time-ms | long | 1000 | Buffer time (milliseconds) |
+| clean-period-seconds | int | 5 | Cleanup period (seconds) |
+| marker-max-size | int | 100000 | Maximum marker size |
+
+#### Distributed Cache Configuration (distributed)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| cache-operation-size | int | 1000 | Cache operation queue size |
+| max-batch-size | int | 100 | Maximum batch operation size |
+| max-wait-ms | int | 10 | Maximum wait time (milliseconds) |
+
+#### Read Hotspot Detection Configuration (read-hot)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| total-qps | long | 10000 | Estimated total request volume (requests per second), system peak average QPS |
+| hot-qps | int | 100 | Business-defined hot key threshold (requests per second), e.g., "more than 100 accesses per second is considered hot" |
+| promotion-ratio | double | 0.7 | Promotion threshold ratio to hot threshold (0~1) |
+| max-exact-size | int | 2000 | Maximum exact layer capacity (upper limit of tracked keys), recommended to be estimated hot key count × (2 ~ 3) |
+| expiration-time-ms | long | 30000 | Key expiration time in exact layer (milliseconds). If the key's last access time exceeds this and count is below hotQps, it will be evicted |
+| cleanup-interval-ms | long | 5000 | Regular cleanup task interval (milliseconds). Background thread periodically traverses exact layer to evict expired keys below threshold |
+
+#### Write Hotspot Detection Configuration (write-hot)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| total-qps | long | 10000 | Estimated total write request volume (requests per second) |
+| hot-qps | int | 100 | Business-defined write hot key threshold (requests per second) |
+| promotion-ratio | double | 0.7 | Promotion threshold ratio to hot threshold (0~1) |
+| max-exact-size | int | 2000 | Maximum exact layer capacity |
+| expiration-time-ms | long | 30000 | Key expiration time in exact layer (milliseconds) |
+| cleanup-interval-ms | long | 5000 | Regular cleanup task interval (milliseconds) |
+
+#### Circuit Breaker Configuration (circuit-breaker)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| fail-ratio | double | 0.5 | Failure ratio threshold (triggers circuit break when exceeded) |
+| timeout-ms | int | 30000 | Circuit break timeout (milliseconds), enters half-open state after timeout |
+
+#### Monitor Configuration (monitor)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| enabled | boolean | true | Whether to enable monitoring |
+| connection-check-interval-seconds | int | 3 | Connection check interval (seconds) |
+| memory-check-interval-seconds | int | 30 | Memory check interval (seconds) |
+| memory-warning-threshold | double | 0.8 | Memory warning threshold (0-1) |
+
+#### Cache Eviction Configuration (cache-evict)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| channel-names | String | hcc_cache_evict | Cache invalidation broadcast topic name |
+| batch-size | int | 100 | Batch eviction size |
+| max-wait-seconds | int | 5 | Maximum wait time (seconds) |
+| invalidation-queue-capacity | int | 1000 | Invalidation queue capacity |
+| clean-cache-period-seconds | int | 1 | Cache cleanup period (seconds) |
+| base-delay-ms | long | 1000 | Base delay time (milliseconds) |
+| compensation-batch-size | int | 50 | Compensation batch size |
+| compensation-period-seconds | int | 10 | Compensation period (seconds) |
+| max-retry-count | int | 5 | Maximum retry count |
 
 ### Usage Examples
 
@@ -203,10 +304,9 @@ public class ProductService {
         return productRepository.findById(id);
     }
     
-    @HccCacheable(key = "#userId", 
+    @HccCacheable(key = "#userId",
                   expireTime = 600,
-                  bloomFilterEnabled = true,
-                  transactionEnabled = false)
+                  bloomFilterEnabled = true)
     public User getUserById(Long userId) {
         return userRepository.findById(userId);
     }
@@ -261,11 +361,14 @@ public User getUserWithFallback(Long userId) {
 | Attribute | Type | Default | Description |
 |---------------|-----------|---------------|----------------|
 | key | String | - | SpEL expression for cache key |
-| expireTime | int | 300 | Cache expiration time (seconds) |
-| consistencyLevel | ConsistencyLevel | AVAILABLE | Consistency level: HIGH/AVAILABLE |
+| expireTime | int | 0 | Cache expiration time (seconds), 0 means use global config |
+| consistencyLevel | ConsistencyLevel | HIGH | Consistency level: HIGH/AVAILABLE |
 | cacheLevel | CacheLevel | ADAPTIVE_CACHE | Cache level: LOCAL_CACHE/L2_CACHE/ADAPTIVE_CACHE |
 | bloomFilterEnabled | boolean | false | Enable bloom filter for cache penetration prevention |
-| transactionEnabled | boolean | false | Enable transaction support |
+| cacheNullValues | boolean | true | Whether to cache null values |
+| broadcastEnabled | boolean | true | Enable invalidation broadcast |
+| bloomFilterName | String | "" | Custom bloom filter name |
+| fallbackExecActual | boolean | false | Execute actual method on cache miss |
 
 ---
 
@@ -472,19 +575,28 @@ CREATE TABLE `hcc_cache_message` (
 spring:
   hcc:
     cache:
-      hotspot:
-        read-hot-key-threshold: 100.0
-        write-invalidation-threshold: 10
-        write-base-blacklist-ttl: 10000
-        write-backoff-multiplier: 2.0
-        write-max-blacklist-time: 100000
-        blacklist-max-size: 10000
+      read-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
+
+      write-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
 ```
 
 **Tuning Recommendations**:
-- High concurrency scenarios: Increase `read-hot-key-threshold` to 200-500
-- Write-heavy scenarios: Decrease `write-invalidation-threshold` and enable write hotspot blacklist
-- Memory-constrained scenarios: Reduce `blacklist-max-size`
+- High concurrency scenarios: Increase `total-qps` and `hot-qps` parameters based on actual system peak
+- Write-heavy scenarios: Decrease `write-hot.hot-qps` threshold
+- Memory-constrained scenarios: Reduce `max-exact-size` to limit tracked keys in exact layer
+- High business fluctuation scenarios: Reduce `expiration-time-ms` to speed up expired key cleanup
 
 ### Q3: How to handle frequent circuit breaker trips?
 
@@ -500,7 +612,7 @@ spring:
   hcc:
     cache:
       circuit-breaker:
-        failure-threshold: 10
+        fail-ratio: 0.8
         timeout-ms: 60000
 ```
 
@@ -508,16 +620,20 @@ spring:
 
 ## 📈 Version History
 
-### v1.0.4 (Current)
+### v1.0.5 (Current)
 - ✅ Spring Boot 3.x upgrade
 - ✅ Micrometer + Prometheus monitoring integration
-- ✅ Read hotspot detection optimization (DefaultReadHotspotDetector)
-- ✅ Write hotspot blacklist mechanism (DefaultWriteHotspotDetector)
+- ✅ Lazy-decay CMS hot key detector refactoring (no global scan, no background thread)
+- ✅ Hotspot detection configuration refactoring (read-hot / write-hot separate config)
 - ✅ Enhanced connection monitoring (EnhancedConnectionMonitor)
 - ✅ Memory protection monitoring (MemoryProtectionMonitor)
 - ✅ Cuckoo Filter cache penetration protection
 - ✅ Annotation attribute enhancements (bloomFilterEnabled, transactionEnabled)
 - ✅ Multiple local cache implementation support (Caffeine/Guava)
+
+### v1.0.4
+- ✅ Read hotspot detection optimization (DefaultReadHotspotDetector)
+- ✅ Write hotspot blacklist mechanism (DefaultWriteHotspotDetector)
 
 ### v1.0.0 - v1.0.3
 - ✅ Basic multi-level cache architecture (L1 + L2)

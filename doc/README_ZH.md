@@ -83,14 +83,22 @@ CacheValue value = cacheExecutor.get(cacheKey, key -> {
 
 #### 2. CMSHotKeyDetector (热点检测器)
 
-基于 Count-Min Sketch 概率数据结构实现的高性能热点检测器。支持并发安全、精度修正和稳定衰减，能够实时统计键的访问频率，自动识别读热点和写热点。
+基于惰性衰减的 Count-Min Sketch 概率数据结构实现的高性能热点检测器。无全局扫描，无后台线程，支持并发安全和稳定衰减，能够实时统计键的访问频率，自动识别读热点和写热点。
 
+**自动配置模式（推荐）**：
 ```java
 CMSHotKeyDetector detector = new CMSHotKeyDetector(
-    10000,    // Width (number of buckets)
-    5,        // Depth (number of hash functions)
-    0.95f,    // Decay rate
-    100       // Hot key threshold
+    10000L,   // totalQps: 系统预估的总请求量（每秒）
+    100       // targetHotQps: 热点阈值（每秒请求数）
+);
+```
+
+**手动配置模式**：
+```java
+CMSHotKeyDetector detector = new CMSHotKeyDetector(
+    10000,    // width: 哈希桶数量
+    4,        // depth: 哈希函数数量
+    5000      // sampleSize: 采样大小
 );
 ```
 
@@ -122,13 +130,13 @@ try {
 <dependency>
     <groupId>io.github.latcn</groupId>
     <artifactId>consistency-cache-spring-boot-starter</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
 </dependency>
 ```
 
 **Gradle**:
 ```gradle
-implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.4'
+implementation 'io.github.latcn:consistency-cache-spring-boot-starter:1.0.5'
 ```
 
 ### 基础配置
@@ -139,46 +147,126 @@ spring:
   hcc:
     cache:
       enabled: true
-      
+
       # 本地缓存配置
       local:
         cache-type: CAFFEINE
+        cache-clz: io.github.latcn.cache.spring.local.adapter.CaffeineCacheAdapter
         initial-capacity: 100
-        maximum-size: 10000
-        expire-after-write: 600
-        expire-after-access: 600
+        maximum-size: 100000
         buffer-time-ms: 1000
-        channel-names: hcc_cache_evict
-        batch-size: 100
-        max-wait-seconds: 5
-      
+        clean-period-seconds: 5
+        marker-max-size: 100000
+
       # 分布式缓存配置
       distributed:
+        cache-operation-size: 1000
         max-batch-size: 100
-        max-wait-in-ms: 10
-      
-      # 热点检测配置
-      hotspot:
-        read-hot-key-threshold: 100.0
-        write-invalidation-threshold: 10
-        write-base-blacklist-ttl: 10000
-        write-backoff-multiplier: 2.0
-        write-max-blacklist-time: 100000
-        blacklist-max-size: 10000
-      
+        max-wait-ms: 10
+
+      # 读热点检测配置
+      read-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
+
+      # 写热点检测配置
+      write-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
+
       # 熔断器配置
       circuit-breaker:
-        failure-threshold: 5
-        success-threshold: 3
+        fail-ratio: 0.5
         timeout-ms: 30000
-      
+
       # 监控配置
       monitor:
         enabled: true
         connection-check-interval-seconds: 3
         memory-check-interval-seconds: 30
         memory-warning-threshold: 0.8
+
+      # 缓存失效配置
+      cache-evict:
+        channel-names: hcc_cache_evict
+        batch-size: 100
+        max-wait-seconds: 5
+        invalidation-queue-capacity: 1000
+        clean-cache-period-seconds: 1
+        base-delay-ms: 1000
+        compensation-batch-size: 50
+        compensation-period-seconds: 10
+        max-retry-count: 5
 ```
+
+### 配置参数说明
+
+#### 本地缓存配置 (local)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| cache-type | String | CAFFEINE | 缓存实现类型：GUAVA, CAFFEINE, CUSTOM |
+| cache-clz | String | CaffeineCacheAdapter | 自定义缓存实现类全限定名 |
+| initial-capacity | int | 100 | 初始容量 |
+| maximum-size | long | 100000 | 最大容量 |
+| buffer-time-ms | long | 1000 | 漂移时间（毫秒） |
+| clean-period-seconds | int | 5 | 清理周期（秒） |
+| marker-max-size | int | 100000 | 标记最大数量 |
+
+#### 分布式缓存配置 (distributed)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| cache-operation-size | int | 1000 | 缓存操作队列大小 |
+| max-batch-size | int | 100 | 最大批量操作大小 |
+| max-wait-ms | int | 10 | 最大等待时间（毫秒） |
+
+#### 热点检测配置 (hotspot)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| read-hot-key-threshold | int | 100 | 读热点检测阈值 |
+| read-hot-key-max-size | int | 10000 | 读热点 key 最大数量 |
+| write-hot-key-threshold | int | 10 | 写热点检测阈值 |
+| write-hot-key-max-size | int | 10000 | 写热点 key 最大数量 |
+
+#### 熔断器配置 (circuit-breaker)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| fail-ratio | double | 0.5 | 失败比率阈值（超过此值触发熔断） |
+| timeout-ms | int | 30000 | 熔断超时时间（毫秒），超时后进入半开状态 |
+
+#### 监控配置 (monitor)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| enabled | boolean | true | 是否启用监控 |
+| connection-check-interval-seconds | int | 3 | 连接检查间隔（秒） |
+| memory-check-interval-seconds | int | 30 | 内存检查间隔（秒） |
+| memory-warning-threshold | double | 0.8 | 内存告警阈值（0-1） |
+
+#### 缓存失效配置 (cache-evict)
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| channel-names | String | hcc_cache_evict | 缓存失效广播 topic 名称 |
+| batch-size | int | 100 | 批量失效大小 |
+| max-wait-seconds | int | 5 | 最大等待时间（秒） |
+| invalidation-queue-capacity | int | 1000 | 失效队列容量 |
+| clean-cache-period-seconds | int | 1 | 缓存清理周期（秒） |
+| base-delay-ms | long | 1000 | 基础延迟时间（毫秒） |
+| compensation-batch-size | int | 50 | 补偿批量大小 |
+| compensation-period-seconds | int | 10 | 补偿周期（秒） |
+| max-retry-count | int | 5 | 最大重试次数 |
 
 ### 使用示例
 
@@ -203,10 +291,9 @@ public class ProductService {
         return productRepository.findById(id);
     }
     
-    @HccCacheable(key = "#userId", 
+    @HccCacheable(key = "#userId",
                   expireTime = 600,
-                  bloomFilterEnabled = true,
-                  transactionEnabled = false)
+                  bloomFilterEnabled = true)
     public User getUserById(Long userId) {
         return userRepository.findById(userId);
     }
@@ -261,11 +348,14 @@ public User getUserWithFallback(Long userId) {
 | 属性 | 类型 | 默认值 | 说明 |
 |---------------|-----------|---------------|----------------|
 | key | String | - | SpEL 表达式定义缓存键 |
-| expireTime | int | 300 | 缓存过期时间（秒） |
-| consistencyLevel | ConsistencyLevel | AVAILABLE | 一致性级别：HIGH/AVAILABLE |
+| expireTime | int | 0 | 缓存过期时间（秒），0 表示使用全局配置 |
+| consistencyLevel | ConsistencyLevel | HIGH | 一致性级别：HIGH/AVAILABLE |
 | cacheLevel | CacheLevel | ADAPTIVE_CACHE | 缓存级别：LOCAL_CACHE/L2_CACHE/ADAPTIVE_CACHE |
 | bloomFilterEnabled | boolean | false | 是否启用布隆过滤器防穿透 |
-| transactionEnabled | boolean | false | 是否启用事务支持 |
+| cacheNullValues | boolean | true | 是否缓存 null 值 |
+| broadcastEnabled | boolean | true | 是否启用失效广播 |
+| bloomFilterName | String | "" | 自定义布隆过滤器名称 |
+| fallbackExecActual | boolean | false | 是否在缓存未命中时执行实际方法 |
 
 ---
 
@@ -472,19 +562,28 @@ CREATE TABLE `hcc_cache_message` (
 spring:
   hcc:
     cache:
-      hotspot:
-        read-hot-key-threshold: 100.0
-        write-invalidation-threshold: 10
-        write-base-blacklist-ttl: 10000
-        write-backoff-multiplier: 2.0
-        write-max-blacklist-time: 100000
-        blacklist-max-size: 10000
+      read-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
+
+      write-hot:
+        total-qps: 10000
+        hot-qps: 100
+        promotion-ratio: 0.7
+        max-exact-size: 2000
+        expiration-time-ms: 30000
+        cleanup-interval-ms: 5000
 ```
 
 **调优建议**:
-- 高并发场景：提高 `read-hot-key-threshold` 至 200-500
-- 写多读少场景：降低 `write-invalidation-threshold`，启用写热点黑名单
-- 内存受限场景：减小 `blacklist-max-size`
+- 高并发场景：提高 `total-qps` 和 `hot-qps` 参数，根据实际系统峰值调整
+- 写多读少场景：降低 `write-hot.hot-qps` 阈值
+- 内存受限场景：减小 `max-exact-size`，减少精确层跟踪的 key 数量
+- 业务波动大场景：减小 `expiration-time-ms`，加快过期 key 清理
 
 ### Q3: 熔断器频繁跳闸如何处理？
 
@@ -500,7 +599,7 @@ spring:
   hcc:
     cache:
       circuit-breaker:
-        failure-threshold: 10
+        fail-ratio: 0.8
         timeout-ms: 60000
 ```
 
@@ -508,16 +607,20 @@ spring:
 
 ## 📈 版本演进
 
-### v1.0.4 (当前版本)
+### v1.0.5 (当前版本)
 - ✅ Spring Boot 3.x 版本升级
 - ✅ Micrometer + Prometheus 监控集成
-- ✅ 读热点检测优化 (DefaultReadHotspotDetector)
-- ✅ 写热点黑名单机制 (DefaultWriteHotspotDetector)
+- ✅ 惰性衰减 CMS 热点检测器重构 (无全局扫描，无后台线程)
+- ✅ 热点检测配置重构 (read-hot / write-hot 独立配置)
 - ✅ 增强型连接监控 (EnhancedConnectionMonitor)
 - ✅ 内存保护监控 (MemoryProtectionMonitor)
 - ✅ Cuckoo Filter 缓存穿透防护
 - ✅ 注解属性增强 (bloomFilterEnabled, transactionEnabled)
 - ✅ 本地缓存多实现支持 (Caffeine/Guava)
+
+### v1.0.4
+- ✅ 读热点检测优化 (DefaultReadHotspotDetector)
+- ✅ 写热点黑名单机制 (DefaultWriteHotspotDetector)
 
 ### v1.0.0 - v1.0.3
 - ✅ 基础多级缓存架构 (L1 + L2)

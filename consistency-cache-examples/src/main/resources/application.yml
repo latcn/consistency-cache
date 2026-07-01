@@ -17,8 +17,8 @@ spring:
         enabled: true
       local:
         initialCapacity: 1000
-      hotspot:
-        readHotKeyThreshold: 80
+      read-hot:
+        hot-qps: 80
       circuitBreaker:
         failRatio: 0.5
       cacheEvict:
