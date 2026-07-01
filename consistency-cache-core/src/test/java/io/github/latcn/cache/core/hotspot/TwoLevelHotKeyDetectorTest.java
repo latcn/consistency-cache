@@ -1,7 +1,8 @@
-package io.github.latcn.cache.core.hotspot.base;
+package io.github.latcn.cache.core.hotspot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.latcn.cache.core.hotspot.base.TwoLevelHotKeyDetector;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,8 +29,8 @@ class TwoLevelHotKeyDetectorTest {
 
 	@BeforeEach
 	void setUp() {
-		detector = new TwoLevelHotKeyDetector(TOTAL_QPS, HOT_QPS, 4, PROMOTION_RATIO, MAX_EXACT_SIZE, EXPIRATION_MS,
-				CLEANUP_INTERVAL_MS);
+		detector = new TwoLevelHotKeyDetector(TOTAL_QPS, HOT_QPS, 2, 1000, 4, PROMOTION_RATIO, MAX_EXACT_SIZE,
+				EXPIRATION_MS, CLEANUP_INTERVAL_MS);
 	}
 
 	@Test
@@ -54,7 +55,7 @@ class TwoLevelHotKeyDetectorTest {
 	// 其他测试方法保持不变，但注意也要使用固定时间戳或调整参数
 	@Test
 	void testCapacityEviction() throws InterruptedException {
-		TwoLevelHotKeyDetector testDetector = new TwoLevelHotKeyDetector(1000, 5, 4, 0.8, 10, 5000, 1000);
+		TwoLevelHotKeyDetector testDetector = new TwoLevelHotKeyDetector(1000, 5, 1, 1000, 4, 0.8, 10, 5000, 1000);
 		long now = System.nanoTime();
 		for (int i = 0; i < 20; i++) {
 			String key = "key" + i;

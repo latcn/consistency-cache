@@ -78,12 +78,19 @@ public class HccProperties {
 	@NoArgsConstructor
 	public static class HotspotProperties {
 
-		// 系统预估的总请求量（每秒总请求数）系统峰值平均QPS（如日高峰时段的平均值）
+		// cms 系统预估的总请求量（每秒总请求数）系统峰值平均QPS（如日高峰时段的平均值）
 		private long totalQps = 10000;
 
-		// 业务上定义的热点阈值（每秒请求数），例如“每秒超过100次访问即视为热点”
+		// cms 业务上定义的热点阈值（每秒请求数），例如“每秒超过100次访问即视为热点”
 		private int hotQps = 100;
 
+		// cms 允许的最大绝对误差 整个采样窗口（sampleSize）内的总计数误差
+		private int maxAbsError = 10;
+
+		// cms 统计窗口时长（毫秒）
+		private int windowMs = 1000;
+
+		// cms depth
 		private int depth = 4;
 
 		// 晋升阈值占热点阈值的比例（0~1）
