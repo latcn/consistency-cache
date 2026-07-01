@@ -16,7 +16,7 @@ class CMSHotKeyDetectorTest {
 	@BeforeEach
 	void setUp() {
 		// 使用自动构造，模拟总 QPS=10000，目标热 QPS=100
-		detector = new CMSHotKeyDetector(10000, 100);
+		detector = new CMSHotKeyDetector(10000, 100, 4);
 	}
 
 	@Test
@@ -101,7 +101,7 @@ class CMSHotKeyDetectorTest {
 	void testQpsConversion() {
 		long totalQps = 10000;
 		int targetHotQps = 100;
-		CMSHotKeyDetector autoDetector = new CMSHotKeyDetector(totalQps, targetHotQps);
+		CMSHotKeyDetector autoDetector = new CMSHotKeyDetector(totalQps, targetHotQps, 4);
 
 		// 验证 internalScale 计算正确：2 * sampleSize / totalQps
 		// 对于 totalQps=10000，sampleSize=5000，scale=1.0
@@ -118,7 +118,7 @@ class CMSHotKeyDetectorTest {
 		// 当 totalQps < 2*MIN_SAMPLE_SIZE 时，sampleSize 应被钳制到 MIN_SAMPLE_SIZE
 		long smallTotalQps = 100;
 		int targetHotQps = 10;
-		CMSHotKeyDetector detector = new CMSHotKeyDetector(smallTotalQps, targetHotQps);
+		CMSHotKeyDetector detector = new CMSHotKeyDetector(smallTotalQps, targetHotQps, 4);
 		// 实际 sampleSize = 1024
 		double expectedScale = 2.0 * 1024 / smallTotalQps; // 20.48
 		assertEquals(expectedScale, detector.getInternalScale(), 1e-6);

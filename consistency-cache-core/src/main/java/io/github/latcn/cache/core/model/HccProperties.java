@@ -84,6 +84,8 @@ public class HccProperties {
 		// 业务上定义的热点阈值（每秒请求数），例如“每秒超过100次访问即视为热点”
 		private int hotQps = 100;
 
+		private int depth = 4;
+
 		// 晋升阈值占热点阈值的比例（0~1）
 		private double promotionRatio = 0.7;
 

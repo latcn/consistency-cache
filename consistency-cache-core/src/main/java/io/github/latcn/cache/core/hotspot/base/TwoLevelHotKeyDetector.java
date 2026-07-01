@@ -50,9 +50,9 @@ public class TwoLevelHotKeyDetector implements AutoCloseable {
 	// 触发全量排序驱逐的阈值（容量超出 110% 时触发）
 	private static final double EVICT_TRIGGER_RATIO = 1.1;
 
-	public TwoLevelHotKeyDetector(long totalQps, int hotQps, double promotionRatio, int maxExactSize,
+	public TwoLevelHotKeyDetector(long totalQps, int hotQps, int depth, double promotionRatio, int maxExactSize,
 			long expirationTimeMs, long cleanupIntervalMs) {
-		this.cmsFilter = new CMSHotKeyDetector(totalQps, hotQps);
+		this.cmsFilter = new CMSHotKeyDetector(totalQps, hotQps, depth);
 		this.exactCounter = new ConcurrentHashMap<>();
 		this.hotQps = hotQps;
 		this.promotionRatio = promotionRatio;

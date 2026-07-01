@@ -10,8 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CMSHotKeyDetector implements AutoCloseable {
 
-	private static final int DEFAULT_DEPTH = 4;
-
 	private static final int MIN_SAMPLE_SIZE = 1024;
 
 	private static final int MAX_AUTO_WIDTH = 16384;
@@ -49,12 +47,12 @@ public class CMSHotKeyDetector implements AutoCloseable {
 
 	private volatile boolean closed = false;
 
-	public CMSHotKeyDetector(long totalQps, int targetHotQps) {
+	public CMSHotKeyDetector(long totalQps, int targetHotQps, int depth) {
 		if (totalQps <= 0 || targetHotQps <= 0) {
 			throw new IllegalArgumentException("totalQps and targetHotQps must be positive");
 		}
 		this.totalQps = totalQps;
-		this.depth = DEFAULT_DEPTH;
+		this.depth = depth;
 
 		long rawSample = totalQps / 2;
 		if (rawSample < MIN_SAMPLE_SIZE)

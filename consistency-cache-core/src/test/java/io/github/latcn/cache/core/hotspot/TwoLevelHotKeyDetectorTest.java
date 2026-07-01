@@ -28,7 +28,7 @@ class TwoLevelHotKeyDetectorTest {
 
 	@BeforeEach
 	void setUp() {
-		detector = new TwoLevelHotKeyDetector(TOTAL_QPS, HOT_QPS, PROMOTION_RATIO, MAX_EXACT_SIZE, EXPIRATION_MS,
+		detector = new TwoLevelHotKeyDetector(TOTAL_QPS, HOT_QPS, 4, PROMOTION_RATIO, MAX_EXACT_SIZE, EXPIRATION_MS,
 				CLEANUP_INTERVAL_MS);
 	}
 
@@ -54,7 +54,7 @@ class TwoLevelHotKeyDetectorTest {
 	// 其他测试方法保持不变，但注意也要使用固定时间戳或调整参数
 	@Test
 	void testCapacityEviction() throws InterruptedException {
-		TwoLevelHotKeyDetector testDetector = new TwoLevelHotKeyDetector(1000, 5, 0.8, 10, 5000, 1000);
+		TwoLevelHotKeyDetector testDetector = new TwoLevelHotKeyDetector(1000, 5, 4, 0.8, 10, 5000, 1000);
 		long now = System.nanoTime();
 		for (int i = 0; i < 20; i++) {
 			String key = "key" + i;

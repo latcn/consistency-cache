@@ -12,8 +12,9 @@ public class DefaultHotspotDetector implements HotspotDetector, AutoCloseable {
 
 	public DefaultHotspotDetector(HccProperties.HotspotProperties hotspotProperties) {
 		this.hotKeyDetector = new TwoLevelHotKeyDetector(hotspotProperties.getTotalQps(), hotspotProperties.getHotQps(),
-				hotspotProperties.getPromotionRatio(), hotspotProperties.getMaxExactSize(),
-				hotspotProperties.getExpirationTimeMs(), hotspotProperties.getCleanupIntervalMs());
+				hotspotProperties.getDepth(), hotspotProperties.getPromotionRatio(),
+				hotspotProperties.getMaxExactSize(), hotspotProperties.getExpirationTimeMs(),
+				hotspotProperties.getCleanupIntervalMs());
 	}
 
 	@Override
